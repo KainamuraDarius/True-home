@@ -1,0 +1,106 @@
+{
+  "project_info": {
+    "project_number": "843422990018",
+    "project_id": "truehome-9a244",
+    "storage_bucket": "truehome-9a244.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:843422990018:android:19395b0ae931a98498455b",
+        "android_client_info": {
+          "package_name": "com.example.true_home"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "843422990018-afb79thcgi91fb6oo9l7j0sqt8qbnnuf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.true_home",
+            "certificate_hash": "e63851f60fd2bf6e87dc0f5c47c5ceb8004abfbe"
+          }
+        },
+        {
+          "client_id": "843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfGVLb-tBvyXpfQLzi-Rw3oP1taV145wY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "843422990018-kos3260fbfs0q8ehlkgv4jm7ttbrjkai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.trueHome"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:843422990018:android:477c2ba24850205298455b",
+        "android_client_info": {
+          "package_name": "com.truehome.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "843422990018-7k2pusu5782ig1onu1vqgfot98kr1qt1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.truehome.app",
+            "certificate_hash": "466c66cb6244a4f037859290e69ebb2fbea0b6a6"
+          }
+        },
+        {
+          "client_id": "843422990018-v0hem1ujtvmv8q6mbfqdjgjtj9imb656.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.truehome.app",
+            "certificate_hash": "49991d7b917030b49fae4f939a165e88e82be687"
+          }
+        },
+        {
+          "client_id": "843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfGVLb-tBvyXpfQLzi-Rw3oP1taV145wY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "843422990018-kos3260fbfs0q8ehlkgv4jm7ttbrjkai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.trueHome"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
