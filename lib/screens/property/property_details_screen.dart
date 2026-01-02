@@ -115,29 +115,25 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                         });
                       },
                       itemBuilder: (context, index) {
-                        final imageId = widget.property.imageUrls[index];
-                        return FutureBuilder<Uint8List?>(
-                          future: DatabaseHelper.instance.getImage(imageId),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.waiting) {
-                              return Container(
-                                color: Colors.grey[300],
-                                child: const Center(child: CircularProgressIndicator()),
-                              );
-                            }
-                            if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-                              return Container(
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.image_not_supported,
-                                  size: 64,
-                                ),
-                              );
-                            }
-                            return Image.memory(
-                              snapshot.data!,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
+                        final imageUrl = widget.property.imageUrls[index];
+                        return Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Center(child: CircularProgressIndicator()),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.image_not_supported,
+                                size: 64,
+                              ),
                             );
                           },
                         );

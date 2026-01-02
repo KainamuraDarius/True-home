@@ -166,28 +166,24 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                    child: FutureBuilder<Uint8List?>(
-                      future: DatabaseHelper.instance.getImage(property.imageUrls.first),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Container(
-                            height: 200,
-                            color: Colors.grey[300],
-                            child: const Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-                          return Container(
-                            height: 200,
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.image_not_supported, size: 64),
-                          );
-                        }
-                        return Image.memory(
-                          snapshot.data!,
+                    child: Image.network(
+                      property.imageUrls.first,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
                           height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
+                          color: Colors.grey[300],
+                          child: const Center(child: CircularProgressIndicator()),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 200,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.image_not_supported, size: 64),
                         );
                       },
                     ),

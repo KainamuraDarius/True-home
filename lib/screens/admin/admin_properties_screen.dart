@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:typed_data';
 import '../../models/property_model.dart';
 import '../../utils/app_theme.dart';
-import '../../utils/database_helper.dart';
 import 'property_review_screen.dart';
 
 class AdminPropertiesScreen extends StatefulWidget {
@@ -186,28 +184,24 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                 if (property.imageUrls.isNotEmpty)
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                    child: FutureBuilder<Uint8List?>(
-                      future: DatabaseHelper.instance.getImage(property.imageUrls.first),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Container(
-                            height: 200,
-                            color: Colors.grey[300],
-                            child: const Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-                          return Container(
-                            height: 200,
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.image_not_supported, size: 64),
-                          );
-                        }
-                        return Image.memory(
-                          snapshot.data!,
+                    child: Image.network(
+                      property.imageUrls.first,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
                           height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
+                          color: Colors.grey[300],
+                          child: const Center(child: CircularProgressIndicator()),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 200,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.image_not_supported, size: 64),
                         );
                       },
                     ),
@@ -331,10 +325,8 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
 
   Future<void> _deleteProperty(PropertyModel property) async {
     try {
-      // Delete images from database
-      for (String imageUrl in property.imageUrls) {
-        await DatabaseHelper.instance.deleteImage(imageUrl);
-      }
+      // Note: ImgBB free tier doesn't support API deletion
+      // Images will remain on ImgBB but property will be removed from app
       
       // Delete property document from Firestore
       await FirebaseFirestore.instance

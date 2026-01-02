@@ -4,13 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
-import '../../utils/database_helper.dart';
+import '../../services/imgbb_service.dart';
 
 class AddPropertyScreen extends StatefulWidget {
   const AddPropertyScreen({super.key});
@@ -78,14 +77,11 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   }
 
   Future<List<String>> _uploadImages() async {
-    final List<String> imageIds = [];
-    
-    // Generate a temporary property ID for grouping images
-    final tempPropertyId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final List<String> imageUrls = [];
 
     for (int i = 0; i < _selectedImages.length; i++) {
       try {
-        print('Processing image ${i + 1}/${_selectedImages.length}');
+        print('Uploading image ${i + 1}/${_selectedImages.length} to ImgBB');
         final file = File(_selectedImages[i].path);
         final bytes = await file.readAsBytes();
         print('Original image size: ${bytes.length} bytes');
@@ -94,35 +90,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         img.Image? image = img.decodeImage(bytes);
         if (image == null) {
           print('Failed to decode image ${i + 1}');
-          continue;
-        }
-        
-        print('Original dimensions: ${image.width}x${image.height}');
-        
-        // Resize image more aggressively to max width of 600px
-        if (image.width > 600) {
-          image = img.copyResize(image, width: 600);
-        } else if (image.height > 800) {
-          // Also check height and resize if too tall
-          image = img.copyResize(image, height: 800);
-        }
-        
-        print('Resized dimensions: ${image.width}x${image.height}');
-        
-        // Compress as JPEG with 70% quality for smaller size
-        final compressedBytes = Uint8List.fromList(
-          img.encodeJpg(image, quality: 70),
-        );
-        
-        print('Compressed image size: ${compressedBytes.length} bytes');
-        
-        // Check if compressed size is within SQLite limits (max ~1MB to be safe)
-        if (compressedBytes.length > 1000000) {
-          print('Image ${i + 1} still too large after compression, skipping');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Image ${i + 1} is too large and was skipped'),
+                content: Text('Failed to process image ${i + 1}'),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -130,20 +101,58 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
           continue;
         }
         
-        // Store compressed image in SQLite
-        final imageId = await DatabaseHelper.instance.insertImage(
-          propertyId: tempPropertyId,
-          imageData: compressedBytes,
+        print('Original dimensions: ${image.width}x${image.height}');
+        
+        // Resize image to max width of 1200px for good quality
+        if (image.width > 1200) {
+          image = img.copyResize(image, width: 1200);
+        } else if (image.height > 1600) {
+          image = img.copyResize(image, height: 1600);
+        }
+        
+        print('Resized dimensions: ${image.width}x${image.height}');
+        
+        // Compress as JPEG with 85% quality
+        final compressedBytes = Uint8List.fromList(
+          img.encodeJpg(image, quality: 85),
         );
-        imageIds.add(imageId);
-        print('Successfully stored image ${i + 1} with ID: $imageId');
+        
+        print('Compressed image size: ${compressedBytes.length} bytes');
+        
+        // Upload to ImgBB (FREE unlimited storage!)
+        final imageUrl = await ImgBBService.uploadImage(compressedBytes);
+        
+        if (imageUrl != null) {
+          imageUrls.add(imageUrl);
+          print('Successfully uploaded image ${i + 1} to ImgBB: $imageUrl');
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Uploaded image ${i + 1}/${_selectedImages.length}'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          }
+        } else {
+          print('Failed to upload image ${i + 1} to ImgBB');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload image ${i + 1}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
         
       } catch (e) {
         print('Error processing image ${i + 1}: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to process image ${i + 1}'),
+              content: Text('Error with image ${i + 1}: ${e.toString()}'),
               backgroundColor: Colors.red,
             ),
           );
@@ -153,8 +162,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
       }
     }
 
-    print('Successfully processed ${imageIds.length}/${_selectedImages.length} images');
-    return imageIds;
+    print('Successfully uploaded ${imageUrls.length}/${_selectedImages.length} images to ImgBB');
+    return imageUrls;
   }
 
   Future<void> _submitProperty() async {

@@ -1,0 +1,11 @@
+// API Keys configuration template
+// Copy this file to api_keys.dart and add your actual API keys
+
+class ApiKeys {
+  // ImgBB API Key - Get yours from https://api.imgbb.com/
+  static const String imgbbApiKey = 'YOUR_IMGBB_API_KEY_HERE';
+  
+  // Add other API keys here as needed
+  // Example:
+  // static const String googleMapsApiKey = 'YOUR_GOOGLE_MAPS_KEY';
+}

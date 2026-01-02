@@ -570,46 +570,37 @@ class _HomeTabState extends State<HomeTab> {
                 top: Radius.circular(12),
               ),
               child: property.imageUrls.isNotEmpty
-                  ? FutureBuilder<Uint8List?>(
-                      future: DatabaseHelper.instance.getImage(
-                        property.imageUrls.first,
-                      ),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Container(
-                            height: 120,
-                            width: double.infinity,
-                            color: AppColors.surfaceLight,
-                            child: const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                        if (snapshot.hasError ||
-                            !snapshot.hasData ||
-                            snapshot.data == null) {
-                          return Container(
-                            height: 120,
-                            width: double.infinity,
-                            color: AppColors.surfaceLight,
-                            child: const Icon(
-                              Icons.image_not_supported,
-                              size: 30,
-                            ),
-                          );
-                        }
-                        return Image.memory(
-                          snapshot.data!,
+                  ? Image.network(
+                      property.imageUrls.first,
+                      height: 120,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
                           height: 120,
                           width: double.infinity,
-                          fit: BoxFit.cover,
+                          color: AppColors.surfaceLight,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 120,
+                          width: double.infinity,
+                          color: AppColors.surfaceLight,
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            size: 30,
+                          ),
                         );
                       },
                     )
@@ -1329,19 +1320,23 @@ class _SearchTabState extends State<SearchTab> {
                       top: Radius.circular(12),
                     ),
                     child: property.imageUrls.isNotEmpty
-                        ? FutureBuilder<Uint8List?>(
-                            future: DatabaseHelper.instance.getImage(
-                              property.imageUrls[0],
-                            ),
-                            builder: (context, snapshot) {
-                              if (snapshot.hasData && snapshot.data != null) {
-                                return Image.memory(
-                                  snapshot.data!,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                );
-                              }
+                        ? Image.network(
+                            property.imageUrls[0],
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.home,
+                                  size: 50,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
                               return Container(
                                 color: Colors.grey[300],
                                 child: const Icon(
@@ -1722,19 +1717,23 @@ class _FavoritesTabState extends State<FavoritesTab> {
                       top: Radius.circular(12),
                     ),
                     child: property.imageUrls.isNotEmpty
-                        ? FutureBuilder<Uint8List?>(
-                            future: DatabaseHelper.instance.getImage(
-                              property.imageUrls[0],
-                            ),
-                            builder: (context, snapshot) {
-                              if (snapshot.hasData && snapshot.data != null) {
-                                return Image.memory(
-                                  snapshot.data!,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                );
-                              }
+                        ? Image.network(
+                            property.imageUrls[0],
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.home,
+                                  size: 50,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
                               return Container(
                                 color: Colors.grey[300],
                                 child: const Icon(
