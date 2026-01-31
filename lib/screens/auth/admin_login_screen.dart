@@ -38,11 +38,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           password: _passwordController.text,
         );
 
-        print('Login successful, user role: ${user?.role}');
+        print('Login successful, user active role: ${user?.activeRole}');
 
         if (user != null && mounted) {
-          // Verify user is admin
-          if (user.role != UserRole.admin) {
+          // Verify user has admin role
+          if (!user.roles.contains(UserRole.admin)) {
             await _authService.signOut();
             throw Exception('Unauthorized: Admin access only');
           }

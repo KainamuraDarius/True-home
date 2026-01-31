@@ -1,0 +1,24 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class AirtelMoneyService {
+  // TODO: Add your Airtel Money credentials here after approval
+  // Get these from: https://developers.airtel.africa/developer/dashboard
+  String? clientId; // Get from Airtel portal after approval
+  String? clientSecret; // Get from Airtel portal after approval
+
+  // For testing until Airtel approves your application
+  final bool useMockMode = true; // Set to false when you have real credentials
+
+  final String baseUrl = 'https://openapiuat.airtel.africa'; // Sandbox URL
+  // Production URL: https://openapi.airtel.africa
+
+  // Set credentials from Airtel portal
+  void setCredentials({required String id, required String secret}) {
+    clientId = id;
+    clientSecret = secret;
+  }
+
+  // ... rest of the implementation remains the same
+  // Copy from the original file after adding your credentials
+}

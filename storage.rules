@@ -1,14 +1,33 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow authenticated users to read all files
-    match /{allPaths=**} {
+    // Verification documents - users can upload to their own folder
+    match /verification_documents/{userId}/{allPaths=**} {
       allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Allow authenticated users to upload their own property images
-    match /properties/{userId}/{fileName} {
+    // Property images - public read, authenticated write to own folder
+    match /properties/{userId}/{allPaths=**} {
+      allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Property images alternative path
+    match /property_images/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Profile pictures - public read, user can write their own
+    match /profile_pictures/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Fallback - authenticated users can read all
+    match /{allPaths=**} {
+      allow read: if request.auth != null;
     }
   }
 }

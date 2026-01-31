@@ -32,9 +32,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   const SizedBox(width: 8),
                   _buildFilterChip('Customers', 'customer'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Property Owners', 'propertyOwner'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Managers', 'propertyManager'),
+                  _buildFilterChip('Property Agents', 'propertyAgent'),
                   const SizedBox(width: 8),
                   _buildFilterChip('Admins', 'admin'),
                 ],
@@ -250,10 +248,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     switch (role) {
       case 'customer':
         return Colors.blue;
-      case 'propertyOwner':
+      case 'propertyAgent':
         return Colors.green;
-      case 'propertyManager':
-        return Colors.orange;
       case 'admin':
         return AppColors.error;
       default:
@@ -265,9 +261,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     switch (role) {
       case 'customer':
         return Icons.person;
-      case 'propertyOwner':
-        return Icons.home_work;
-      case 'propertyManager':
+      case 'propertyAgent':
         return Icons.business;
       case 'admin':
         return Icons.admin_panel_settings;
@@ -280,10 +274,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     switch (role) {
       case 'customer':
         return 'Customer';
-      case 'propertyOwner':
-        return 'Owner';
-      case 'propertyManager':
-        return 'Manager';
+      case 'propertyAgent':
+        return 'Agent';
       case 'admin':
         return 'Admin';
       default:

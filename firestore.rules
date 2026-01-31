@@ -1,0 +1,174 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        ('admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeRole == 'admin');
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow delete: if isOwner(userId);
+      // Allow user to update their own profile OR allow rating service to update agent stats
+      // OR allow updating verification status fields OR allow admins to update verification
+      allow update: if isOwner(userId) || 
+        (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['averageRating', 'totalRatings', 'totalReviews']
+        )) ||
+        (isSignedIn() && request.auth.uid == userId && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['verificationStatus', 'verificationRequestedAt']
+        )) ||
+        (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['isVerified', 'verifiedAt', 'verificationStatus']
+        ));
+    }
+    
+    // Properties collection
+    match /properties/{propertyId} {
+      // Anyone authenticated can read approved properties, owners can read their own, admins can read all
+      allow read: if isSignedIn() && (
+        resource.data.status == 'approved' ||
+        resource.data.ownerId == request.auth.uid ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+      // Only property owner can create
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      // Owner can update/delete their own properties, admins can update any property
+      // Also allow anyone to update room availability (roomTypes array)
+      allow update: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        // Allow updating only roomTypes field for availability tracking
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomTypes'])
+      );
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
+    
+    // Advertised Projects collection (for Browse New Projects section)
+    match /advertised_projects/{projectId} {
+      // Anyone authenticated can read approved projects
+      allow read: if isSignedIn();
+      // Only project owner can write (except view/click counts)
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Allow anyone to update view/click counts, but owner can update everything
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'clickCount']))
+      );
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Bookmarks collection
+    match /bookmarks/{bookmarkId} {
+      allow read, write: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Reservations collection
+    match /reservations/{reservationId} {
+      // Users can read their own reservations, admins can read all
+      allow read: if isSignedIn();
+      // Anyone authenticated can create reservations (field is studentUserId, can be null)
+      allow create: if isSignedIn();
+      // Only reservation creator or admin can update
+      allow update: if isSignedIn() && (
+        (resource.data.studentUserId != null && resource.data.studentUserId == request.auth.uid) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+    
+    // Notifications collection
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // Users can update their own notifications (mark as read)
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // Anyone authenticated can create notifications (for system notifications)
+      allow create: if isSignedIn();
+    }
+    
+    // Messages/Chats collection
+    match /chats/{chatId} {
+      // Users can read chats they're part of
+      allow read: if isSignedIn() && 
+        (request.auth.uid in resource.data.participants);
+      // Users can create chats they're part of
+      allow create: if isSignedIn() && 
+        (request.auth.uid in request.resource.data.participants);
+      allow update: if isSignedIn() && 
+        (request.auth.uid in resource.data.participants);
+        
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+      }
+    }
+    
+    // Search history
+    match /search_history/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Admin-only collections
+    match /admin/{document=**} {
+      allow read, write: if isSignedIn() && 
+        ('admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles);
+    }
+    
+    // Property reviews
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Email verification codes
+    match /verification_codes/{userId} {
+      // Users can read and write their own verification codes
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Agent ratings collection
+    match /agent_ratings/{ratingId} {
+      // Anyone can read ratings
+      allow read: if isSignedIn();
+      // Only the customer who created the rating can write/update/delete it
+      allow create: if isSignedIn() && 
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.agentId != request.auth.uid; // Can't rate yourself
+      allow update, delete: if isSignedIn() && 
+        resource.data.customerId == request.auth.uid;
+    }
+    
+    // Verification requests collection
+    match /verification_requests/{userId} {
+      // Agents can create and read their own verification request
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      // Admins can read and update all requests (check roles array)
+      allow read: if isSignedIn();
+      allow update: if isSignedIn();
+    }
+  }
+}

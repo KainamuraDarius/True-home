@@ -1,0 +1,53 @@
+To: momodeveloper@mtn.com
+Subject: URGENT: Sandbox API User Creation Failing - Request Manual Credentials
+
+Hello MTN MoMo Developer Support Team,
+
+I am unable to create API user credentials through your sandbox environment. All API calls are returning 500 Internal Server Error.
+
+ISSUE DETAILS:
+- Error: "statusCode": 500, "message": "Internal server error"
+- Endpoint: POST https://sandbox.momodeveloper.mtn.com/v1_0/apiuser
+- Date: January 30, 2026
+- Multiple attempts with different UUIDs: All failing
+- Different callback hosts tried: All failing
+- Subscription Key: ec1bc2bfcfb3454d8188a0845e852912
+
+APPLICATION DETAILS:
+- Name: TrueHome Uganda
+- Purpose: Hostel/Property booking platform with Mobile Money payment integration
+- Product: Collection API
+- Country: Uganda
+- Expected Transaction Volume: 100-500 per month
+- Integration Status: 95% complete, only waiting for API credentials
+
+URGENT REQUEST:
+Since the automated sandbox API user creation is not working, please:
+1. Create API User ID manually for my subscription key
+2. Generate API Key for this user
+3. Provide credentials via email
+
+OR
+
+4. Confirm if I should proceed directly with Production API credentials instead
+
+BUSINESS IMPACT:
+My application is ready to launch but blocked by this sandbox issue. I have paying customers waiting for the payment integration to go live.
+
+TECHNICAL ATTEMPTS MADE:
+- Multiple UUID formats tested
+- Different callback hosts tried (webhook.site, empty)
+- Various HTTP headers combinations
+- All returned 500 Internal Server Error
+
+Please treat this as urgent. I can provide any additional information needed.
+
+Thank you for your prompt assistance.
+
+Best regards,
+[Your Name]
+[Your Phone Number]
+[Your Company Name]
+
+---
+Subscription Key for Reference: ec1bc2bfcfb3454d8188a0845e852912

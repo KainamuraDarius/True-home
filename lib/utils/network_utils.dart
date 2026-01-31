@@ -1,16 +1,16 @@
 import 'dart:io';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
 class NetworkUtils {
   static Future<bool> hasInternetConnection() async {
     try {
-      final connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult == ConnectivityResult.none) {
-        return false;
+      final result = await InternetAddress.lookup('google.com');
+      if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+        return true;
       }
       
       // Actually check if we can reach a server
-      final result = await InternetAddress.lookup('google.com')
+      await InternetAddress.lookup('google.com')
           .timeout(const Duration(seconds: 5));
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } catch (e) {

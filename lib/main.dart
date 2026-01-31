@@ -7,9 +7,9 @@ import 'utils/app_theme.dart';
 import 'screens/auth/welcome_screen.dart';
 import 'screens/customer/customer_home_screen.dart';
 import 'screens/owner/owner_dashboard_screen.dart';
-import 'screens/manager/manager_dashboard_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'services/preferences_service.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +18,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Initialize local notifications
+  await NotificationService.initialize();
   
   runApp(const MyApp());
 }
@@ -107,10 +110,18 @@ class AuthenticationWrapper extends StatelessWidget {
 
               if (userSnapshot.hasData && userSnapshot.data!.exists) {
                 final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                final role = userData['role'] as String?;
+                
+                // Get active role - support both old and new format
+                String? activeRole;
+                if (userData['activeRole'] != null) {
+                  activeRole = userData['activeRole'] as String?;
+                } else if (userData['role'] != null) {
+                  // Old single role format
+                  activeRole = userData['role'] as String?;
+                }
 
                 // Check if role exists
-                if (role == null) {
+                if (activeRole == null) {
                   // User has no role assigned, sign out
                   FirebaseAuth.instance.signOut();
                   return Scaffold(
@@ -139,14 +150,12 @@ class AuthenticationWrapper extends StatelessWidget {
                   );
                 }
 
-                // Route to appropriate dashboard based on role
-                switch (role) {
+                // Route to appropriate dashboard based on active role
+                switch (activeRole) {
                   case 'customer':
                     return const CustomerHomeScreen();
-                  case 'propertyOwner':
+                  case 'propertyAgent':
                     return const OwnerDashboardScreen();
-                  case 'propertyManager':
-                    return const ManagerDashboardScreen();
                   case 'admin':
                     return const AdminDashboardScreen();
                   default:

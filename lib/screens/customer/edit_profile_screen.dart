@@ -3,11 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import '../../utils/app_theme.dart';
 import '../../models/user_model.dart';
-import '../../utils/database_helper.dart';
+import '../../services/imgbb_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -156,23 +157,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         throw Exception('Image too large. Please choose a smaller image.');
       }
 
-      // Delete old profile image if exists
-      if (_currentProfileImageId != null) {
-        try {
-          await DatabaseHelper.instance.deleteImage(_currentProfileImageId!);
-        } catch (e) {
-          print('Error deleting old image: $e');
-        }
+      // Upload to ImgBB
+      print('Uploading profile image to ImgBB...');
+      final imageUrl = await ImgBBService.uploadImage(compressedBytes);
+      
+      if (imageUrl != null) {
+        print('Profile image uploaded successfully: $imageUrl');
+        return imageUrl;
+      } else {
+        throw Exception('Failed to upload image to ImgBB');
       }
-
-      // Upload new image
-      final imageId = await DatabaseHelper.instance.insertImage(
-        propertyId: 'profile_${widget.user.id}',
-        imageData: compressedBytes,
-      );
-
-      return imageId;
     } catch (e) {
+      print('Error uploading profile image: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -312,36 +308,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     backgroundImage: _selectedImage != null
                         ? FileImage(_selectedImage!)
                         : _currentProfileImageId != null
-                        ? null // Will be handled by FutureBuilder
+                        ? null // Will be handled by image picker display
                         : null,
                     child:
-                        _selectedImage == null && _currentProfileImageId != null
-                        ? FutureBuilder<Uint8List?>(
-                            future: DatabaseHelper.instance.getImage(
+                        _selectedImage == null && _currentProfileImageId != null && _currentProfileImageId!.isNotEmpty
+                        ? ClipOval(
+                            child: Image.network(
                               _currentProfileImageId!,
-                            ),
-                            builder: (context, snapshot) {
-                              if (snapshot.hasData && snapshot.data != null) {
-                                return ClipOval(
-                                  child: Image.memory(
-                                    snapshot.data!,
-                                    width: 120,
-                                    height: 120,
-                                    fit: BoxFit.cover,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Text(
+                                  widget.user.name.isNotEmpty
+                                      ? widget.user.name[0].toUpperCase()
+                                      : 'U',
+                                  style: const TextStyle(
+                                    fontSize: 48,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
                                   ),
                                 );
-                              }
-                              return Text(
-                                widget.user.name.isNotEmpty
-                                    ? widget.user.name[0].toUpperCase()
-                                    : 'U',
-                                style: const TextStyle(
-                                  fontSize: 48,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              );
-                            },
+                              },
+                            ),
                           )
                         : _selectedImage == null
                         ? Text(

@@ -48,3 +48,21 @@ app.*.map.json
 lib/config/api_keys.dart
 android/app/google-services.json
 lib/firebase_options.dart
+
+# Backend environment variables and secrets
+backend/.env
+backend/node_modules/
+
+# MTN MoMo credentials (contains subscription keys)
+lib/services/mtn_momo_service.dart
+lib/services/airtel_money_service.dart
+
+# Setup scripts with credentials
+android/setup_mtn.dart
+android/get_mtn_credentials.dart
+setup_mtn.dart
+setup_airtel.dart
+
+# Local development files
+.env
+*.env.local

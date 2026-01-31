@@ -6,6 +6,8 @@ import '../../models/property_model.dart';
 import '../common/profile_screen.dart';
 import '../property/add_property_screen.dart';
 import '../property/my_properties_screen.dart';
+import '../common/submit_project_screen.dart';
+import '../common/my_projects_screen.dart';
 
 class ManagerDashboardScreen extends StatelessWidget {
   const ManagerDashboardScreen({super.key});
@@ -169,6 +171,38 @@ class ManagerDashboardScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const MyPropertiesScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildActionCard(
+                  context,
+                  'Advertise Project',
+                  'Promote your ongoing project to customers',
+                  Icons.campaign_outlined,
+                  Colors.orange,
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SubmitProjectScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildActionCard(
+                  context,
+                  'My Project Ads',
+                  'View and track your project advertisements',
+                  Icons.analytics_outlined,
+                  Colors.purple,
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MyProjectsScreen(),
                       ),
                     );
                   },

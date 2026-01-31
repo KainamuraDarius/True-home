@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -43,6 +44,25 @@ let inMemoryProperties = [];
 let inMemoryTourRequests = [];
 let inMemoryContactRequests = [];
 
+// Configure nodemailer transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER || 'your-email@gmail.com',
+    pass: process.env.EMAIL_PASSWORD || 'your-app-password'
+  }
+});
+
+// Test email configuration on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.log('⚠️  Email service not configured:', error.message);
+    console.log('   Add EMAIL_USER and EMAIL_PASSWORD to .env file');
+  } else {
+    console.log('✅ Email service ready');
+  }
+});
+
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -80,6 +100,81 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     service: 'True Home API'
   });
+});
+
+// ============================================
+// EMAIL VERIFICATION ROUTES
+// ============================================
+
+// Send verification code via email
+app.post('/api/email/send-verification', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and code are required' });
+    }
+
+    // Email template
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@truehome.com',
+      to: email,
+      subject: 'Verify Your True Home Account',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .code-box { background: white; border: 2px dashed #667eea; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }
+            .code { font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #667eea; }
+            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 14px; }
+            .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🏠 True Home</h1>
+              <p>Welcome to Your New Home Journey</p>
+            </div>
+            <div class="content">
+              <h2>Verify Your Email Address</h2>
+              <p>Thank you for registering with True Home! To complete your registration, please enter the verification code below:</p>
+              
+              <div class="code-box">
+                <p style="margin: 0; color: #666;">Your Verification Code</p>
+                <div class="code">${code}</div>
+              </div>
+              
+              <div class="warning">
+                <strong>⚠️ Important:</strong> This code will expire in 10 minutes. Please verify your account promptly.
+              </div>
+              
+              <p>If you didn't create an account with True Home, please ignore this email.</p>
+              
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} True Home. All rights reserved.</p>
+                <p>Find your dream home with us!</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    // Send email
+    await transporter.sendMail(mailOptions);
+    
+    res.json({ success: true, message: 'Verification email sent successfully' });
+  } catch (error) {
+    console.error('Error sending verification email:', error);
+    res.status(500).json({ error: 'Failed to send verification email', details: error.message });
+  }
 });
 
 // ============================================

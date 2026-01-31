@@ -10,6 +10,10 @@ import '../common/notifications_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_create_user_screen.dart';
 import 'admin_properties_screen.dart';
+import 'admin_projects_screen.dart';
+import 'add_hostel_screen.dart';
+import 'admin_reservations_screen.dart';
+import 'admin_verification_requests_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -182,30 +186,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
             StreamBuilder<QuerySnapshot>(
               stream: _firestore.collection('users').snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error loading users: ${snapshot.error}'),
+                  );
+                }
+
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
                 final users = snapshot.data!.docs;
+                
+                // Debug print to see actual data
+                print('Total documents in users collection: ${users.length}');
+                
                 final customers = users.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  return data['role'] == 'customer';
+                  final role = data['role'];
+                  print('User ${doc.id} has role: $role');
+                  return role == 'customer';
                 }).length;
 
-                final owners = users.where((doc) {
+                final agents = users.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  return data['role'] == 'propertyOwner';
-                }).length;
-
-                final managers = users.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return data['role'] == 'propertyManager';
+                  return data['role'] == 'propertyAgent';
                 }).length;
 
                 final admins = users.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['role'] == 'admin';
                 }).length;
+                
+                print('Breakdown - Customers: $customers, Agents: $agents, Admins: $admins, Total: ${users.length}');
 
                 return Column(
                   children: [
@@ -235,35 +248,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
                       children: [
                         Expanded(
                           child: _buildStatCard(
-                            'Owners',
-                            '$owners',
-                            Icons.home_work,
+                            'Property Agents',
+                            '$agents',
+                            Icons.business,
                             Colors.green,
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: _buildStatCard(
-                            'Managers',
-                            '$managers',
-                            Icons.business,
-                            Colors.orange,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
                             'Admins',
                             '$admins',
                             Icons.admin_panel_settings,
-                            AppColors.error,
+                            Colors.red,
                           ),
                         ),
-                        const Expanded(child: SizedBox()),
                       ],
                     ),
                   ],
@@ -282,8 +281,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
             ),
             const SizedBox(height: 16),
             _buildActionCard(
-              context,
-              'View All Users',
+              context,              'Agent Verification Requests',
+              'Review and approve agent verification documents',
+              Icons.verified_user,
+              Colors.amber,
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminVerificationRequestsScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionCard(
+              context,              'View All Users',
               'Manage customer, owner, and manager accounts',
               Icons.group,
               Colors.blue,
@@ -303,11 +316,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
               'Add new system administrator',
               Icons.person_add,
               AppColors.error,
-              () {
+              () async {
+                // Only truehome376@gmail.com can create admin accounts
+                final currentUserEmail = FirebaseAuth.instance.currentUser?.email;
+                if (currentUserEmail != 'truehome376@gmail.com') {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Only the master admin can create new admin accounts'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminCreateUserScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionCard(
+              context,
+              'Add Student Hostel',
+              'Publish student hostels near universities',
+              Icons.school,
+              Colors.purple,
+              () async {
+                // Temporarily stop observing lifecycle to prevent logout during image picking
+                WidgetsBinding.instance.removeObserver(this);
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddHostelScreen(),
+                  ),
+                );
+                // Resume observing after returning
+                if (mounted) {
+                  WidgetsBinding.instance.addObserver(this);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionCard(
+              context,
+              'Hostel Reservations',
+              'View student hostel reservations and bookings',
+              Icons.calendar_today,
+              Colors.orange,
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminReservationsScreen(),
                   ),
                 );
               },
@@ -331,13 +393,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
             const SizedBox(height: 12),
             _buildActionCard(
               context,
-              'System Settings',
-              'Configure application settings',
-              Icons.settings,
+              'Manage Advertised Projects',
+              'Review and manage developer project advertisements',
+              Icons.apartment,
+              Colors.purple,
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminProjectsScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionCard(
+              context,
+              'System Admin',
+              'View and edit your admin profile',
+              Icons.person,
               Colors.grey,
               () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming Soon')),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
                 );
               },
             ),

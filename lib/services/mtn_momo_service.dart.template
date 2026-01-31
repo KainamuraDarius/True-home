@@ -1,0 +1,58 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class MTNMoMoService {
+  // TODO: Add your MTN MoMo credentials here after running setup
+  // Get these from: dart run setup_mtn.dart
+  final String subscriptionKey = 'YOUR_SUBSCRIPTION_KEY_HERE';
+  String? apiUser; // Will be set after setup
+  String? apiKey; // Will be set after setup
+
+  // For testing until MTN sandbox is working
+  final bool useMockMode = true; // Set to false when you have real credentials
+
+  final String baseUrl = 'https://sandbox.momodeveloper.mtn.com';
+  final String collectionUrl =
+      'https://sandbox.momodeveloper.mtn.com/collection';
+
+  // Set credentials from setup
+  void setCredentials({required String user, required String key}) {
+    apiUser = user;
+    apiKey = key;
+  }
+
+  // Get OAuth access token
+  Future<String?> getAccessToken() async {
+    if (apiUser == null || apiKey == null) {
+      throw Exception('API credentials not set. Run setup first.');
+    }
+
+    try {
+      final credentials = base64Encode(utf8.encode('$apiUser:$apiKey'));
+
+      final response = await http.post(
+        Uri.parse('$collectionUrl/token/'),
+        headers: {
+          'Authorization': 'Basic $credentials',
+          'Ocp-Apim-Subscription-Key': subscriptionKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['access_token'];
+      }
+
+      print(
+        'Failed to get access token: ${response.statusCode} - ${response.body}',
+      );
+      return null;
+    } catch (e) {
+      print('Error getting access token: $e');
+      return null;
+    }
+  }
+
+  // ... rest of the implementation remains the same
+  // Copy from the original file after adding your credentials
+}

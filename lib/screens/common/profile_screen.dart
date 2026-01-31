@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../utils/app_theme.dart';
 import '../../models/user_model.dart';
-import '../../utils/database_helper.dart';
 import '../../services/preferences_service.dart';
 import '../auth/welcome_screen.dart';
+import '../customer/become_agent_screen.dart';
 import '../customer/edit_profile_screen.dart';
 import '../../main.dart';
 
@@ -39,29 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
           setState(() {
-            _currentUser = UserModel(
-              id: doc.id,
-              email: data['email'] ?? '',
-              name: data['name'] ?? '',
-              phoneNumber: data['phoneNumber'] ?? '',
-              role: UserRole.values.firstWhere(
-                (e) => e.toString().split('.').last == data['role'],
-                orElse: () => UserRole.customer,
-              ),
-              createdAt: data['createdAt'] != null
-                  ? DateTime.parse(data['createdAt'])
-                  : DateTime.now(),
-              updatedAt: data['updatedAt'] != null
-                  ? DateTime.parse(data['updatedAt'])
-                  : DateTime.now(),
-              companyName: data['companyName'],
-              whatsappNumber: data['whatsappNumber'],
-              profileImageUrl: data['profileImageUrl'],
-              favoritePropertyIds: data['favoritePropertyIds'] != null
-                  ? List<String>.from(data['favoritePropertyIds'])
-                  : [],
-              isVerified: data['isVerified'] ?? false,
-            );
+            _currentUser = UserModel.fromJson({...data, 'id': doc.id});
             _isLoading = false;
           });
         }
@@ -105,10 +83,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     switch (role) {
       case UserRole.customer:
         return 'Customer';
-      case UserRole.propertyOwner:
-        return 'Property Owner';
-      case UserRole.propertyManager:
-        return 'Property Manager';
+      case UserRole.propertyAgent:
+        return 'Property Agent';
       case UserRole.admin:
         return 'Admin';
     }
@@ -130,34 +106,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   const SizedBox(height: 20),
                   // Profile Avatar
-                  _currentUser!.profileImageUrl != null
-                      ? FutureBuilder<Uint8List?>(
-                          future: DatabaseHelper.instance.getImage(
-                            _currentUser!.profileImageUrl!,
-                          ),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData && snapshot.data != null) {
-                              return CircleAvatar(
-                                radius: 60,
-                                backgroundImage: MemoryImage(snapshot.data!),
-                              );
-                            }
-                            return CircleAvatar(
-                              radius: 60,
-                              backgroundColor: AppColors.primary.withOpacity(
-                                0.1,
-                              ),
-                              child: Text(
-                                _currentUser!.name.isNotEmpty
-                                    ? _currentUser!.name[0].toUpperCase()
-                                    : 'U',
-                                style: const TextStyle(
-                                  fontSize: 48,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            );
+                  _currentUser!.profileImageUrl != null && 
+                  _currentUser!.profileImageUrl!.isNotEmpty &&
+                  _currentUser!.profileImageUrl!.startsWith('http')
+                      ? CircleAvatar(
+                          radius: 60,
+                          backgroundImage: NetworkImage(_currentUser!.profileImageUrl!),
+                          onBackgroundImageError: (exception, stackTrace) {
+                            print('Error loading profile image: $exception');
                           },
                         )
                       : CircleAvatar(
@@ -196,7 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      _getRoleDisplayName(_currentUser!.role),
+                      _getRoleDisplayName(_currentUser!.activeRole),
                       style: const TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,
@@ -225,8 +181,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // Company Information (for non-customers)
-                  if (_currentUser!.role != UserRole.customer &&
+                  // Company Information (for agents)
+                  if (_currentUser!.roles.contains(UserRole.propertyAgent) &&
                       _currentUser!.companyName != null)
                     _buildInfoCard(
                       title: 'Company Information',
@@ -275,6 +231,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
                     },
                   ),
+                  // Show "Become an Agent" if user is not already an agent
+                  if (_currentUser != null &&
+                      !_currentUser!.roles.contains(UserRole.propertyAgent))
+                    _buildSettingsTile(
+                      icon: Icons.business_center,
+                      title: 'Become an Agent',
+                      subtitle: 'Start listing and managing properties',
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const BecomeAgentScreen(),
+                          ),
+                        );
+                        if (result == true) {
+                          _loadUserData(); // Reload to get updated roles
+                        }
+                      },
+                    ),
                   _buildSettingsTile(
                     icon: Icons.verified_user,
                     title: 'Account Verification',
@@ -849,94 +824,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Account Verification'),
+        title: Row(
+          children: [
+            Icon(
+              _currentUser!.isVerified ? Icons.verified : Icons.info_outline,
+              color: _currentUser!.isVerified ? Colors.green : Colors.blue,
+            ),
+            const SizedBox(width: 8),
+            Text(_currentUser!.isVerified ? 'Verified' : 'Verification Info'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               _currentUser!.isVerified
-                  ? 'Your account is verified!'
-                  : 'Verify your account to gain trust and access premium features.',
+                  ? 'Your account has been verified by our admin team. You now have access to all premium features!'
+                  : 'Get verified to build trust with customers and unlock premium features.',
             ),
             const SizedBox(height: 16),
             if (!_currentUser!.isVerified) ...[
               const Text(
-                'Verification includes:',
+                'Verification Benefits:',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text('• Identity verification'),
-              const Text('• Phone number confirmation'),
-              const Text('• Email verification'),
-              const Text('• Premium badge on profile'),
+              const Text('• Verified badge on your profile'),
+              const Text('• Increased customer trust'),
+              const Text('• Priority in search results'),
+              const Text('• Access to premium features'),
+              const SizedBox(height: 16),
+              // Only show instruction for agents
+              if (_currentUser!.roles.contains(UserRole.propertyAgent)) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline, color: Colors.blue, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Switch to Agent role to submit verification documents from your dashboard.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue.shade800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Verification is currently available for Property Agents only.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Close'),
           ),
-          if (!_currentUser!.isVerified)
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                // Show loading
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-
-                try {
-                  // Simulate verification process
-                  await Future.delayed(const Duration(seconds: 2));
-                  
-                  // Update verification status in Firestore
-                  await _firestore
-                      .collection('users')
-                      .doc(_currentUser!.id)
-                      .update({
-                    'isVerified': true,
-                    'verifiedAt': DateTime.now().toIso8601String(),
-                    'updatedAt': DateTime.now().toIso8601String(),
-                  });
-
-                  // Reload user data
-                  await _loadUserData();
-
-                  if (mounted) {
-                    Navigator.pop(context); // Close loading
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            Icon(Icons.verified, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text('Account verified successfully!'),
-                          ],
-                        ),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    Navigator.pop(context); // Close loading
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Verification failed: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              child: const Text('Start Verification'),
-            ),
         ],
       ),
     );
@@ -1880,13 +1856,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // 4. Delete user document
         await _firestore.collection('users').doc(_currentUser!.id).delete();
 
-        // 5. Delete profile image from SQLite (stored as property_id = user_id)
-        await DatabaseHelper.instance.deleteAllImagesForProperty(_currentUser!.id);
-
-        // 6. Delete Firebase Auth user
+        // 5. Delete Firebase Auth user
         await user.delete();
 
-        // 7. Clear preferences
+        // 6. Clear preferences
         await PreferencesService.instance.clearAll();
 
         if (mounted) {

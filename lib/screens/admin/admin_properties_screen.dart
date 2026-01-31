@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../utils/currency_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/property_model.dart';
 import '../../utils/app_theme.dart';
 import 'property_review_screen.dart';
+import 'manage_room_availability_screen.dart';
 
 class AdminPropertiesScreen extends StatefulWidget {
   const AdminPropertiesScreen({super.key});
@@ -75,8 +77,8 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                   const SizedBox(width: 8),
                   _buildFilterChip('Approved', PropertyStatus.approved),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Rejected', PropertyStatus.rejected),
-                ],
+                  _buildFilterChip('Rejected', PropertyStatus.rejected),                  const SizedBox(width: 8),
+                  _buildFilterChip('Removed', PropertyStatus.removed),                ],
               ),
             ),
           ),
@@ -186,20 +188,20 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                     child: Image.network(
                       property.imageUrls.first,
-                      height: 200,
+                      height: 240,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return Container(
-                          height: 200,
+                          height: 240,
                           color: Colors.grey[300],
                           child: const Center(child: CircularProgressIndicator()),
                         );
                       },
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
-                          height: 200,
+                          height: 240,
                           color: Colors.grey[300],
                           child: const Icon(Icons.image_not_supported, size: 64),
                         );
@@ -247,7 +249,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'UGX ${property.price.toStringAsFixed(0)}${property.type == PropertyType.rent ? '/month' : ''}',
+                        'UGX ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -292,29 +294,149 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                           ),
                         ],
                       ),
+                      // Show spotlight promotion request badge
+                      if (property.promotionRequested)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.amber.shade600, Colors.orange.shade600],
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Spotlight Promotion Requested',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          // Action button for approved properties
+          // Action buttons for approved properties
           if (property.status == PropertyStatus.approved)
             Padding(
               padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showDeleteDialog(property),
-                      icon: const Icon(Icons.delete_outline, color: Colors.white),
-                      label: const Text('Remove Property'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
+                  Row(
+                    children: [
+                      // Promotion status badges
+                      if (property.isNewProject)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.star, size: 14, color: Colors.white),
+                              SizedBox(width: 4),
+                              Text(
+                                'New Project',
+                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (property.hasActivePromotion)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.local_fire_department, size: 14, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Promoted',
+                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      const Spacer(),
+                      // Manage Promotion button
+                      ElevatedButton.icon(
+                        onPressed: () => _showPromotionDialog(property),
+                        icon: const Icon(Icons.campaign, size: 18),
+                        label: const Text('Promotion'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Remove button
+                      IconButton(
+                        onPressed: () => _showDeleteDialog(property),
+                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        tooltip: 'Remove Property',
+                      ),
+                    ],
+                  ),
+                  // Manage Rooms button for hostels only
+                  if (property.type == PropertyType.hostel && property.roomTypes.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ManageRoomAvailabilityScreen(
+                                property: property,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.meeting_room, size: 18),
+                        label: const Text('Manage Room Availability'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -325,14 +447,15 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
 
   Future<void> _deleteProperty(PropertyModel property) async {
     try {
-      // Note: ImgBB free tier doesn't support API deletion
-      // Images will remain on ImgBB but property will be removed from app
-      
-      // Delete property document from Firestore
+      // Update property status to 'removed' instead of deleting
+      // This allows admin to view removed properties later
       await FirebaseFirestore.instance
           .collection('properties')
           .doc(property.id)
-          .delete();
+          .update({
+        'status': PropertyStatus.removed.name,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
 
       // Send notification to property owner
       await _sendDeletionNotification(property);
@@ -374,6 +497,171 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
       print('Error sending notification: $e');
     }
   }
+  
+  void _showPromotionDialog(PropertyModel property) {
+    bool markAsNewProject = property.isNewProject;
+    bool enablePromotion = property.hasActivePromotion;
+    DateTime? promotionEndDate = property.promotionEndDate;
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Manage Promotion'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      property.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Mark as New Project'),
+                      subtitle: const Text('Show in \"New Projects from Developers\" carousel'),
+                      value: markAsNewProject,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (value) {
+                        setState(() {
+                          markAsNewProject = value ?? false;
+                          if (!markAsNewProject) {
+                            enablePromotion = false;
+                            promotionEndDate = null;
+                          }
+                        });
+                      },
+                    ),
+                    if (markAsNewProject) ...[
+                      CheckboxListTile(
+                        title: const Text('Enable Promotion'),
+                        subtitle: const Text('Feature this project in the carousel'),
+                        value: enablePromotion,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (value) {
+                          setState(() {
+                            enablePromotion = value ?? false;
+                            if (!enablePromotion) {
+                              promotionEndDate = null;
+                            }
+                          });
+                        },
+                      ),
+                      if (enablePromotion) ...[
+                        const SizedBox(height: 8),
+                        ListTile(
+                          title: const Text('Promotion End Date'),
+                          subtitle: Text(
+                            promotionEndDate != null
+                                ? 'Ends: ${promotionEndDate!.day}/${promotionEndDate!.month}/${promotionEndDate!.year}'
+                                : 'No end date (runs indefinitely)',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (promotionEndDate != null)
+                                IconButton(
+                                  icon: const Icon(Icons.clear, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      promotionEndDate = null;
+                                    });
+                                  },
+                                ),
+                              IconButton(
+                                icon: const Icon(Icons.calendar_today, size: 20),
+                                onPressed: () async {
+                                  final date = await showDatePicker(
+                                    context: context,
+                                    initialDate: promotionEndDate ?? DateTime.now().add(const Duration(days: 30)),
+                                    firstDate: DateTime.now(),
+                                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                                  );
+                                  if (date != null) {
+                                    setState(() {
+                                      promotionEndDate = date;
+                                    });
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _updatePromotionStatus(
+                      property,
+                      markAsNewProject,
+                      enablePromotion,
+                      promotionEndDate,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
+                  child: const Text('Save Changes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+  
+  Future<void> _updatePromotionStatus(
+    PropertyModel property,
+    bool isNewProject,
+    bool hasActivePromotion,
+    DateTime? promotionEndDate,
+  ) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('properties')
+          .doc(property.id)
+          .update({
+        'isNewProject': isNewProject,
+        'hasActivePromotion': hasActivePromotion,
+        'promotionEndDate': promotionEndDate?.toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Promotion settings updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {}); // Refresh the list
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating promotion: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   void _showDeleteDialog(PropertyModel property) {
     showDialog(
@@ -396,7 +684,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'This action cannot be undone. The property will be permanently removed from customer view.',
+                'The property will be moved to "Removed" status and hidden from customers. You can view it later in the Removed tab.',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey,

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../utils/currency_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:typed_data';
 import '../../models/property_model.dart';
 import '../../utils/app_theme.dart';
-import '../../utils/database_helper.dart';
 import 'property_details_screen.dart';
 
 class CustomerPropertiesScreen extends StatefulWidget {
@@ -168,20 +167,20 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                     child: Image.network(
                       property.imageUrls.first,
-                      height: 200,
+                      height: 240,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return Container(
-                          height: 200,
+                          height: 240,
                           color: Colors.grey[300],
                           child: const Center(child: CircularProgressIndicator()),
                         );
                       },
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
-                          height: 200,
+                          height: 240,
                           color: Colors.grey[300],
                           child: const Icon(Icons.image_not_supported, size: 64),
                         );
@@ -231,7 +230,7 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'UGX ${property.price.toStringAsFixed(0)}${property.type == PropertyType.rent ? '/month' : ''}',
+                    'UGX ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,

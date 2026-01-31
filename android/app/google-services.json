@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "843422990018-d3ihq3lah0d2pbh9aaciqbbh448vcs2q.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.true_home",
+            "certificate_hash": "49991d7b917030b49fae4f939a165e88e82be687"
+          }
+        },
+        {
           "client_id": "843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -63,6 +71,14 @@
           "android_info": {
             "package_name": "com.truehome.app",
             "certificate_hash": "466c66cb6244a4f037859290e69ebb2fbea0b6a6"
+          }
+        },
+        {
+          "client_id": "843422990018-f0eddm7dptqjlseafihjbovmv6jtjr0a.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.truehome.app",
+            "certificate_hash": "e63851f60fd2bf6e87dc0f5c47c5ceb8004abfbe"
           }
         },
         {

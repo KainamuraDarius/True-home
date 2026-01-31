@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:typed_data';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/property_model.dart';
+import '../../utils/currency_formatter.dart';
 import '../../utils/app_theme.dart';
-import '../../utils/database_helper.dart';
+import 'agent_property_details_screen.dart';
 
 class MyPropertiesScreen extends StatefulWidget {
   const MyPropertiesScreen({super.key});
@@ -135,14 +136,23 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                     propertyData['id'] = properties[index].id;
                     final property = PropertyModel.fromJson(propertyData);
 
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                    return InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AgentPropertyDetailsScreen(property: property),
+                          ),
+                        );
+                      },
+                      child: Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                           // Property Image
                           if (property.imageUrls.isNotEmpty)
                             ClipRRect(
@@ -151,20 +161,20 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                               ),
                               child: Image.network(
                                 property.imageUrls.first,
-                                height: 200,
+                                height: 240,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
                                 loadingBuilder: (context, child, loadingProgress) {
                                   if (loadingProgress == null) return child;
                                   return Container(
-                                    height: 200,
+                                    height: 240,
                                     color: Colors.grey[300],
                                     child: const Center(child: CircularProgressIndicator()),
                                   );
                                 },
                                 errorBuilder: (context, error, stackTrace) {
                                   return Container(
-                                    height: 200,
+                                    height: 240,
                                     color: Colors.grey[300],
                                     child: const Icon(Icons.image_not_supported, size: 50),
                                   );
@@ -249,7 +259,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
 
                                 // Price
                                 Text(
-                                  'UGX ${property.price.toStringAsFixed(0)}${property.type == PropertyType.rent ? '/month' : ''}',
+                                  'UGX ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
@@ -303,7 +313,8 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                           ),
                         ],
                       ),
-                    );
+                    ),
+                  );
                   },
                 );
               },
@@ -335,6 +346,8 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
         return Colors.green;
       case PropertyStatus.rejected:
         return Colors.red;
+      case PropertyStatus.removed:
+        return Colors.grey;
     }
   }
 }

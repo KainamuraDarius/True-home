@@ -74,7 +74,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             );
           }
 
+          // Sort notifications by createdAt in descending order (newest first)
           final notifications = snapshot.data!.docs;
+          notifications.sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>;
+            final bData = b.data() as Map<String, dynamic>;
+            final aTime = aData['createdAt'] as String?;
+            final bTime = bData['createdAt'] as String?;
+            
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            
+            return DateTime.parse(bTime).compareTo(DateTime.parse(aTime));
+          });
 
           return ListView.builder(
             itemCount: notifications.length,

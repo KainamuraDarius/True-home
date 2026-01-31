@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/property_model.dart';
+import '../../utils/currency_formatter.dart';
 import '../../utils/app_theme.dart';
 
 class PropertyReviewScreen extends StatefulWidget {
@@ -19,6 +20,11 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
   final _contactEmailController = TextEditingController();
   bool _isLoading = false;
   int _currentImageIndex = 0;
+  
+  // Promotion management
+  bool _markAsNewProject = false;
+  bool _enablePromotion = false;
+  DateTime? _promotionEndDate;
 
   @override
   void dispose() {
@@ -29,7 +35,15 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
     super.dispose();
   }
 
-  Future<void> _updatePropertyStatus(PropertyStatus status, {String? reason, String? contactPhone, String? whatsappPhone, String? contactEmail}) async {
+  Future<void> _updatePropertyStatus(PropertyStatus status, {
+    String? reason, 
+    String? contactPhone, 
+    String? whatsappPhone, 
+    String? contactEmail,
+    bool? isNewProject,
+    bool? hasActivePromotion,
+    DateTime? promotionEndDate,
+  }) async {
     setState(() {
       _isLoading = true;
     });
@@ -42,6 +56,9 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
         if (contactPhone != null) 'contactPhone': contactPhone,
         if (whatsappPhone != null) 'whatsappPhone': whatsappPhone,
         if (contactEmail != null) 'contactEmail': contactEmail,
+        if (isNewProject != null) 'isNewProject': isNewProject,
+        if (hasActivePromotion != null) 'hasActivePromotion': hasActivePromotion,
+        if (promotionEndDate != null) 'promotionEndDate': promotionEndDate.toIso8601String(),
       };
 
       await FirebaseFirestore.instance
@@ -111,16 +128,12 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
           .where('role', isEqualTo: 'customer')
           .get();
       
-      // Check user's email notification preferences
+      // Send notification
       for (var customer in customers.docs) {
-        // Get notification preferences - default to true if not set
-        bool receiveNewProperties = true;
-        
-        // Send notification
         await FirebaseFirestore.instance.collection('notifications').add({
           'userId': customer.id,
           'title': 'New Property Available!',
-          'message': 'Check out "${widget.property.title}" in ${widget.property.location} - UGX ${widget.property.price.toStringAsFixed(0)}${widget.property.type == PropertyType.rent ? '/month' : ''}',
+          'message': 'Check out "${widget.property.title}" in ${widget.property.location} - UGX ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
           'propertyId': widget.property.id,
           'type': 'new_property',
           'isRead': false,
@@ -227,6 +240,90 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                   '* These contacts will be visible to customers',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 12),
+                const Text(
+                  'Promotion Settings',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  title: const Text('Mark as New Project'),
+                  subtitle: const Text('Show in "New Projects from Developers" carousel'),
+                  value: _markAsNewProject,
+                  onChanged: (value) {
+                    setState(() {
+                      _markAsNewProject = value ?? false;
+                      if (!_markAsNewProject) {
+                        _enablePromotion = false;
+                        _promotionEndDate = null;
+                      }
+                    });
+                  },
+                ),
+                if (_markAsNewProject) ...[
+                  CheckboxListTile(
+                    title: const Text('Enable Promotion'),
+                    subtitle: const Text('Feature this project in the carousel'),
+                    value: _enablePromotion,
+                    onChanged: (value) {
+                      setState(() {
+                        _enablePromotion = value ?? false;
+                        if (!_enablePromotion) {
+                          _promotionEndDate = null;
+                        }
+                      });
+                    },
+                  ),
+                  if (_enablePromotion) ...[
+                    ListTile(
+                      title: const Text('Promotion End Date'),
+                      subtitle: Text(
+                        _promotionEndDate != null
+                            ? 'Ends: ${_promotionEndDate!.day}/${_promotionEndDate!.month}/${_promotionEndDate!.year}'
+                            : 'No end date set (runs indefinitely)',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_promotionEndDate != null)
+                            IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  _promotionEndDate = null;
+                                });
+                              },
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.calendar_today),
+                            onPressed: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: _promotionEndDate ?? DateTime.now().add(const Duration(days: 30)),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime.now().add(const Duration(days: 365)),
+                              );
+                              if (date != null) {
+                                setState(() {
+                                  _promotionEndDate = date;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'Leave empty for no expiration',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ],
               ],
             ),
           ),
@@ -254,6 +351,9 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                   contactPhone: _contactPhoneController.text.trim(),
                   whatsappPhone: _whatsappPhoneController.text.trim(),
                   contactEmail: _contactEmailController.text.trim(),
+                  isNewProject: _markAsNewProject,
+                  hasActivePromotion: _markAsNewProject && _enablePromotion,
+                  promotionEndDate: _enablePromotion ? _promotionEndDate : null,
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -384,7 +484,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'UGX ${widget.property.price.toStringAsFixed(0)}${widget.property.type == PropertyType.rent ? '/month' : ''}',
+                          'UGX ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -467,6 +567,67 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                           'Submitted',
                           _formatDate(widget.property.createdAt),
                         ),
+                        
+                        // Show spotlight promotion request
+                        if (widget.property.promotionRequested) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.amber.shade50, Colors.orange.shade50],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.orange.shade300,
+                                width: 2,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Colors.amber.shade600, Colors.orange.shade600],
+                                    ),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.star_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Spotlight Promotion Requested',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange.shade900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Agent has requested this property to be featured in the Spotlight carousel',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.orange.shade800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        
                         const SizedBox(height: 16),
                         const Divider(),
                         const SizedBox(height: 16),

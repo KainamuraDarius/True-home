@@ -1,12 +1,73 @@
-enum PropertyType {
-  sale,
-  rent,
-}
+enum PropertyType { sale, rent, hostel }
 
-enum PropertyStatus {
-  pending,
-  approved,
-  rejected,
+enum PropertyStatus { pending, approved, rejected, removed }
+
+enum PricingPeriod { month, semester }
+
+class RoomType {
+  final String name; // e.g., "Single Room", "Double Room", "Triple Room"
+  final double price;
+  final PricingPeriod pricingPeriod;
+  final String description;
+  final int totalRooms; // Total number of rooms of this type
+  final int availableRooms; // Currently available rooms
+
+  RoomType({
+    required this.name,
+    required this.price,
+    required this.pricingPeriod,
+    this.description = '',
+    this.totalRooms = 0,
+    int? availableRooms,
+  }) : availableRooms =
+           availableRooms ?? totalRooms; // Default available = total
+
+  bool get isFull => availableRooms <= 0;
+  bool get hasAvailability => availableRooms > 0;
+  int get bookedRooms => totalRooms - availableRooms;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'price': price,
+      'pricingPeriod': pricingPeriod.name,
+      'description': description,
+      'totalRooms': totalRooms,
+      'availableRooms': availableRooms,
+    };
+  }
+
+  factory RoomType.fromJson(Map<String, dynamic> json) {
+    return RoomType(
+      name: json['name'] ?? '',
+      price: (json['price'] ?? 0).toDouble(),
+      pricingPeriod: PricingPeriod.values.firstWhere(
+        (e) => e.name == json['pricingPeriod'],
+        orElse: () => PricingPeriod.month,
+      ),
+      description: json['description'] ?? '',
+      totalRooms: json['totalRooms'] ?? 0,
+      availableRooms: json['availableRooms'],
+    );
+  }
+
+  RoomType copyWith({
+    String? name,
+    double? price,
+    PricingPeriod? pricingPeriod,
+    String? description,
+    int? totalRooms,
+    int? availableRooms,
+  }) {
+    return RoomType(
+      name: name ?? this.name,
+      price: price ?? this.price,
+      pricingPeriod: pricingPeriod ?? this.pricingPeriod,
+      description: description ?? this.description,
+      totalRooms: totalRooms ?? this.totalRooms,
+      availableRooms: availableRooms ?? this.availableRooms,
+    );
+  }
 }
 
 class PropertyModel {
@@ -24,6 +85,9 @@ class PropertyModel {
   final String ownerId;
   final String ownerName;
   final String ownerEmail;
+  final String companyName;
+  final String agentName;
+  final String? agentProfileImageUrl;
   final String contactPhone;
   final String whatsappPhone;
   final String contactEmail;
@@ -31,6 +95,16 @@ class PropertyModel {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? rejectionReason;
+  final List<String> amenities;
+  final String? university; // For student hostels
+  final List<RoomType> roomTypes; // For student hostels
+  final String?
+  paymentInstructions; // Optional payment instructions for hostels (deposit info, bank account, etc.)
+  final bool isNewProject; // Mark as new project for developers
+  final bool hasActivePromotion; // Whether promotion is active
+  final DateTime? promotionEndDate; // When promotion ends
+  final bool promotionRequested; // Agent requested spotlight promotion
+  final double? inspectionFee; // Custom inspection fee for rental properties
 
   PropertyModel({
     required this.id,
@@ -47,6 +121,9 @@ class PropertyModel {
     required this.ownerId,
     required this.ownerName,
     required this.ownerEmail,
+    required this.companyName,
+    required this.agentName,
+    this.agentProfileImageUrl,
     required this.contactPhone,
     required this.whatsappPhone,
     required this.contactEmail,
@@ -54,6 +131,15 @@ class PropertyModel {
     required this.createdAt,
     required this.updatedAt,
     this.rejectionReason,
+    this.amenities = const [],
+    this.university,
+    this.roomTypes = const [],
+    this.paymentInstructions,
+    this.isNewProject = false,
+    this.hasActivePromotion = false,
+    this.promotionEndDate,
+    this.promotionRequested = false,
+    this.inspectionFee,
   });
 
   Map<String, dynamic> toJson() {
@@ -72,6 +158,9 @@ class PropertyModel {
       'ownerId': ownerId,
       'ownerName': ownerName,
       'ownerEmail': ownerEmail,
+      'companyName': companyName,
+      'agentName': agentName,
+      'agentProfileImageUrl': agentProfileImageUrl,
       'contactPhone': contactPhone,
       'whatsappPhone': whatsappPhone,
       'contactEmail': contactEmail,
@@ -79,6 +168,15 @@ class PropertyModel {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'rejectionReason': rejectionReason,
+      'amenities': amenities,
+      'university': university,
+      'roomTypes': roomTypes.map((rt) => rt.toJson()).toList(),
+      'paymentInstructions': paymentInstructions,
+      'isNewProject': isNewProject,
+      'hasActivePromotion': hasActivePromotion,
+      'promotionEndDate': promotionEndDate?.toIso8601String(),
+      'promotionRequested': promotionRequested,
+      'inspectionFee': inspectionFee,
     };
   }
 
@@ -102,6 +200,9 @@ class PropertyModel {
       ownerId: json['ownerId'] ?? '',
       ownerName: json['ownerName'] ?? '',
       ownerEmail: json['ownerEmail'] ?? '',
+      companyName: json['companyName'] ?? '',
+      agentName: json['agentName'] ?? '',
+      agentProfileImageUrl: json['agentProfileImageUrl'],
       contactPhone: json['contactPhone'] ?? '',
       whatsappPhone: json['whatsappPhone'] ?? '',
       contactEmail: json['contactEmail'] ?? '',
@@ -109,9 +210,28 @@ class PropertyModel {
         (e) => e.name == json['status'],
         orElse: () => PropertyStatus.pending,
       ),
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : now,
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : now,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : now,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
+          : now,
       rejectionReason: json['rejectionReason'],
+      amenities: List<String>.from(json['amenities'] ?? []),
+      university: json['university'],
+      roomTypes: json['roomTypes'] != null
+          ? (json['roomTypes'] as List)
+                .map((rt) => RoomType.fromJson(rt))
+                .toList()
+          : [],
+      paymentInstructions: json['paymentInstructions'],
+      isNewProject: json['isNewProject'] ?? false,
+      hasActivePromotion: json['hasActivePromotion'] ?? false,
+      promotionEndDate: json['promotionEndDate'] != null
+          ? DateTime.parse(json['promotionEndDate'])
+          : null,
+      promotionRequested: json['promotionRequested'] ?? false,
+      inspectionFee: json['inspectionFee']?.toDouble(),
     );
   }
 
@@ -130,6 +250,9 @@ class PropertyModel {
     String? ownerId,
     String? ownerName,
     String? ownerEmail,
+    String? companyName,
+    String? agentName,
+    String? agentProfileImageUrl,
     String? contactPhone,
     String? whatsappPhone,
     String? contactEmail,
@@ -137,6 +260,14 @@ class PropertyModel {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? rejectionReason,
+    List<String>? amenities,
+    String? university,
+    List<RoomType>? roomTypes,
+    String? paymentInstructions,
+    bool? isNewProject,
+    bool? hasActivePromotion,
+    DateTime? promotionEndDate,
+    double? inspectionFee,
   }) {
     return PropertyModel(
       id: id ?? this.id,
@@ -153,6 +284,9 @@ class PropertyModel {
       ownerId: ownerId ?? this.ownerId,
       ownerName: ownerName ?? this.ownerName,
       ownerEmail: ownerEmail ?? this.ownerEmail,
+      companyName: companyName ?? this.companyName,
+      agentName: agentName ?? this.agentName,
+      agentProfileImageUrl: agentProfileImageUrl ?? this.agentProfileImageUrl,
       contactPhone: contactPhone ?? this.contactPhone,
       whatsappPhone: whatsappPhone ?? this.whatsappPhone,
       contactEmail: contactEmail ?? this.contactEmail,
@@ -160,6 +294,14 @@ class PropertyModel {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      amenities: amenities ?? this.amenities,
+      university: university ?? this.university,
+      roomTypes: roomTypes ?? this.roomTypes,
+      paymentInstructions: paymentInstructions ?? this.paymentInstructions,
+      isNewProject: isNewProject ?? this.isNewProject,
+      hasActivePromotion: hasActivePromotion ?? this.hasActivePromotion,
+      promotionEndDate: promotionEndDate ?? this.promotionEndDate,
+      inspectionFee: inspectionFee ?? this.inspectionFee,
     );
   }
 }

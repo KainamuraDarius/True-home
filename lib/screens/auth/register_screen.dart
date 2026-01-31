@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
+import 'terms_conditions_screen.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -27,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _termsAccepted = false;
   late UserRole _selectedRole;
 
   // Set to false to use real backend
@@ -51,6 +54,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    if (!_termsAccepted) {
+      _showErrorDialog('Please accept the Terms and Conditions to continue');
+      return;
+    }
+    
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
@@ -70,24 +78,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
 
         if (user != null && mounted) {
+          // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Account created successfully! Please login.'),
-                ],
-              ),
-              backgroundColor: AppColors.success,
+              content: Text('Account created successfully! Please login.'),
+              backgroundColor: Colors.green,
               duration: Duration(seconds: 3),
             ),
           );
-
-          // Navigate to login screen, removing all previous routes
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (route) => false,
+          
+          // Pop back to welcome screen (removes both RoleSelectionScreen and RegisterScreen)
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          
+          // Navigate to login screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const LoginScreen(),
+            ),
           );
         }
       } catch (e) {
@@ -349,7 +357,98 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+                
+                // Terms and Conditions Checkbox
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _termsAccepted 
+                        ? AppColors.primary.withOpacity(0.05)
+                        : Colors.red.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _termsAccepted 
+                          ? AppColors.primary.withOpacity(0.3)
+                          : Colors.red.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: _termsAccepted,
+                        onChanged: (value) {
+                          setState(() {
+                            _termsAccepted = value ?? false;
+                          });
+                        },
+                        activeColor: AppColors.primary,
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: RichText(
+                            text: TextSpan(
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                                height: 1.4,
+                              ),
+                              children: [
+                                const TextSpan(
+                                  text: 'I accept the ',
+                                ),
+                                TextSpan(
+                                  text: 'Terms and Conditions',
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => 
+                                              const TermsConditionsScreen(),
+                                        ),
+                                      );
+                                    },
+                                ),
+                                const TextSpan(
+                                  text: ' and ',
+                                ),
+                                TextSpan(
+                                  text: 'User Agreement',
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => 
+                                              const TermsConditionsScreen(),
+                                        ),
+                                      );
+                                    },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
                 // Register Button
                 SizedBox(
                   height: 56,
@@ -380,10 +479,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     switch (role) {
       case UserRole.customer:
         return 'Customer';
-      case UserRole.propertyOwner:
-        return 'Property Owner';
-      case UserRole.propertyManager:
-        return 'Property Manager';
+      case UserRole.propertyAgent:
+        return 'Property Agent';
       case UserRole.admin:
         return 'Admin';
     }
@@ -393,9 +490,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     switch (role) {
       case UserRole.customer:
         return Icons.person_rounded;
-      case UserRole.propertyOwner:
-        return Icons.home_work_rounded;
-      case UserRole.propertyManager:
+      case UserRole.propertyAgent:
         return Icons.business_rounded;
       case UserRole.admin:
         return Icons.admin_panel_settings_rounded;

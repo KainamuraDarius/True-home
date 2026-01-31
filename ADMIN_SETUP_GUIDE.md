@@ -97,7 +97,7 @@ isVerified          | boolean   | true
 ```
 Welcome Screen
     │
-    ├─► Sign up with Email ─► Role Selection ─► Registration (Customer/Owner/Manager)
+    ├─► Sign up with Email ─► Role Selection ─► Registration (Customer/property Agent)
     │
     ├─► Login ─► Regular User Dashboard
     │

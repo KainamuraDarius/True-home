@@ -18,7 +18,7 @@ UserModel? user = await authService.signUpWithEmailAndPassword(
   password: 'password123',
   name: 'John Doe',
   phoneNumber: '+1234567890',
-  role: UserRole.customer, // or .propertyManager, .propertyOwner, .admin
+  role: UserRole.customer, // or .propertyAgent,.admin
   companyName: 'My Company', // Optional, for managers/owners
   whatsappNumber: '+1234567890', // Optional
 );

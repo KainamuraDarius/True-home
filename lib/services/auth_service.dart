@@ -1,14 +1,18 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/user_model.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  // GoogleSignIn v7.0+ uses singleton instance
-  GoogleSignIn get _googleSignIn => GoogleSignIn.instance;
+  
+  // GoogleSignIn configured with serverClientId for Android
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: '843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com',
+    scopes: ['email', 'profile'],
+  );
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -47,12 +51,15 @@ class AuthService {
         email: email,
         name: name,
         phoneNumber: phoneNumber,
-        role: role,
+        roles: [role], // Initialize with single role in array
+        activeRole: role, // Set as active role
         companyName: companyName,
         companyAddress: companyAddress,
         whatsappNumber: whatsappNumber,
         profileImageUrl: null,
         isVerified: false,
+        termsAccepted: true, // User accepted during registration
+        termsAcceptedAt: DateTime.now(),
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -65,8 +72,8 @@ class AuthService {
       // Update display name
       await credential.user!.updateDisplayName(name);
 
-      // Sign out the user so they need to login
-      await _auth.signOut();
+      // Keep user logged in for email verification
+      // DO NOT sign out - they need to verify their email
 
       return userModel;
     } on FirebaseAuthException catch (e) {
@@ -142,36 +149,73 @@ class AuthService {
   // Sign in with Google
   Future<UserModel?> signInWithGoogle() async {
     try {
-      // Initialize GoogleSignIn if not already initialized
-      try {
-        await _googleSignIn.initialize();
-      } catch (e) {
-        // Already initialized, continue
+      // Web uses different Google Sign-In flow
+      if (kIsWeb) {
+        // Create a GoogleAuthProvider instance
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        
+        // Trigger the authentication flow
+        final UserCredential userCredential = 
+            await _auth.signInWithPopup(googleProvider);
+        
+        if (userCredential.user == null) {
+          throw Exception('Google sign in failed - no user');
+        }
+
+        // Check if user exists in Firestore
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .get();
+
+        if (!userDoc.exists) {
+          // Create new user in Firestore
+          final now = DateTime.now();
+          final newUser = UserModel(
+            id: userCredential.user!.uid,
+            email: userCredential.user!.email ?? '',
+            name: userCredential.user!.displayName ?? '',
+            roles: [UserRole.customer],
+            activeRole: UserRole.customer,
+            phoneNumber: userCredential.user!.phoneNumber ?? '',
+            createdAt: now,
+            updatedAt: now,
+            favoritePropertyIds: [],
+            isVerified: false,
+          );
+
+          await _firestore
+              .collection('users')
+              .doc(newUser.id)
+              .set(newUser.toJson());
+
+          return newUser;
+        }
+
+        return UserModel.fromJson({
+          ...userDoc.data()!,
+          'id': userDoc.id,
+        });
       }
 
-      // Trigger the authentication flow with required scopes
-      final GoogleSignInAccount account = await _googleSignIn.authenticate();
+      // Mobile Google Sign-In flow
+      // Sign out first to force account picker to show
+      await _googleSignIn.signOut();
+      
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-      // Request basic scopes for email and profile
-      final List<String> scopes = ['email', 'profile'];
-      final authorization = await account.authorizationClient
-          .authorizationForScopes(scopes);
-
-      if (authorization == null) {
-        throw Exception('Failed to get Google authorization');
+      if (googleUser == null) {
+        throw Exception('Google Sign-In was cancelled');
       }
 
-      // Get the ID token for Firebase
-      final idToken = account.authentication.idToken;
+      // Get authentication details
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-      if (idToken == null) {
-        throw Exception('Failed to get ID token');
-      }
-
-      // Create a new credential
+      // Create credential for Firebase
       final credential = GoogleAuthProvider.credential(
-        accessToken: authorization.accessToken,
-        idToken: idToken,
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
 
       // Sign in to Firebase with the Google credential
@@ -206,7 +250,8 @@ class AuthService {
           email: userEmail,
           name: userCredential.user!.displayName ?? 'User',
           phoneNumber: userCredential.user!.phoneNumber ?? '',
-          role: UserRole.customer, // Default role for Google sign-in
+          roles: [UserRole.customer],
+          activeRole: UserRole.customer,
           profileImageUrl: userCredential.user!.photoURL,
           isVerified: userCredential.user!.emailVerified,
           createdAt: DateTime.now(),
@@ -225,12 +270,6 @@ class AuthService {
       }
 
       return userModel;
-    } on GoogleSignInException catch (e) {
-      // User canceled the sign-in
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        return null;
-      }
-      throw Exception('Google sign-in error: ${e.description}');
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
         case 'account-exists-with-different-credential':

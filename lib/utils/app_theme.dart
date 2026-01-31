@@ -1,44 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppColors {
-  // Primary Colors
-  static const Color primary = Color(0xFF2563EB); // Blue
-  static const Color primaryDark = Color(0xFF1E40AF);
-  static const Color primaryLight = Color(0xFF60A5FA);
+  // Modern Primary Colors - Vibrant Blue
+  static const Color primary = Color(0xFF2E61F0); // Bright Blue
+  static const Color primaryDark = Color(0xFF1E4BBF);
+  static const Color primaryLight = Color(0xFF5A7FF5);
   
-  // Secondary Colors
-  static const Color secondary = Color(0xFF10B981); // Green
-  static const Color secondaryDark = Color(0xFF059669);
-  static const Color secondaryLight = Color(0xFF34D399);
+  // Secondary Colors - Fresh Green
+  static const Color secondary = Color(0xFF26A69A); // Teal
+  static const Color secondaryDark = Color(0xFF00897B);
+  static const Color secondaryLight = Color(0xFF4DB6AC);
   
-  // Accent Colors
-  static const Color accent = Color(0xFFF59E0B); // Amber
-  static const Color accentDark = Color(0xFFD97706);
+  // Accent Colors - Vibrant Orange
+  static const Color accent = Color(0xFFFF6F00); // Deep Orange
+  static const Color accentDark = Color(0xFFE65100);
+  static const Color accentLight = Color(0xFFFF8F00);
   
-  // Text Colors
-  static const Color textPrimary = Color(0xFF1F2937);
-  static const Color textSecondary = Color(0xFF6B7280);
-  static const Color textLight = Color(0xFF9CA3AF);
+  // Text Colors - Modern Contrast
+  static const Color textPrimary = Color(0xFF212121);
+  static const Color textSecondary = Color(0xFF757575);
+  static const Color textLight = Color(0xFF9E9E9E);
   
-  // Background Colors
-  static const Color background = Color(0xFFF9FAFB);
+  // Background Colors - Clean & Modern
+  static const Color background = Color(0xFFFAFAFA);
   static const Color surface = Colors.white;
-  static const Color surfaceLight = Color(0xFFF3F4F6);
+  static const Color surfaceLight = Color(0xFFF5F5F5);
+  static const Color surfaceElevated = Color(0xFFFFFFFF);
   
-  // Status Colors
-  static const Color success = Color(0xFF10B981);
-  static const Color error = Color(0xFFEF4444);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color info = Color(0xFF3B82F6);
+  // Status Colors - Clear & Vibrant
+  static const Color success = Color(0xFF4CAF50);
+  static const Color error = Color(0xFFF44336);
+  static const Color warning = Color(0xFFFF9800);
+  static const Color info = Color(0xFF2196F3);
   
-  // Property Type Colors
-  static const Color rental = Color(0xFF8B5CF6); // Purple
-  static const Color condo = Color(0xFFEC4899); // Pink
-  static const Color hostel = Color(0xFF06B6D4); // Cyan
+  // Property Type Colors - Distinctive & Modern
+  static const Color rental = Color(0xFF9C27B0); // Purple
+  static const Color condo = Color(0xFFE91E63); // Pink
+  static const Color hostel = Color(0xFF00BCD4); // Cyan
+  
+  // Gradient Colors
+  static const Color gradientStart = Color(0xFF2E61F0);
+  static const Color gradientEnd = Color(0xFF1E4BBF);
   
   // Other
-  static const Color divider = Color(0xFFE5E7EB);
-  static const Color shadow = Color(0x1A000000);
+  static const Color divider = Color(0xFFE0E0E0);
+  static const Color shadow = Color(0x1F000000);
+  static const Color overlay = Color(0x80000000);
 }
 
 class AppTheme {
@@ -52,106 +60,226 @@ class AppTheme {
         surface: AppColors.surface,
         background: AppColors.background,
         error: AppColors.error,
+        brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: AppColors.background,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.white,
+      
+      // AppBar Theme - Modern with gradient effect
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        iconTheme: IconThemeData(color: AppColors.textPrimary),
-        titleTextStyle: TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+        iconTheme: const IconThemeData(color: Colors.white, size: 24),
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
         ),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
+      
+      // Card Theme - Elevated with shadow
       cardTheme: CardThemeData(
-        elevation: 2,
+        elevation: 4,
+        shadowColor: AppColors.shadow,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
         color: Colors.white,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
+      
+      // Input Decoration - Modern & Clean
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceLight,
+        fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.divider, width: 1.5),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.divider, width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 1),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.error, width: 2.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        hintStyle: const TextStyle(color: AppColors.textLight, fontSize: 15),
+        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 15),
       ),
+      
+      // Button Themes - Modern & Prominent
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          elevation: 3,
+          shadowColor: AppColors.primary.withOpacity(0.4),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+      
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
           ),
         ),
       ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
+      
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
           side: const BorderSide(color: AppColors.primary, width: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
           ),
         ),
       ),
+      
+      // Chip Theme - Modern Pills
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceLight,
-        selectedColor: AppColors.primary.withOpacity(0.2),
-        labelStyle: const TextStyle(color: AppColors.textPrimary),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        selectedColor: AppColors.primary.withOpacity(0.15),
+        labelStyle: const TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        elevation: 0,
+        pressElevation: 2,
+      ),
+      
+      // Floating Action Button - Prominent
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: AppColors.accent,
+        foregroundColor: Colors.white,
+        elevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
       ),
+      
+      // Bottom Navigation Bar - Clean
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: Colors.white,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textLight,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontSize: 11),
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
+      ),
+      
+      // Divider Theme
       dividerTheme: const DividerThemeData(
         color: AppColors.divider,
         thickness: 1,
+        space: 1,
       ),
+      
+      // SnackBar Theme - Modern Notification
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.textPrimary,
-        contentTextStyle: const TextStyle(color: Colors.white),
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
         behavior: SnackBarBehavior.floating,
+        elevation: 6,
+      ),
+      
+      // Icon Theme
+      iconTheme: const IconThemeData(
+        color: AppColors.textSecondary,
+        size: 24,
+      ),
+      
+      // Text Theme - Hierarchy
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textPrimary,
+          letterSpacing: -0.5,
+        ),
+        displayMedium: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textPrimary,
+        ),
+        displaySmall: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          color: AppColors.textPrimary,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+          color: AppColors.textSecondary,
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12,
+          color: AppColors.textLight,
+        ),
       ),
     );
   }
