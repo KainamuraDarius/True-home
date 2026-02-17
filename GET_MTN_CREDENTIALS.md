@@ -177,9 +177,9 @@ import 'dart:convert';
 
 void main() async {
   // Replace with credentials from MTN support
-  final subscriptionKey = 'YOUR_KEY_HERE';
-  final apiUser = 'YOUR_USER_HERE';
-  final apiKey = 'YOUR_APIKEY_HERE';
+  final subscriptionKey = 'ec1bc2bfcfb3454d8188a0845e852912';
+  final apiUser = '19b13f36-b1d9-4060-89e1-3034ff4b863a';
+  final apiKey = 'e501262d19434a92b34d2fe0fc9ad74d';
   
   print('🔍 Validating MTN MoMo Credentials...\n');
   

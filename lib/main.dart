@@ -2,14 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
 import 'utils/app_theme.dart';
 import 'screens/auth/welcome_screen.dart';
+import 'screens/auth/admin_login_screen.dart';
 import 'screens/customer/customer_home_screen.dart';
 import 'screens/owner/owner_dashboard_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
+
+// Conditional import for web-only dart:html
+import 'package:true_home/utils/web_utils.dart'
+    if (dart.library.io) 'package:true_home/utils/web_utils_stub.dart';
+
+// Check if running on admin domain
+bool get isAdminSite {
+  if (kIsWeb) {
+    final hostname = getHostname();
+    return hostname != null && (
+      hostname.contains('truehome-admin') || 
+      hostname == 'admin.truehome.com.ug' ||
+      hostname.startsWith('admin.')
+    );
+  }
+  return false;
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -165,13 +184,13 @@ class AuthenticationWrapper extends StatelessWidget {
 
               // User data not found, log out and show welcome screen
               FirebaseAuth.instance.signOut();
-              return const WelcomeScreen();
+              return isAdminSite ? const AdminLoginScreen() : const WelcomeScreen();
             },
           );
         }
 
-        // User is not logged in
-        return const WelcomeScreen();
+        // User is not logged in - show admin login if on admin site
+        return isAdminSite ? const AdminLoginScreen() : const WelcomeScreen();
       },
     );
   }

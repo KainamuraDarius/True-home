@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import '../../utils/app_theme.dart';
 import 'login_screen.dart';
 import 'role_selection_screen.dart';
-import 'admin_login_screen.dart';
-import '../admin/create_admin_account.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -13,71 +11,49 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  int _tapCount = 0;
-  int _setupTapCount = 0;
-  DateTime? _lastTapTime;
-  DateTime? _lastSetupTapTime;
-
-  void _onLogoTap() {
-    final now = DateTime.now();
-    
-    // Reset counter if more than 2 seconds since last tap
-    if (_lastTapTime != null && now.difference(_lastTapTime!) > const Duration(seconds: 2)) {
-      _tapCount = 0;
-    }
-    
-    _lastTapTime = now;
-    _tapCount++;
-
-    if (_tapCount >= 7) {
-      _tapCount = 0;
-      // Navigate to admin login
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const AdminLoginScreen(),
-        ),
-      );
-    }
-  }
-
-  void _onSetupTap() {
-    final now = DateTime.now();
-    
-    // Reset counter if more than 2 seconds since last tap
-    if (_lastSetupTapTime != null && now.difference(_lastSetupTapTime!) > const Duration(seconds: 2)) {
-      _setupTapCount = 0;
-    }
-    
-    _lastSetupTapTime = now;
-    _setupTapCount++;
-
-    if (_setupTapCount >= 5) {
-      _setupTapCount = 0;
-      // Navigate to create admin account screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const CreateAdminAccountScreen(),
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-              // True Home Logo with hidden admin tap
-              GestureDetector(
-                onTap: _onLogoTap,
-                child: Container(
+      body: Container(
+        decoration: BoxDecoration(
+          // Background image
+          image: const DecorationImage(
+            image: AssetImage('assets/images/welcome_bg.jpg'),
+            fit: BoxFit.cover, // Covers entire screen
+            opacity: 1.0, // Full opacity (0.0 - 1.0)
+          ),
+          // Fallback gradient if image doesn't load
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary.withOpacity(0.8),
+              AppColors.primaryDark.withOpacity(0.9),
+            ],
+          ),
+        ),
+        child: Container(
+          // Semi-transparent overlay for better text readability (optional)
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withOpacity(0.1),
+                Colors.black.withOpacity(0.2),
+              ],
+            ),
+          ),
+          child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                // True Home Logo
+                Container(
                   width: 160,
                   height: 160,
                   decoration: BoxDecoration(
@@ -90,44 +66,54 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       ),
                     ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(40),
-                    child: Image.asset(
-                      'assets/images/true_home_logo.png',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: AppColors.primary,
-                          child: const Icon(
-                            Icons.home_rounded,
-                            size: 100,
-                            color: Colors.white,
-                          ),
-                        );
-                      },
-                    ),
+                  child: Image.asset(
+                    'assets/images/app_icon.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: AppColors.primary,
+                        child: const Icon(
+                          Icons.home_rounded,
+                          size: 100,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              // Welcome Text
-              const Text(
+                const SizedBox(height: 32),
+                // Welcome Text
+                Text(
                 'Welcome to True Home',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.3),
+                      offset: const Offset(0, 2),
+                      blurRadius: 4,
+                    ),
+                  ],
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               // Description
               Text(
-                'We build trust, quality and a stronger future. Find your perfect place to call home - rentals, condos, and student hostels.',
+                'Find trusted homes, faster. Buy, Rent, or discover student living - all in one place.',
                 style: TextStyle(
                   fontSize: 16,
-                  color: AppColors.textSecondary,
+                  color: Colors.white,
                   height: 1.5,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.3),
+                      offset: const Offset(0, 1),
+                      blurRadius: 3,
+                    ),
+                  ],
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -159,7 +145,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   Text(
                     'Already have an account? ',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: Colors.white,
                       fontSize: 15,
                     ),
                   ),
@@ -182,23 +168,21 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              // Hidden admin setup access (tap 5 times)
-              GestureDetector(
-                onTap: _onSetupTap,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  child: Text(
-                    'v1.0.0',
-                    style: TextStyle(
-                      color: AppColors.textLight,
-                      fontSize: 12,
-                    ),
+              // Version
+              Container(
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  'v1.0.0',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
                   ),
                 ),
               ),
@@ -206,6 +190,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ],
           ),
         ),
+      ),
+      ),
       ),
     );
   }

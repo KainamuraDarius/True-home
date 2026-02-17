@@ -55,6 +55,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
           .collection('properties')
           .where('ownerId', isEqualTo: widget.agentId)
           .where('status', isEqualTo: 'approved')
+          .where('isActive', isEqualTo: true)
           .get();
 
       setState(() {

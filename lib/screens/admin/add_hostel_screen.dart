@@ -270,6 +270,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
       final property = PropertyModel(
         id: propertyRef.id,
         title: _titleController.text.trim(),
+        category: 'Hostel',
         description: _descriptionController.text.trim(),
         type: PropertyType.hostel,
         price: 0, // Hostels use room pricing

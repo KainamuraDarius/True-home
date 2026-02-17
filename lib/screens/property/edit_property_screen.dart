@@ -314,6 +314,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
       final updatedProperty = PropertyModel(
         id: widget.property.id,
         title: _titleController.text.trim(),
+        category: widget.property.category, // Keep existing category
         description: _descriptionController.text.trim(),
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),

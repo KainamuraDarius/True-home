@@ -116,22 +116,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(35),
-                      child: Image.asset(
-                        'assets/images/true_home_logo.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: AppColors.primary,
-                            child: const Icon(
-                              Icons.home_rounded,
-                              size: 85,
-                              color: Colors.white,
-                            ),
-                          );
-                        },
-                      ),
+                    child: Image.asset(
+                      'assets/images/app_icon.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppColors.primary,
+                          child: const Icon(
+                            Icons.home_rounded,
+                            size: 85,
+                            color: Colors.white,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),

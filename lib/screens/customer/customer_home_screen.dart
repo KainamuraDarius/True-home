@@ -48,7 +48,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           });
         },
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primary,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: AppColors.textSecondary,
         items: const [
           BottomNavigationBarItem(
@@ -110,7 +110,7 @@ class _HomeTabState extends State<HomeTab> {
   final GlobalKey _universityDropdownKey = GlobalKey();
 
   // Property pagination state
-  int _displayedPropertiesCount = 11;
+  int _displayedPropertiesCount = 3; // Start with 3 properties
   static const int _propertiesPerPage = 10;
 
   // Search and filter state
@@ -201,7 +201,7 @@ class _HomeTabState extends State<HomeTab> {
     _loadPropertyLocations();
     _loadSearchHistory();
     _loadNewProjects(); // Load new projects carousel
-    
+
     // Initialize price controllers
     _minPriceController.text = '';
     _maxPriceController.text = '';
@@ -366,9 +366,13 @@ class _HomeTabState extends State<HomeTab> {
       List<PropertyModel> results = [];
 
       // Sync text controllers with actual filter values
-      final actualMinPrice = _minPriceController.text.isEmpty ? 0.0 : (double.tryParse(_minPriceController.text) ?? 0.0);
-      final actualMaxPrice = _maxPriceController.text.isEmpty ? 10000000.0 : (double.tryParse(_maxPriceController.text) ?? 10000000.0);
-      
+      final actualMinPrice = _minPriceController.text.isEmpty
+          ? 0.0
+          : (double.tryParse(_minPriceController.text) ?? 0.0);
+      final actualMaxPrice = _maxPriceController.text.isEmpty
+          ? 10000000.0
+          : (double.tryParse(_maxPriceController.text) ?? 10000000.0);
+
       _minPrice = actualMinPrice;
       _maxPrice = actualMaxPrice;
 
@@ -400,7 +404,8 @@ class _HomeTabState extends State<HomeTab> {
         bool matchesBedrooms =
             _bedrooms == null || property.bedrooms >= _bedrooms!;
         bool matchesPropertyType =
-            _selectedPropertyType == null || property.type == _selectedPropertyType;
+            _selectedPropertyType == null ||
+            property.type == _selectedPropertyType;
 
         if (matchesSearch &&
             matchesPrice &&
@@ -441,7 +446,7 @@ class _HomeTabState extends State<HomeTab> {
       _bedrooms = null;
       _selectedPropertyType = null;
       _selectedPropertyLocation = null;
-      _displayedPropertiesCount = 11;
+      _displayedPropertiesCount = 3; // Reset to show 3 properties initially
     });
   }
 
@@ -574,7 +579,15 @@ class _HomeTabState extends State<HomeTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('True Home'),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/app_icon.png',
+              height: 40,
+              fit: BoxFit.contain,
+            ),
+          ],
+        ),
         actions: [
           // Role Switcher (only shows if user has multiple roles)
           if (_currentUser != null)
@@ -615,8 +628,8 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                     child: Text(
                       _unreadCount > 9 ? '9+' : '$_unreadCount',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -646,18 +659,23 @@ class _HomeTabState extends State<HomeTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Find Your Dream Home',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Browse rentals, condos, and student hostels',
-                    style: TextStyle(fontSize: 16, color: Colors.white70),
+                  Text(
+                    'Browse rentals, hostels and properties for sale',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onPrimary.withOpacity(0.8),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   // Property type buttons
@@ -698,9 +716,14 @@ class _HomeTabState extends State<HomeTab> {
                           vertical: 16,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.primary, width: 2),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.primary,
+                            width: 2,
+                          ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -709,14 +732,18 @@ class _HomeTabState extends State<HomeTab> {
                               _selectedUniversity ?? 'Select University',
                               style: TextStyle(
                                 fontSize: 16,
-                                color: _selectedUniversity != null 
-                                    ? Colors.black87 
-                                    : Colors.grey.shade600,
+                                color: _selectedUniversity != null
+                                    ? Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge!.color
+                                    : Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall!.color,
                               ),
                             ),
                             Icon(
                               Icons.arrow_drop_down,
-                              color: AppColors.primary,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ],
                         ),
@@ -733,7 +760,7 @@ class _HomeTabState extends State<HomeTab> {
                           children: [
                             Container(
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: Theme.of(context).cardColor,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Stack(
@@ -751,7 +778,9 @@ class _HomeTabState extends State<HomeTab> {
                                         _inlineAutocompleteSuggestion,
                                         style: TextStyle(
                                           fontSize: 16,
-                                          color: Colors.grey[400],
+                                          color: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall!.color,
                                         ),
                                       ),
                                     ),
@@ -759,9 +788,11 @@ class _HomeTabState extends State<HomeTab> {
                                   TextField(
                                     controller: _searchController,
                                     focusNode: _searchFocusNode,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 16,
-                                      color: Colors.black,
+                                      color: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge!.color,
                                     ),
                                     decoration: InputDecoration(
                                       hintText:
@@ -829,10 +860,10 @@ class _HomeTabState extends State<HomeTab> {
                                       maxHeight: 250,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: Theme.of(context).cardColor,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Colors.grey[300]!,
+                                        color: Theme.of(context).dividerColor,
                                         width: 1,
                                       ),
                                     ),
@@ -861,7 +892,9 @@ class _HomeTabState extends State<HomeTab> {
                                                   )
                                                 ? Icons.home
                                                 : Icons.history,
-                                            color: AppColors.primary,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
                                             size: 20,
                                           ),
                                           title: RichText(
@@ -869,9 +902,12 @@ class _HomeTabState extends State<HomeTab> {
                                               children: [
                                                 TextSpan(
                                                   text: suggestion,
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontSize: 14,
-                                                    color: Colors.black87,
+                                                    color: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyLarge!
+                                                        .color,
                                                     fontWeight: FontWeight.w500,
                                                   ),
                                                 ),
@@ -904,7 +940,10 @@ class _HomeTabState extends State<HomeTab> {
                                                         vertical: 4,
                                                       ),
                                                   decoration: BoxDecoration(
-                                                    color: Colors.grey[200],
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .primary
+                                                        .withOpacity(0.1),
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                           4,
@@ -914,7 +953,9 @@ class _HomeTabState extends State<HomeTab> {
                                                     'Tab',
                                                     style: TextStyle(
                                                       fontSize: 11,
-                                                      color: Colors.grey[700],
+                                                      color: Theme.of(
+                                                        context,
+                                                      ).colorScheme.primary,
                                                       fontWeight:
                                                           FontWeight.bold,
                                                     ),
@@ -944,13 +985,13 @@ class _HomeTabState extends State<HomeTab> {
                       Container(
                         decoration: BoxDecoration(
                           color: _showFilters
-                              ? AppColors.primary
-                              : Colors.white,
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _showFilters
-                                ? AppColors.primary
-                                : Colors.grey.shade300,
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).dividerColor,
                             width: 1,
                           ),
                         ),
@@ -958,8 +999,8 @@ class _HomeTabState extends State<HomeTab> {
                           icon: Icon(
                             Icons.filter_list,
                             color: _showFilters
-                                ? Colors.white
-                                : AppColors.textPrimary,
+                                ? Theme.of(context).colorScheme.onPrimary
+                                : Theme.of(context).iconTheme.color,
                           ),
                           onPressed: () {
                             setState(() => _showFilters = !_showFilters);
@@ -976,7 +1017,7 @@ class _HomeTabState extends State<HomeTab> {
             // Search History
             if (_showHistory && _searchHistory.isNotEmpty)
               Container(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1032,7 +1073,7 @@ class _HomeTabState extends State<HomeTab> {
             if (_showFilters)
               Container(
                 padding: const EdgeInsets.all(20),
-                color: Colors.grey[100],
+                color: Theme.of(context).scaffoldBackgroundColor,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1093,48 +1134,98 @@ class _HomeTabState extends State<HomeTab> {
                                   prefixText: 'UGX ',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: AppColors.primary),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.primary,
+                                    ),
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
                                   suffixIcon: PopupMenuButton<double>(
                                     icon: const Icon(Icons.arrow_drop_down),
                                     tooltip: 'Select preset price',
                                     onSelected: (value) {
                                       setState(() {
                                         _minPrice = value;
-                                        _minPriceController.text = value == 0 ? '' : CurrencyFormatter.format(value);
-                                        if (_maxPrice <= _minPrice && _minPrice > 0) {
+                                        _minPriceController.text = value == 0
+                                            ? ''
+                                            : CurrencyFormatter.format(value);
+                                        if (_maxPrice <= _minPrice &&
+                                            _minPrice > 0) {
                                           _maxPrice = _minPrice + 100000;
-                                          _maxPriceController.text = CurrencyFormatter.format(_maxPrice);
+                                          _maxPriceController.text =
+                                              CurrencyFormatter.format(
+                                                _maxPrice,
+                                              );
                                         }
                                       });
                                     },
                                     itemBuilder: (context) => [
-                                      const PopupMenuItem(value: 0, child: Text('Any')),
-                                      const PopupMenuItem(value: 100000, child: Text('100k')),
-                                      const PopupMenuItem(value: 200000, child: Text('200k')),
-                                      const PopupMenuItem(value: 300000, child: Text('300k')),
-                                      const PopupMenuItem(value: 500000, child: Text('500k')),
-                                      const PopupMenuItem(value: 700000, child: Text('700k')),
-                                      const PopupMenuItem(value: 1000000, child: Text('1M')),
-                                      const PopupMenuItem(value: 1500000, child: Text('1.5M')),
-                                      const PopupMenuItem(value: 2000000, child: Text('2M')),
-                                      const PopupMenuItem(value: 3000000, child: Text('3M')),
-                                      const PopupMenuItem(value: 5000000, child: Text('5M')),
+                                      const PopupMenuItem(
+                                        value: 0,
+                                        child: Text('Any'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 100000,
+                                        child: Text('100k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 200000,
+                                        child: Text('200k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 300000,
+                                        child: Text('300k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 500000,
+                                        child: Text('500k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 700000,
+                                        child: Text('700k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 1000000,
+                                        child: Text('1M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 1500000,
+                                        child: Text('1.5M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 2000000,
+                                        child: Text('2M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 3000000,
+                                        child: Text('3M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 5000000,
+                                        child: Text('5M'),
+                                      ),
                                     ],
                                   ),
                                 ),
                                 onChanged: (value) {
                                   setState(() {
-                                    _minPrice = value.isEmpty ? 0.0 : CurrencyFormatter.parse(value);
+                                    _minPrice = value.isEmpty
+                                        ? 0.0
+                                        : CurrencyFormatter.parse(value);
                                   });
                                 },
                               ),
@@ -1164,48 +1255,101 @@ class _HomeTabState extends State<HomeTab> {
                                   prefixText: 'UGX ',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: AppColors.primary),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.primary,
+                                    ),
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
                                   suffixIcon: PopupMenuButton<double>(
                                     icon: const Icon(Icons.arrow_drop_down),
                                     tooltip: 'Select preset price',
                                     onSelected: (value) {
                                       setState(() {
                                         _maxPrice = value;
-                                        _maxPriceController.text = CurrencyFormatter.format(value);
-                                        if (_minPrice >= _maxPrice && _maxPrice > 0) {
-                                          _minPrice = _maxPrice > 100000 ? _maxPrice - 100000 : 0;
-                                          _minPriceController.text = _minPrice == 0 ? '' : CurrencyFormatter.format(_minPrice);
+                                        _maxPriceController.text =
+                                            CurrencyFormatter.format(value);
+                                        if (_minPrice >= _maxPrice &&
+                                            _maxPrice > 0) {
+                                          _minPrice = _maxPrice > 100000
+                                              ? _maxPrice - 100000
+                                              : 0;
+                                          _minPriceController.text =
+                                              _minPrice == 0
+                                              ? ''
+                                              : CurrencyFormatter.format(
+                                                  _minPrice,
+                                                );
                                         }
                                       });
                                     },
                                     itemBuilder: (context) => [
-                                      const PopupMenuItem(value: 200000, child: Text('200k')),
-                                      const PopupMenuItem(value: 300000, child: Text('300k')),
-                                      const PopupMenuItem(value: 500000, child: Text('500k')),
-                                      const PopupMenuItem(value: 700000, child: Text('700k')),
-                                      const PopupMenuItem(value: 1000000, child: Text('1M')),
-                                      const PopupMenuItem(value: 1500000, child: Text('1.5M')),
-                                      const PopupMenuItem(value: 2000000, child: Text('2M')),
-                                      const PopupMenuItem(value: 3000000, child: Text('3M')),
-                                      const PopupMenuItem(value: 5000000, child: Text('5M')),
-                                      const PopupMenuItem(value: 7000000, child: Text('7M')),
-                                      const PopupMenuItem(value: 10000000, child: Text('10M+')),
+                                      const PopupMenuItem(
+                                        value: 200000,
+                                        child: Text('200k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 300000,
+                                        child: Text('300k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 500000,
+                                        child: Text('500k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 700000,
+                                        child: Text('700k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 1000000,
+                                        child: Text('1M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 1500000,
+                                        child: Text('1.5M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 2000000,
+                                        child: Text('2M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 3000000,
+                                        child: Text('3M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 5000000,
+                                        child: Text('5M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 7000000,
+                                        child: Text('7M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 10000000,
+                                        child: Text('10M+'),
+                                      ),
                                     ],
                                   ),
                                 ),
                                 onChanged: (value) {
                                   setState(() {
-                                    _maxPrice = value.isEmpty ? 10000000.0 : CurrencyFormatter.parse(value);
+                                    _maxPrice = value.isEmpty
+                                        ? 10000000.0
+                                        : CurrencyFormatter.parse(value);
                                   });
                                 },
                               ),
@@ -1309,423 +1453,519 @@ class _HomeTabState extends State<HomeTab> {
             // Show normal content if search is not active
             if (!_isSearchActive) ...[
               const SizedBox(height: 24),
-              // New Projects Rotating Carousel
-              _buildNewProjectsCarousel(),
-              const SizedBox(height: 24),
-              // Browse New Projects Section
-              _buildBrowseNewProjectsSection(),
-              // Scroll anchor - positioned to hide everything above when scrolled to
-              Container(
-                key: _propertiesSectionKey,
-                height: 1,
-                color: Colors.transparent,
-              ),
-              const SizedBox(height: 24),
-              // Featured Properties Section
-              Container(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _selectedPropertyLocation != null
-                                  ? 'Properties in $_selectedPropertyLocation'
-                                  : _selectedFilter == null
-                                  ? 'All Approved Properties'
-                                  : _selectedFilter == PropertyType.rent
-                                  ? 'Properties for Rent'
-                                  : _selectedFilter == PropertyType.sale
-                                  ? 'Properties for Sale'
-                                  : 'Student Hostels',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
+
+              // Show filtered properties FIRST only when a filter button is clicked
+              if (_selectedFilter != null) ...[
+                // Scroll anchor - positioned to hide everything above when scrolled to
+                Container(
+                  key: _propertiesSectionKey,
+                  height: 1,
+                  color: Colors.transparent,
+                ),
+                // Featured Properties Section - Shows when filter is active
+                Container(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _selectedPropertyLocation != null
+                                    ? 'Properties in $_selectedPropertyLocation'
+                                    : _selectedFilter == PropertyType.rent
+                                    ? 'Properties for Rent'
+                                    : _selectedFilter == PropertyType.sale
+                                    ? 'Properties for Sale'
+                                    : 'Student Hostels',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(
+                                    context,
+                                  ).textTheme.bodyLarge!.color,
+                                ),
                               ),
                             ),
-                          ),
-                          if (_selectedFilter != null ||
-                              _selectedPropertyLocation != null)
                             TextButton(
                               onPressed: () {
                                 setState(() {
                                   _selectedFilter = null;
                                   _selectedPropertyLocation = null;
                                   _displayedPropertiesCount =
-                                      11; // Reset pagination
+                                      3; // Reset pagination to 3
                                 });
                               },
-                              child: const Text('Clear All'),
+                              child: const Text('Clear Filter'),
                             ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Location filter tabs
-                    if (_propertyLocations.isNotEmpty) ...[
-                      SizedBox(
-                        height: 45,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: _propertyLocations.length + 1,
-                          itemBuilder: (context, index) {
-                            if (index == 0) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 12),
-                                child: ChoiceChip(
-                                  label: const Text('All Areas'),
-                                  selected: _selectedPropertyLocation == null,
-                                  onSelected: (selected) {
-                                    if (selected) {
-                                      setState(() {
-                                        _selectedPropertyLocation = null;
-                                        _displayedPropertiesCount =
-                                            11; // Reset pagination
-                                      });
-                                    }
-                                  },
-                                  selectedColor: AppColors.primary,
-                                  labelStyle: TextStyle(
-                                    color: _selectedPropertyLocation == null
-                                        ? Colors.white
-                                        : AppColors.textPrimary,
-                                    fontWeight:
-                                        _selectedPropertyLocation == null
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
-                                  backgroundColor: Colors.grey.shade200,
-                                ),
-                              );
-                            }
-                            final location = _propertyLocations[index - 1];
-                            final isSelected =
-                                location == _selectedPropertyLocation;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: ChoiceChip(
-                                label: Text(location),
-                                selected: isSelected,
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _selectedPropertyLocation = location;
-                                      _displayedPropertiesCount =
-                                          11; // Reset pagination
-                                    });
-                                  }
-                                },
-                                selectedColor: AppColors.primary,
-                                labelStyle: TextStyle(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppColors.textPrimary,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                                backgroundColor: Colors.grey.shade200,
-                              ),
-                            );
-                          },
+                          ],
                         ),
                       ),
                       const SizedBox(height: 12),
-                    ],
-                    const SizedBox(height: 8),
-                    // Properties Grid
-                    StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('properties')
-                          .where('status', isEqualTo: 'approved')
-                          .orderBy('createdAt', descending: true)
-                          .snapshots(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Padding(
-                            padding: EdgeInsets.all(40),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-
-                        if (snapshot.hasError) {
-                          return Padding(
-                            padding: const EdgeInsets.all(40),
-                            child: Center(
-                              child: Text('Error: ${snapshot.error}'),
-                            ),
-                          );
-                        }
-
-                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                          return Padding(
-                            padding: const EdgeInsets.all(40),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.home_outlined,
-                                    size: 64,
-                                    color: Colors.grey[400],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No properties available yet',
-                                    style: TextStyle(color: Colors.grey[600]),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }
-
-                        // Get all properties and apply filters
-                        var allProperties = snapshot.data!.docs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          data['id'] = doc.id;
-                          return PropertyModel.fromJson(data);
-                        }).toList();
-
-                        // Filter by property type
-                        if (_selectedFilter != null) {
-                          allProperties = allProperties
-                              .where((p) => p.type == _selectedFilter)
-                              .toList();
-                        }
-
-                        // Filter by university (for hostels)
-                        if (_selectedFilter == PropertyType.hostel &&
-                            _selectedUniversity != null) {
-                          allProperties = allProperties
-                              .where((p) => p.university == _selectedUniversity)
-                              .toList();
-                        }
-
-                        // Filter by location
-                        List<PropertyModel> filteredProperties = [];
-                        List<PropertyModel> otherAreaProperties = [];
-
-                        if (_selectedPropertyLocation != null) {
-                          filteredProperties = allProperties
-                              .where(
-                                (p) =>
-                                    p.location.trim().toLowerCase() ==
-                                    _selectedPropertyLocation!
-                                        .trim()
-                                        .toLowerCase(),
-                              )
-                              .toList();
-
-                          // Get properties from other areas for suggestions
-                          otherAreaProperties = allProperties
-                              .where(
-                                (p) =>
-                                    p.location.trim().toLowerCase() !=
-                                    _selectedPropertyLocation!
-                                        .trim()
-                                        .toLowerCase(),
-                              )
-                              .take(4)
-                              .toList();
-                        } else {
-                          filteredProperties = allProperties;
-                        }
-
-                        final properties = filteredProperties;
-
-                        // Show properties or empty state with suggestions
-                        if (properties.isEmpty &&
-                            _selectedPropertyLocation != null) {
-                          return Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.location_off,
-                                  size: 64,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No properties available in $_selectedPropertyLocation yet',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[700],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'But here are some properties in other areas that might interest you:',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                if (otherAreaProperties.isNotEmpty)
-                                  ListView.builder(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    itemCount: otherAreaProperties.length,
-                                    itemBuilder: (context, index) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 16,
-                                        ),
-                                        child: _buildPropertyCard(
-                                          context,
-                                          otherAreaProperties[index],
-                                        ),
-                                      );
+                      // Location filter tabs
+                      if (_propertyLocations.isNotEmpty) ...[
+                        SizedBox(
+                          height: 45,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            itemCount: _propertyLocations.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 12),
+                                  child: ChoiceChip(
+                                    label: const Text('All Areas'),
+                                    selected: _selectedPropertyLocation == null,
+                                    onSelected: (selected) {
+                                      if (selected) {
+                                        setState(() {
+                                          _selectedPropertyLocation = null;
+                                          _displayedPropertiesCount =
+                                              3; // Reset pagination to 3
+                                        });
+                                      }
                                     },
+                                    selectedColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    labelStyle: TextStyle(
+                                      color: _selectedPropertyLocation == null
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.onPrimary
+                                          : Theme.of(
+                                              context,
+                                            ).textTheme.bodyLarge!.color,
+                                      fontWeight:
+                                          _selectedPropertyLocation == null
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                    backgroundColor: Colors.grey.shade200,
                                   ),
-                              ],
-                            ),
-                          );
-                        }
+                                );
+                              }
+                              final location = _propertyLocations[index - 1];
+                              final isSelected =
+                                  location == _selectedPropertyLocation;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: ChoiceChip(
+                                  label: Text(location),
+                                  selected: isSelected,
+                                  onSelected: (selected) {
+                                    if (selected) {
+                                      setState(() {
+                                        _selectedPropertyLocation = location;
+                                        _displayedPropertiesCount =
+                                            3; // Reset pagination to 3
+                                      });
+                                    }
+                                  },
+                                  selectedColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                  labelStyle: TextStyle(
+                                    color: isSelected
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimary
+                                        : Theme.of(
+                                            context,
+                                          ).textTheme.bodyLarge!.color,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                  backgroundColor: Theme.of(
+                                    context,
+                                  ).chipTheme.backgroundColor,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      const SizedBox(height: 8),
+                      // Properties Grid
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('properties')
+                            .where('status', isEqualTo: 'approved')
+                            .orderBy('createdAt', descending: true)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.all(40),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
 
-                        if (properties.isEmpty) {
-                          return Padding(
-                            padding: const EdgeInsets.all(40),
-                            child: Center(
+                          if (snapshot.hasError) {
+                            return Padding(
+                              padding: const EdgeInsets.all(40),
+                              child: Center(
+                                child: Text('Error: ${snapshot.error}'),
+                              ),
+                            );
+                          }
+
+                          if (!snapshot.hasData ||
+                              snapshot.data!.docs.isEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.all(40),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.home_outlined,
+                                      size: 64,
+                                      color: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall!
+                                          .color
+                                          ?.withOpacity(0.4),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No properties available yet',
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall!.color,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          // Get all properties and apply filters
+                          var allProperties = snapshot.data!.docs.map((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            data['id'] = doc.id;
+                            return PropertyModel.fromJson(data);
+                          }).toList();
+
+                          // Filter by property type
+                          if (_selectedFilter != null) {
+                            allProperties = allProperties
+                                .where((p) => p.type == _selectedFilter)
+                                .toList();
+                          }
+
+                          // Filter by university (for hostels)
+                          if (_selectedFilter == PropertyType.hostel &&
+                              _selectedUniversity != null) {
+                            allProperties = allProperties
+                                .where(
+                                  (p) => p.university == _selectedUniversity,
+                                )
+                                .toList();
+                          }
+
+                          // Filter by location
+                          List<PropertyModel> filteredProperties = [];
+                          List<PropertyModel> otherAreaProperties = [];
+
+                          if (_selectedPropertyLocation != null) {
+                            filteredProperties = allProperties
+                                .where(
+                                  (p) =>
+                                      p.location.trim().toLowerCase() ==
+                                      _selectedPropertyLocation!
+                                          .trim()
+                                          .toLowerCase(),
+                                )
+                                .toList();
+
+                            // Get properties from other areas for suggestions
+                            otherAreaProperties = allProperties
+                                .where(
+                                  (p) =>
+                                      p.location.trim().toLowerCase() !=
+                                      _selectedPropertyLocation!
+                                          .trim()
+                                          .toLowerCase(),
+                                )
+                                .take(4)
+                                .toList();
+                          } else {
+                            filteredProperties = allProperties;
+                          }
+
+                          final properties = filteredProperties;
+
+                          // Show properties or empty state with suggestions
+                          if (properties.isEmpty &&
+                              _selectedPropertyLocation != null) {
+                            return Padding(
+                              padding: const EdgeInsets.all(20),
                               child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    Icons.home_outlined,
+                                    Icons.location_off,
                                     size: 64,
                                     color: Colors.grey[400],
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    _selectedFilter == null
-                                        ? 'No properties available yet'
-                                        : 'No ${_selectedFilter == PropertyType.rent
-                                              ? "rental"
-                                              : _selectedFilter == PropertyType.sale
-                                              ? "sale"
-                                              : "hostel"} properties available',
-                                    style: TextStyle(color: Colors.grey[600]),
+                                    'No properties available in $_selectedPropertyLocation yet',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey[700],
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'But here are some properties in other areas that might interest you:',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  if (otherAreaProperties.isNotEmpty)
+                                    ListView.builder(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      itemCount: otherAreaProperties.length,
+                                      itemBuilder: (context, index) {
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 16,
+                                          ),
+                                          child: _buildPropertyCard(
+                                            context,
+                                            otherAreaProperties[index],
+                                          ),
+                                        );
+                                      },
+                                    ),
                                 ],
                               ),
-                            ),
-                          );
-                        }
+                            );
+                          }
 
-                        // Calculate properties to display
-                        final totalProperties = properties.length;
-                        final propertiesToDisplay = properties
-                            .take(_displayedPropertiesCount)
-                            .toList();
-                        final hasMore =
-                            totalProperties > _displayedPropertiesCount;
-
-                        return Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: ListView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: propertiesToDisplay.length,
-                                itemBuilder: (context, index) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: _buildPropertyCard(
-                                      context,
-                                      propertiesToDisplay[index],
+                          if (properties.isEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.all(40),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.home_outlined,
+                                      size: 64,
+                                      color: Colors.grey[400],
                                     ),
-                                  );
-                                },
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _selectedFilter == null
+                                          ? 'No properties available yet'
+                                          : 'No ${_selectedFilter == PropertyType.rent
+                                                ? "rental"
+                                                : _selectedFilter == PropertyType.sale
+                                                ? "sale"
+                                                : "hostel"} properties available',
+                                      style: TextStyle(color: Colors.grey[600]),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            if (hasMore) ...[
-                              const SizedBox(height: 8),
+                            );
+                          }
+
+                          // Calculate properties to display
+                          final totalProperties = properties.length;
+                          final propertiesToDisplay = properties
+                              .take(_displayedPropertiesCount)
+                              .toList();
+                          final hasMore =
+                              totalProperties > _displayedPropertiesCount;
+
+                          return Column(
+                            children: [
                               Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                 ),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _displayedPropertiesCount +=
-                                            _propertiesPerPage;
-                                      });
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: propertiesToDisplay.length,
+                                  itemBuilder: (context, index) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16,
                                       ),
-                                      side: BorderSide(
-                                        color: AppColors.primary,
-                                        width: 2,
+                                      child: _buildPropertyCard(
+                                        context,
+                                        propertiesToDisplay[index],
                                       ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
+                                    );
+                                  },
+                                ),
+                              ),
+                              if (hasMore) ...[
+                                const SizedBox(height: 12),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          AppColors.primary.withOpacity(0.05),
+                                          AppColors.primary.withOpacity(0.1),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: AppColors.primary.withOpacity(
+                                          0.3,
+                                        ),
+                                        width: 1.5,
                                       ),
                                     ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          'View More Properties',
-                                          style: TextStyle(
-                                            color: AppColors.primary,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _displayedPropertiesCount +=
+                                                _propertiesPerPage;
+                                          });
+                                        },
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 20,
+                                            horizontal: 24,
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons.add_circle_outline,
+                                                    color: AppColors.primary,
+                                                    size: 24,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Text(
+                                                    'View More Properties',
+                                                    style: TextStyle(
+                                                      color: AppColors.primary,
+                                                      fontSize: 17,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      letterSpacing: 0.5,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                '${totalProperties - propertiesToDisplay.length} more available',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: AppColors.primary
+                                                      .withOpacity(0.8),
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Icon(
-                                          Icons.keyboard_arrow_down,
-                                          color: AppColors.primary,
-                                          size: 24,
-                                        ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: Text(
-                                  'Showing ${propertiesToDisplay.length} of $totalProperties properties',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade600,
+                                const SizedBox(height: 12),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).cardColor,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: Theme.of(
+                                              context,
+                                            ).dividerColor,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.visibility,
+                                              size: 16,
+                                              color: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall!.color,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Showing ${propertiesToDisplay.length} of $totalProperties',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Theme.of(
+                                                  context,
+                                                ).textTheme.bodyMedium!.color,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ), // Close Container with key for properties section
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ), // Close Container for filtered properties section
+                const SizedBox(height: 24),
+              ], // Close if (_selectedFilter != null)
+              // Spotlight Properties Section - Shows FIRST when no filter, AFTER filtered properties when filter is active
+              _buildNewProjectsCarousel(),
+              const SizedBox(height: 24),
+              // Browse New Projects Section
+              _buildBrowseNewProjectsSection(),
+              const SizedBox(height: 24),
             ], // Close the if (!_isSearchActive) statement
           ], // Close the main Column children
         ),
@@ -1764,29 +2004,40 @@ class _HomeTabState extends State<HomeTab> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const SizedBox(height: 40),
-                      Icon(Icons.search_off, size: 80, color: Colors.grey[400]),
+                      Icon(
+                        Icons.search_off,
+                        size: 80,
+                        color: Theme.of(
+                          context,
+                        ).textTheme.bodySmall!.color?.withOpacity(0.4),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'No properties found',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
-                          color: Colors.grey[600],
+                          color: Theme.of(context).textTheme.bodyMedium!.color,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Try adjusting your search or filters',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).textTheme.bodySmall!.color,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.all(16),
                         margin: const EdgeInsets.symmetric(horizontal: 32),
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor,
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1795,17 +2046,23 @@ class _HomeTabState extends State<HomeTab> {
                               'Active Filters:',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.grey[700],
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium!.color,
                               ),
                             ),
                             const SizedBox(height: 8),
                             if (_searchController.text.isNotEmpty)
                               Text('• Search: "${_searchController.text}"'),
-                            Text('• Price: UGX ${CurrencyFormatter.format(_minPrice)} - ${CurrencyFormatter.format(_maxPrice)}'),
+                            Text(
+                              '• Price: UGX ${CurrencyFormatter.format(_minPrice)} - ${CurrencyFormatter.format(_maxPrice)}',
+                            ),
                             if (_bedrooms != null)
                               Text('• Bedrooms: $_bedrooms+'),
                             if (_selectedPropertyType != null)
-                              Text('• Type: ${_selectedPropertyType.toString().split('.').last}'),
+                              Text(
+                                '• Type: ${_selectedPropertyType.toString().split('.').last}',
+                              ),
                           ],
                         ),
                       ),
@@ -1837,12 +2094,12 @@ class _HomeTabState extends State<HomeTab> {
         setState(() {
           _selectedFilter = isSelected ? null : type;
           _displayedPropertiesCount =
-              11; // Reset pagination when filter changes
+              3; // Reset pagination to 3 when filter changes
           _selectedPropertyLocation = null; // Reset location filter
         });
         // Reload locations for the selected property type
         _loadPropertyLocations();
-        
+
         // For hostels, scroll to university dropdown and open picker
         if (type == PropertyType.hostel && !isSelected) {
           Future.delayed(const Duration(milliseconds: 100), () {
@@ -1852,18 +2109,21 @@ class _HomeTabState extends State<HomeTab> {
                   context.findRenderObject() as RenderBox?;
               if (renderBox != null) {
                 final position = renderBox.localToGlobal(Offset.zero);
-                final scrollPosition = _scrollController.offset + position.dy - 100;
+                final scrollPosition =
+                    _scrollController.offset + position.dy - 100;
 
-                _scrollController.animateTo(
-                  scrollPosition,
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeInOut,
-                ).then((_) {
-                  // Open university picker after scrolling
-                  Future.delayed(const Duration(milliseconds: 300), () {
-                    _showUniversityPicker(context);
-                  });
-                });
+                _scrollController
+                    .animateTo(
+                      scrollPosition,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    )
+                    .then((_) {
+                      // Open university picker after scrolling
+                      Future.delayed(const Duration(milliseconds: 300), () {
+                        _showUniversityPicker(context);
+                      });
+                    });
               }
             }
           });
@@ -1872,14 +2132,20 @@ class _HomeTabState extends State<HomeTab> {
         // For rent and sale buttons, no automatic scrolling
       },
       style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected ? AppColors.primary : Colors.white,
-        foregroundColor: isSelected ? Colors.white : AppColors.textPrimary,
+        backgroundColor: isSelected
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).cardColor,
+        foregroundColor: isSelected
+            ? Theme.of(context).colorScheme.onPrimary
+            : Theme.of(context).textTheme.bodyLarge!.color,
         elevation: isSelected ? 4 : 1,
         padding: const EdgeInsets.symmetric(vertical: 12),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
           side: BorderSide(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
             width: 1,
           ),
         ),
@@ -1902,7 +2168,7 @@ class _HomeTabState extends State<HomeTab> {
       builder: (BuildContext context) {
         return Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(20),
               topRight: Radius.circular(20),
@@ -1914,7 +2180,7 @@ class _HomeTabState extends State<HomeTab> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.primary,
+                  color: Theme.of(context).colorScheme.primary,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(20),
                     topRight: Radius.circular(20),
@@ -1923,16 +2189,19 @@ class _HomeTabState extends State<HomeTab> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Select University',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onPrimary,
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: Icon(
+                        Icons.close,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -1943,13 +2212,19 @@ class _HomeTabState extends State<HomeTab> {
                   shrinkWrap: true,
                   children: [
                     ListTile(
-                      leading: Icon(Icons.school, color: AppColors.primary),
+                      leading: Icon(
+                        Icons.school,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       title: const Text(
                         'All Universities',
                         style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                       trailing: _selectedUniversity == null
-                          ? Icon(Icons.check, color: AppColors.primary)
+                          ? Icon(
+                              Icons.check,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
                           : null,
                       onTap: () {
                         Navigator.pop(context);
@@ -1965,17 +2240,26 @@ class _HomeTabState extends State<HomeTab> {
                       return ListTile(
                         leading: Icon(
                           Icons.school_outlined,
-                          color: isSelected ? AppColors.primary : Colors.grey,
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).textTheme.bodySmall!.color,
                         ),
                         title: Text(
                           university,
                           style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                            color: isSelected ? AppColors.primary : Colors.black87,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).textTheme.bodyLarge!.color,
                           ),
                         ),
                         trailing: isSelected
-                            ? Icon(Icons.check, color: AppColors.primary)
+                            ? Icon(
+                                Icons.check,
+                                color: Theme.of(context).colorScheme.primary,
+                              )
                             : null,
                         onTap: () {
                           Navigator.pop(context);
@@ -2064,12 +2348,12 @@ class _HomeTabState extends State<HomeTab> {
       var query = FirebaseFirestore.instance
           .collection('properties')
           .where('status', isEqualTo: 'approved');
-      
+
       // Filter by property type if a filter is selected
       if (_selectedFilter != null) {
         query = query.where('type', isEqualTo: _selectedFilter!.name);
       }
-      
+
       final querySnapshot = await query.get();
 
       Set<String> locations = {};
@@ -2157,14 +2441,14 @@ class _HomeTabState extends State<HomeTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
             'Browse New Projects In Uganda',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: Theme.of(context).textTheme.bodyLarge!.color,
             ),
           ),
         ),
@@ -2192,14 +2476,16 @@ class _HomeTabState extends State<HomeTab> {
                       _loadProjectsForLocation(location);
                     }
                   },
-                  selectedColor: AppColors.primary,
+                  selectedColor: Theme.of(context).colorScheme.primary,
                   labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimary
+                        : Theme.of(context).textTheme.bodyLarge!.color,
                     fontWeight: isSelected
                         ? FontWeight.bold
                         : FontWeight.normal,
                   ),
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: Theme.of(context).chipTheme.backgroundColor,
                   elevation: isSelected ? 4 : 0,
                 ),
               );
@@ -2221,11 +2507,20 @@ class _HomeTabState extends State<HomeTab> {
             child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.apartment, size: 48, color: Colors.grey.shade400),
+                  Icon(
+                    Icons.apartment,
+                    size: 48,
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodySmall!.color?.withOpacity(0.4),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'No projects in $_selectedProjectLocation yet',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodySmall!.color,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -2272,8 +2567,10 @@ class _HomeTabState extends State<HomeTab> {
                       icon: const Icon(Icons.arrow_forward),
                       label: const Text('View More'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: const BorderSide(color: AppColors.primary),
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -2404,7 +2701,7 @@ class _HomeTabState extends State<HomeTab> {
                             fit: BoxFit.cover,
                             placeholder: (context, url) => Container(
                               height: 220,
-                              color: Colors.grey[200],
+                              color: Theme.of(context).cardColor,
                               child: const Center(
                                 child: CircularProgressIndicator(),
                               ),
@@ -2412,7 +2709,7 @@ class _HomeTabState extends State<HomeTab> {
                             errorWidget: (context, url, error) {
                               return Container(
                                 height: 220,
-                                color: Colors.grey[300],
+                                color: Theme.of(context).cardColor,
                                 child: const Center(
                                   child: Icon(
                                     Icons.image_not_supported,
@@ -2424,7 +2721,7 @@ class _HomeTabState extends State<HomeTab> {
                           )
                         : Container(
                             height: 220,
-                            color: Colors.grey[300],
+                            color: Theme.of(context).cardColor,
                             child: const Center(
                               child: Icon(Icons.image_not_supported, size: 50),
                             ),
@@ -2465,8 +2762,8 @@ class _HomeTabState extends State<HomeTab> {
                         property.type == PropertyType.sale
                             ? 'FOR SALE'
                             : 'FOR RENT',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onError,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -2484,22 +2781,22 @@ class _HomeTabState extends State<HomeTab> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.primary,
+                          color: Theme.of(context).colorScheme.primary,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
                               Icons.local_fire_department,
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.onPrimary,
                               size: 14,
                             ),
                             SizedBox(width: 4),
                             Text(
                               'Featured',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: Theme.of(context).colorScheme.onPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 11,
                               ),
@@ -2519,10 +2816,10 @@ class _HomeTabState extends State<HomeTab> {
                   children: [
                     Text(
                       property.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: Theme.of(context).textTheme.bodyLarge!.color,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2530,17 +2827,19 @@ class _HomeTabState extends State<HomeTab> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.location_on,
                           size: 14,
-                          color: Colors.grey,
+                          color: Theme.of(context).textTheme.bodySmall!.color,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             property.location,
-                            style: const TextStyle(
-                              color: Colors.grey,
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).textTheme.bodySmall!.color,
                               fontSize: 13,
                             ),
                             maxLines: 1,
@@ -2552,10 +2851,10 @@ class _HomeTabState extends State<HomeTab> {
                     const SizedBox(height: 6),
                     Text(
                       'UGX ${CurrencyFormatter.format(property.price)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ],
@@ -2607,13 +2906,13 @@ class _HomeTabState extends State<HomeTab> {
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
                         height: 180,
-                        color: Colors.grey[200],
+                        color: Theme.of(context).cardColor,
                         child: const Center(child: CircularProgressIndicator()),
                       ),
                       errorWidget: (context, url, error) {
                         return Container(
                           height: 180,
-                          color: Colors.grey.shade300,
+                          color: Theme.of(context).cardColor,
                           child: const Center(
                             child: Icon(Icons.apartment, size: 40),
                           ),
@@ -2634,17 +2933,25 @@ class _HomeTabState extends State<HomeTab> {
                             color: Colors.amber,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.star, size: 12, color: Colors.white),
-                              SizedBox(width: 4),
+                              Icon(
+                                Icons.star,
+                                size: 12,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSecondary,
+                              ),
+                              const SizedBox(width: 4),
                               Text(
                                 'FEATURED',
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSecondary,
                                 ),
                               ),
                             ],
@@ -2663,10 +2970,10 @@ class _HomeTabState extends State<HomeTab> {
                   children: [
                     Text(
                       project.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: Theme.of(context).textTheme.bodyLarge!.color,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2676,7 +2983,7 @@ class _HomeTabState extends State<HomeTab> {
                       'By ${project.developerName}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: Theme.of(context).textTheme.bodySmall!.color,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2687,7 +2994,7 @@ class _HomeTabState extends State<HomeTab> {
                         Icon(
                           Icons.location_on,
                           size: 14,
-                          color: AppColors.primary,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -2746,7 +3053,7 @@ class _HomeTabState extends State<HomeTab> {
                         return Container(
                           width: 140,
                           height: 140,
-                          color: Colors.grey[300],
+                          color: Theme.of(context).cardColor,
                           child: const Icon(Icons.image_not_supported),
                         );
                       },
@@ -2910,33 +3217,48 @@ class _HomeTabState extends State<HomeTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Property Image
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              child: property.imageUrls.isNotEmpty
-                  ? Image.network(
-                      property.imageUrls.first,
-                      width: double.infinity,
-                      height: 180,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          height: 180,
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: property.imageUrls.isNotEmpty
+                      ? Image.network(
+                          property.imageUrls.first,
                           width: double.infinity,
-                          color: AppColors.surfaceLight,
-                          child: const Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
+                          height: 180,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              height: 180,
+                              width: double.infinity,
+                              color: AppColors.surfaceLight,
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              height: 180,
+                              width: double.infinity,
+                              color: AppColors.surfaceLight,
+                              child: const Icon(
+                                Icons.image_not_supported,
+                                size: 40,
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
                           height: 180,
                           width: double.infinity,
                           color: AppColors.surfaceLight,
@@ -2944,15 +3266,40 @@ class _HomeTabState extends State<HomeTab> {
                             Icons.image_not_supported,
                             size: 40,
                           ),
-                        );
-                      },
-                    )
-                  : Container(
-                      height: 180,
-                      width: double.infinity,
-                      color: AppColors.surfaceLight,
-                      child: const Icon(Icons.image_not_supported, size: 40),
+                        ),
+                ),
+                // Sold Out Badge
+                if (!property.isActive)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Text(
+                        'SOLD OUT',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
+                  ),
+              ],
             ),
             // Property Details
             Padding(
@@ -3106,7 +3453,11 @@ class _HomeTabState extends State<HomeTab> {
                                 ],
                               )
                             : Text(
-                                'UGX ${_formatPrice(property.price)}${property.type == PropertyType.rent ? "/month" : property.type == PropertyType.hostel ? "/semester" : ""}',
+                                'UGX ${_formatPrice(property.price)}${property.type == PropertyType.rent
+                                    ? "/month"
+                                    : property.type == PropertyType.hostel
+                                    ? "/semester"
+                                    : ""}',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -3298,20 +3649,22 @@ class _SearchTabState extends State<SearchTab> {
           matchesSearch =
               property.title.toLowerCase().contains(searchTerm) ||
               property.description.toLowerCase().contains(searchTerm) ||
-              property.location.toLowerCase().contains(searchTerm);
+              property.location.toLowerCase().contains(searchTerm) ||
+              property.address.toLowerCase().contains(searchTerm);
         }
 
         // Price filter
         bool matchesPrice =
             property.price >= _minPrice && property.price <= _maxPrice;
 
-        // Bedrooms filter
+        // Bedrooms filter (minimum bedrooms)
         bool matchesBedrooms =
-            _bedrooms == null || property.bedrooms == _bedrooms;
+            _bedrooms == null || property.bedrooms >= _bedrooms!;
 
         // Property Type filter
         bool matchesPropertyType =
-            _selectedPropertyType == null || property.type == _selectedPropertyType;
+            _selectedPropertyType == null ||
+            property.type == _selectedPropertyType;
 
         if (matchesSearch &&
             matchesPrice &&
@@ -3478,10 +3831,7 @@ class _SearchTabState extends State<SearchTab> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
-                    icon: const Icon(
-                      Icons.search,
-                      color: Colors.white,
-                    ),
+                    icon: const Icon(Icons.search, color: Colors.white),
                     onPressed: () {
                       if (_searchController.text.trim().isNotEmpty) {
                         setState(() {
@@ -3532,60 +3882,63 @@ class _SearchTabState extends State<SearchTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Recent Searches',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Recent Searches',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            _clearSearchHistory();
-                          },
-                          child: const Text('Clear All'),
-                        ),
-                      ],
+                          TextButton(
+                            onPressed: () {
+                              _clearSearchHistory();
+                            },
+                            child: const Text('Clear All'),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Divider(height: 1),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _searchHistory.length,
-                    itemBuilder: (context, index) {
-                      final query = _searchHistory[index];
-                      return ListTile(
-                        leading: const Icon(Icons.history, color: Colors.grey),
-                        title: Text(query),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () {
-                            _removeHistoryItem(query);
+                    const Divider(height: 1),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _searchHistory.length,
+                      itemBuilder: (context, index) {
+                        final query = _searchHistory[index];
+                        return ListTile(
+                          leading: const Icon(
+                            Icons.history,
+                            color: Colors.grey,
+                          ),
+                          title: Text(query),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.close, size: 20),
+                            onPressed: () {
+                              _removeHistoryItem(query);
+                            },
+                          ),
+                          onTap: () {
+                            _searchController.text = query;
+                            setState(() {
+                              _showHistory = false;
+                            });
+                            _performSearch();
                           },
-                        ),
-                        onTap: () {
-                          _searchController.text = query;
-                          setState(() {
-                            _showHistory = false;
-                          });
-                          _performSearch();
-                        },
-                      );
-                    },
-                  ),
-                  const Divider(height: 1, thickness: 2),
-                ],
+                        );
+                      },
+                    ),
+                    const Divider(height: 1, thickness: 2),
+                  ],
+                ),
               ),
-            ),
             ),
 
           // Filters Section
@@ -3598,255 +3951,356 @@ class _SearchTabState extends State<SearchTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Filters',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Filters',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      TextButton(
-                        onPressed: _clearFilters,
-                        child: const Text('Clear All'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Property Type Filter
-                  const Text(
-                    'Property Type',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: PropertyType.values.map((type) {
-                      String label;
-                      switch (type) {
-                        case PropertyType.sale:
-                          label = 'For Sale';
-                          break;
-                        case PropertyType.rent:
-                          label = 'For Rent';
-                          break;
-                        case PropertyType.hostel:
-                          label = 'Hostel';
-                          break;
-                      }
-                      return FilterChip(
-                        label: Text(label),
-                        selected: _selectedPropertyType == type,
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedPropertyType = selected ? type : null;
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Price Range Filter
-                  const Text(
-                    'Price Range',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      // Minimum Price
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Minimum',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            TextFormField(
-                              controller: _minPriceController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
-                                hintText: 'Enter minimum price',
-                                prefixText: 'UGX ',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: const BorderSide(color: AppColors.primary),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                suffixIcon: PopupMenuButton<double>(
-                                  icon: const Icon(Icons.arrow_drop_down),
-                                  tooltip: 'Select preset price',
-                                  onSelected: (value) {
-                                    setState(() {
-                                      _minPrice = value;
-                                      _minPriceController.text = value == 0 ? '' : CurrencyFormatter.format(value);
-                                      if (_maxPrice <= _minPrice && _minPrice > 0) {
-                                        _maxPrice = _minPrice + 100000;
-                                        _maxPriceController.text = CurrencyFormatter.format(_maxPrice);
-                                      }
-                                    });
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(value: 0, child: Text('Any')),
-                                    const PopupMenuItem(value: 100000, child: Text('100k')),
-                                    const PopupMenuItem(value: 200000, child: Text('200k')),
-                                    const PopupMenuItem(value: 300000, child: Text('300k')),
-                                    const PopupMenuItem(value: 500000, child: Text('500k')),
-                                    const PopupMenuItem(value: 700000, child: Text('700k')),
-                                    const PopupMenuItem(value: 1000000, child: Text('1M')),
-                                    const PopupMenuItem(value: 1500000, child: Text('1.5M')),
-                                    const PopupMenuItem(value: 2000000, child: Text('2M')),
-                                    const PopupMenuItem(value: 3000000, child: Text('3M')),
-                                    const PopupMenuItem(value: 5000000, child: Text('5M')),
-                                  ],
-                                ),
-                              ),
-                              onChanged: (value) {
-                                setState(() {
-                                  _minPrice = value.isEmpty ? 0.0 : CurrencyFormatter.parse(value);
-                                });
-                              },
-                            ),
-                          ],
+                        TextButton(
+                          onPressed: _clearFilters,
+                          child: const Text('Clear All'),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Maximum Price
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Maximum',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            TextFormField(
-                              controller: _maxPriceController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
-                                hintText: 'Enter maximum price',
-                                prefixText: 'UGX ',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: const BorderSide(color: AppColors.primary),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                suffixIcon: PopupMenuButton<double>(
-                                  icon: const Icon(Icons.arrow_drop_down),
-                                  tooltip: 'Select preset price',
-                                  onSelected: (value) {
-                                    setState(() {
-                                      _maxPrice = value;
-                                      _maxPriceController.text = CurrencyFormatter.format(value);
-                                      if (_minPrice >= _maxPrice && _maxPrice > 0) {
-                                        _minPrice = _maxPrice > 100000 ? _maxPrice - 100000 : 0;
-                                        _minPriceController.text = _minPrice == 0 ? '' : CurrencyFormatter.format(_minPrice);
-                                      }
-                                    });
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(value: 200000, child: Text('200k')),
-                                    const PopupMenuItem(value: 300000, child: Text('300k')),
-                                    const PopupMenuItem(value: 500000, child: Text('500k')),
-                                    const PopupMenuItem(value: 700000, child: Text('700k')),
-                                    const PopupMenuItem(value: 1000000, child: Text('1M')),
-                                    const PopupMenuItem(value: 1500000, child: Text('1.5M')),
-                                    const PopupMenuItem(value: 2000000, child: Text('2M')),
-                                    const PopupMenuItem(value: 3000000, child: Text('3M')),
-                                    const PopupMenuItem(value: 5000000, child: Text('5M')),
-                                    const PopupMenuItem(value: 7000000, child: Text('7M')),
-                                    const PopupMenuItem(value: 10000000, child: Text('10M+')),
-                                  ],
-                                ),
-                              ),
-                              onChanged: (value) {
-                                setState(() {
-                                  _maxPrice = value.isEmpty ? 10000000.0 : CurrencyFormatter.parse(value);
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Bedrooms Filter
-                  const Text(
-                    'Bedrooms (minimum)',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [1, 2, 3, 4, 5].map((num) {
-                      return FilterChip(
-                        label: Text('$num+'),
-                        selected: _bedrooms == num,
-                        onSelected: (selected) {
-                          setState(() {
-                            _bedrooms = selected ? num : null;
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-
-
-
-                  // Apply Filters Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _performSearch,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Apply Filters'),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+
+                    // Property Type Filter
+                    const Text(
+                      'Property Type',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: PropertyType.values.map((type) {
+                        String label;
+                        switch (type) {
+                          case PropertyType.sale:
+                            label = 'For Sale';
+                            break;
+                          case PropertyType.rent:
+                            label = 'For Rent';
+                            break;
+                          case PropertyType.hostel:
+                            label = 'Hostel';
+                            break;
+                        }
+                        return FilterChip(
+                          label: Text(label),
+                          selected: _selectedPropertyType == type,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedPropertyType = selected ? type : null;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Price Range Filter
+                    const Text(
+                      'Price Range',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        // Minimum Price
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Minimum',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                controller: _minPriceController,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  hintText: 'Enter minimum price',
+                                  prefixText: 'UGX ',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
+                                  suffixIcon: PopupMenuButton<double>(
+                                    icon: const Icon(Icons.arrow_drop_down),
+                                    tooltip: 'Select preset price',
+                                    onSelected: (value) {
+                                      setState(() {
+                                        _minPrice = value;
+                                        _minPriceController.text = value == 0
+                                            ? ''
+                                            : CurrencyFormatter.format(value);
+                                        if (_maxPrice <= _minPrice &&
+                                            _minPrice > 0) {
+                                          _maxPrice = _minPrice + 100000;
+                                          _maxPriceController.text =
+                                              CurrencyFormatter.format(
+                                                _maxPrice,
+                                              );
+                                        }
+                                      });
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 0,
+                                        child: Text('Any'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 100000,
+                                        child: Text('100k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 200000,
+                                        child: Text('200k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 300000,
+                                        child: Text('300k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 500000,
+                                        child: Text('500k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 700000,
+                                        child: Text('700k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 1000000,
+                                        child: Text('1M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 1500000,
+                                        child: Text('1.5M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 2000000,
+                                        child: Text('2M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 3000000,
+                                        child: Text('3M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 5000000,
+                                        child: Text('5M'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _minPrice = value.isEmpty
+                                        ? 0.0
+                                        : CurrencyFormatter.parse(value);
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Maximum Price
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Maximum',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                controller: _maxPriceController,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  hintText: 'Enter maximum price',
+                                  prefixText: 'UGX ',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
+                                  suffixIcon: PopupMenuButton<double>(
+                                    icon: const Icon(Icons.arrow_drop_down),
+                                    tooltip: 'Select preset price',
+                                    onSelected: (value) {
+                                      setState(() {
+                                        _maxPrice = value;
+                                        _maxPriceController.text =
+                                            CurrencyFormatter.format(value);
+                                        if (_minPrice >= _maxPrice &&
+                                            _maxPrice > 0) {
+                                          _minPrice = _maxPrice > 100000
+                                              ? _maxPrice - 100000
+                                              : 0;
+                                          _minPriceController.text =
+                                              _minPrice == 0
+                                              ? ''
+                                              : CurrencyFormatter.format(
+                                                  _minPrice,
+                                                );
+                                        }
+                                      });
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 200000,
+                                        child: Text('200k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 300000,
+                                        child: Text('300k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 500000,
+                                        child: Text('500k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 700000,
+                                        child: Text('700k'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 1000000,
+                                        child: Text('1M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 1500000,
+                                        child: Text('1.5M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 2000000,
+                                        child: Text('2M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 3000000,
+                                        child: Text('3M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 5000000,
+                                        child: Text('5M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 7000000,
+                                        child: Text('7M'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 10000000,
+                                        child: Text('10M+'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _maxPrice = value.isEmpty
+                                        ? 10000000.0
+                                        : CurrencyFormatter.parse(value);
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Bedrooms Filter
+                    const Text(
+                      'Bedrooms (minimum)',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [1, 2, 3, 4, 5].map((num) {
+                        return FilterChip(
+                          label: Text('$num+'),
+                          selected: _bedrooms == num,
+                          onSelected: (selected) {
+                            setState(() {
+                              _bedrooms = selected ? num : null;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Apply Filters Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _performSearch,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Apply Filters'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
           // Search Results
           Expanded(
@@ -3927,24 +4381,38 @@ class _SearchTabState extends State<SearchTab> {
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(12),
                     ),
-                    child: property.imageUrls.isNotEmpty
-                        ? Image.network(
-                            property.imageUrls[0],
-                            width: double.infinity,
-                            height: 200,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
+                    child: Stack(
+                      children: [
+                        property.imageUrls.isNotEmpty
+                            ? Image.network(
+                                property.imageUrls[0],
+                                width: double.infinity,
                                 height: 200,
-                                color: Colors.grey[300],
-                                child: const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
+                                fit: BoxFit.cover,
+                                loadingBuilder:
+                                    (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        height: 200,
+                                        color: Colors.grey[300],
+                                        child: const Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      );
+                                    },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    height: 200,
+                                    color: Colors.grey[300],
+                                    child: const Icon(
+                                      Icons.home,
+                                      size: 50,
+                                      color: Colors.grey,
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
                                 height: 200,
                                 color: Colors.grey[300],
                                 child: const Icon(
@@ -3952,18 +4420,40 @@ class _SearchTabState extends State<SearchTab> {
                                   size: 50,
                                   color: Colors.grey,
                                 ),
-                              );
-                            },
-                          )
-                        : Container(
-                            height: 200,
-                            color: Colors.grey[300],
-                            child: const Icon(
-                              Icons.home,
-                              size: 50,
-                              color: Colors.grey,
+                              ),
+                        // SOLD OUT badge
+                        if (!property.isActive)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Text(
+                                'SOLD OUT',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
+                      ],
+                    ),
                   ),
                   // Favorite Button Overlay
                   Positioned(

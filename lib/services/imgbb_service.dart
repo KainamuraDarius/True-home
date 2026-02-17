@@ -25,13 +25,18 @@ class ImgBBService {
         // Send request with increased timeout for slow networks
         print('🔄 Uploading image (attempt ${attempt + 1}/${retryCount + 1})...');
         final streamedResponse = await request.send().timeout(
-          const Duration(seconds: 60),
+          const Duration(seconds: 120), // Increased to 120 seconds
           onTimeout: () {
-            throw Exception('Upload timeout after 60 seconds - please check your internet connection');
+            throw Exception('Upload timeout after 120 seconds - please check your internet connection');
           },
         );
         print('📡 Received response, processing...');
-        final response = await http.Response.fromStream(streamedResponse);
+        final response = await http.Response.fromStream(streamedResponse).timeout(
+          const Duration(seconds: 30), // Add timeout for response parsing
+          onTimeout: () {
+            throw Exception('Response timeout - please try again');
+          },
+        );
 
         if (response.statusCode == 200) {
           final jsonResponse = json.decode(response.body);

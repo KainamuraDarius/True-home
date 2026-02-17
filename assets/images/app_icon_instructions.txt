@@ -1,0 +1,16 @@
+To complete the app icon setup:
+
+1. Save your TrueHome logo image as:
+   - assets/images/app_icon.png (1024x1024 recommended)
+   - assets/images/app_icon_foreground.png (For Android adaptive icons)
+
+2. The logo should be:
+   - Square format (1024x1024 pixels minimum)
+   - PNG format with transparency
+   - High resolution for best quality
+
+3. After adding the images, run:
+   flutter pub get
+   dart run flutter_launcher_icons
+
+Your current logo looks perfect! Just save it in these locations.

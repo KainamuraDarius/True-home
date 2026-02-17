@@ -32,6 +32,33 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     super.initState();
     _checkFavoriteStatus();
     _getCurrentUserRole();
+    _trackPropertyView(); // Track this view
+  }
+
+  // Track property view
+  Future<void> _trackPropertyView() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    
+    // Don't count if user is viewing their own property
+    if (currentUser != null && currentUser.uid == widget.property.ownerId) {
+      return;
+    }
+
+    try {
+      final propertyRef = FirebaseFirestore.instance
+          .collection('properties')
+          .doc(widget.property.id);
+
+      // Use set with merge to ensure viewCount exists
+      await propertyRef.set({
+        'viewCount': FieldValue.increment(1),
+      }, SetOptions(merge: true));
+      
+      debugPrint('✅ View tracked for property: ${widget.property.title}');
+    } catch (e) {
+      // Log error for debugging
+      debugPrint('❌ Error tracking view: $e');
+    }
   }
 
   Future<void> _getCurrentUserRole() async {
@@ -241,6 +268,37 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       ),
                     ),
                   ),
+                  // Sold Out Banner
+                  if (!widget.property.isActive)
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Text(
+                          'SOLD OUT',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     bottom: 16,
                     right: 16,
@@ -1040,7 +1098,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    'IMPORTANT: Only pay this inspection fee to the agent when you physically view the property and confirm it is indeed available.',
+                                    'IMPORTANT: Pay UGX ${(widget.property.inspectionFee ?? 30000).toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} after confirming property availability.',
                                     style: TextStyle(
                                       fontSize: 14,
                                       height: 1.4,

@@ -10,6 +10,7 @@ import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
 import '../../services/imgbb_service.dart';
+import '../common/legal_policies_screen.dart';
 
 class AddPropertyScreen extends StatefulWidget {
   const AddPropertyScreen({super.key});
@@ -21,6 +22,7 @@ class AddPropertyScreen extends StatefulWidget {
 class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  String _selectedCategory = 'Flat'; // Default category
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
   final _locationController = TextEditingController();
@@ -39,8 +41,11 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
   bool _requestSpotlightPromotion = false;
+  bool _agreedToAgentTerms = false;
   double?
   _selectedInspectionFee; // Selected inspection fee for rental properties
+  String _areaUnit = 'sqft'; // Default unit is square feet
+  String _currency = 'UGX'; // Default currency is UGX
 
   // Amenities
   final List<String> _selectedAmenities = [];
@@ -65,7 +70,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
   @override
   void dispose() {
-    _titleController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
     _locationController.dispose();
@@ -292,7 +296,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
           .doc();
       final property = PropertyModel(
         id: propertyRef.id,
-        title: _titleController.text.trim(),
+        title: _titleController.text,
+        category: _selectedCategory,
         description: _descriptionController.text.trim(),
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
@@ -307,6 +312,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         areaSqft: _areaSqftController.text.trim().isEmpty
             ? 0
             : double.parse(_areaSqftController.text.trim()),
+        areaUnit: _areaUnit,
+        currency: _currency,
         imageUrls: imageUrls,
         ownerId: user.uid,
         ownerName: userData.name,
@@ -340,7 +347,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
           'userId': admin.id,
           'title': 'New Property Submitted',
           'message':
-              '${userData.name} submitted "${_titleController.text.trim()}" for review',
+              '${userData.name} submitted "$_selectedCategory" for review',
           'propertyId': propertyRef.id,
           'type': 'property_submission',
           'isRead': false,
@@ -565,16 +572,46 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Title
+                    // Property Title
                     TextFormField(
                       controller: _titleController,
                       decoration: const InputDecoration(
                         labelText: 'Property Title *',
+                        hintText: 'e.g., Luxury Villa in Kampala',
                         border: OutlineInputBorder(),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter property title';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Category
+                    DropdownButtonFormField<String>(
+                      value: _selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Property Category *',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'Flat', child: Text('Flat')),
+                        DropdownMenuItem(value: 'Bungalow', child: Text('Bungalow')),
+                        DropdownMenuItem(value: 'Condo', child: Text('Condo')),
+                        DropdownMenuItem(value: 'Villa', child: Text('Villa')),
+                        DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
+                        DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCategory = value!;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a category';
                         }
                         return null;
                       },
@@ -598,25 +635,58 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Price
-                    TextFormField(
-                      controller: _priceController,
-                      decoration: InputDecoration(
-                        labelText: _selectedType == PropertyType.sale
-                            ? 'Price (UGX) *'
-                            : 'Monthly Rent (UGX) *',
-                        border: const OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter price';
-                        }
-                        if (double.tryParse(value) == null) {
-                          return 'Please enter a valid number';
-                        }
-                        return null;
-                      },
+                    // Price with currency selector
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _priceController,
+                            decoration: InputDecoration(
+                              labelText: _selectedType == PropertyType.sale
+                                  ? 'Price *'
+                                  : 'Monthly Rent *',
+                              border: const OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter price';
+                              }
+                              if (double.tryParse(value) == null) {
+                                return 'Please enter a valid number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 1,
+                          child: DropdownButtonFormField<String>(
+                            value: _currency,
+                            decoration: const InputDecoration(
+                              labelText: 'Currency',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'UGX',
+                                child: Text('UGX'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'USD',
+                                child: Text('USD'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                _currency = value!;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
 
@@ -698,23 +768,59 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Area
-                    TextFormField(
-                      controller: _areaSqftController,
-                      decoration: const InputDecoration(
-                        labelText: 'Approximate Area (sq ft) - Optional',
-                        border: OutlineInputBorder(),
-                        hintText: 'e.g., 1200',
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value != null &&
-                            value.isNotEmpty &&
-                            double.tryParse(value) == null) {
-                          return 'Please enter a valid number';
-                        }
-                        return null;
-                      },
+                    // Area with unit selection
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _areaSqftController,
+                            decoration: const InputDecoration(
+                              labelText: 'Approximate Area - Optional',
+                              border: OutlineInputBorder(),
+                              hintText: 'e.g., 1200',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value != null &&
+                                  value.isNotEmpty &&
+                                  double.tryParse(value) == null) {
+                                return 'Please enter a valid number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 1,
+                          child: DropdownButtonFormField<String>(
+                            value: _areaUnit,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'sqft',
+                                child: Text('sq ft'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'sqm',
+                                child: Text('sq m'),
+                              ),
+                            ],
+                            onChanged: (String? value) {
+                              if (value != null) {
+                                setState(() {
+                                  _areaUnit = value;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
 
@@ -1134,18 +1240,100 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Agent Agreement Checkbox
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _agreedToAgentTerms
+                              ? Colors.green
+                              : Colors.orange.shade200,
+                          width: 2,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          CheckboxListTile(
+                            value: _agreedToAgentTerms,
+                            onChanged: (value) {
+                              setState(() {
+                                _agreedToAgentTerms = value ?? false;
+                              });
+                            },
+                            title: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textPrimary,
+                                ),
+                                children: [
+                                  const TextSpan(
+                                    text: 'I agree to the ',
+                                  ),
+                                  TextSpan(
+                                    text: 'Agent & Listing Agreement',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade800,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Required to post listings on TrueHome',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            activeColor: Colors.orange,
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LegalPoliciesScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.article_outlined, size: 18),
+                            label: const Text('Read Agreement'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.orange.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
                     // Submit Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _submitProperty,
+                        onPressed: _agreedToAgentTerms ? _submitProperty : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
+                          disabledBackgroundColor: Colors.grey.shade300,
                         ),
-                        child: const Text(
-                          'Submit for Review',
-                          style: TextStyle(fontSize: 16),
+                        child: Text(
+                          _agreedToAgentTerms
+                              ? 'Submit for Review'
+                              : 'Accept Agreement to Submit',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: _agreedToAgentTerms
+                                ? Colors.white
+                                : Colors.grey.shade600,
+                          ),
                         ),
                       ),
                     ),

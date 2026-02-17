@@ -422,7 +422,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   text: ' and ',
                                 ),
                                 TextSpan(
-                                  text: 'User Agreement',
+                                  text: 'Privacy Policy',
                                   style: const TextStyle(
                                     color: AppColors.primary,
                                     fontWeight: FontWeight.bold,

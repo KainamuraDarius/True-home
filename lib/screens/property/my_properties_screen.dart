@@ -187,7 +187,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Status Badge
+                                // Status Badge and Active/Inactive Toggle
                                 Row(
                                   children: [
                                     Container(
@@ -208,6 +208,27 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(width: 8),
+                                    // Sold Out Badge if deactivated
+                                    if (!property.isActive)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[700],
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: const Text(
+                                          'SOLD OUT',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
                                     const Spacer(),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
@@ -221,7 +242,9 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                       child: Text(
                                         property.type == PropertyType.sale
                                             ? 'For Sale'
-                                            : 'For Rent',
+                                            : property.type == PropertyType.rent
+                                            ? 'For Rent'
+                                            : 'Hostel',
                                         style: TextStyle(
                                           color: AppColors.primary,
                                           fontSize: 12,
@@ -231,6 +254,38 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                     ),
                                   ],
                                 ),
+                                
+                                // Active/Inactive Toggle (only for approved properties)
+                                if (property.status == PropertyStatus.approved)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          property.isActive ? Icons.check_circle : Icons.cancel,
+                                          size: 16,
+                                          color: property.isActive ? Colors.green : Colors.grey,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          property.isActive ? 'Active' : 'Deactivated',
+                                          style: TextStyle(
+                                            color: property.isActive ? Colors.green : Colors.grey,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Switch(
+                                          value: property.isActive,
+                                          onChanged: (value) async {
+                                            await _togglePropertyStatus(property.id, value);
+                                          },
+                                          activeColor: AppColors.primary,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 const SizedBox(height: 12),
 
                                 // Title
@@ -278,6 +333,27 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                     _buildFeature(Icons.square_foot, '${property.areaSqft.toInt()} sqft'),
                                   ],
                                 ),
+                                const SizedBox(height: 8),
+
+                                // View Count
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.visibility,
+                                      size: 16,
+                                      color: AppColors.primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${property.viewCount} ${property.viewCount == 1 ? 'view' : 'views'}',
+                                      style: TextStyle(
+                                        color: AppColors.primary,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
 
                                 // Rejection Reason
                                 if (property.status == PropertyStatus.rejected &&
@@ -323,6 +399,40 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _togglePropertyStatus(String propertyId, bool isActive) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('properties')
+          .doc(propertyId)
+          .update({
+        'isActive': isActive,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isActive
+                  ? 'Property activated successfully'
+                  : 'Property marked as sold out',
+            ),
+            backgroundColor: isActive ? Colors.green : Colors.grey[700],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating property: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildFeature(IconData icon, String text) {

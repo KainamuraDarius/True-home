@@ -7,9 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../utils/app_theme.dart';
 import '../../models/user_model.dart';
 import '../../services/preferences_service.dart';
+import '../../services/role_service.dart';
 import '../auth/welcome_screen.dart';
 import '../customer/become_agent_screen.dart';
 import '../customer/edit_profile_screen.dart';
+import 'legal_policies_screen.dart';
 import '../../main.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -106,12 +108,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   const SizedBox(height: 20),
                   // Profile Avatar
-                  _currentUser!.profileImageUrl != null && 
-                  _currentUser!.profileImageUrl!.isNotEmpty &&
-                  _currentUser!.profileImageUrl!.startsWith('http')
+                  _currentUser!.profileImageUrl != null &&
+                          _currentUser!.profileImageUrl!.isNotEmpty &&
+                          _currentUser!.profileImageUrl!.startsWith('http')
                       ? CircleAvatar(
                           radius: 60,
-                          backgroundImage: NetworkImage(_currentUser!.profileImageUrl!),
+                          backgroundImage: NetworkImage(
+                            _currentUser!.profileImageUrl!,
+                          ),
                           onBackgroundImageError: (exception, stackTrace) {
                             print('Error loading profile image: $exception');
                           },
@@ -231,25 +235,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
                     },
                   ),
-                  // Show "Become an Agent" if user is not already an agent
+                  // Show "Become an Agent" only for customers who are not agents
+                  // Show "Switch to Customer Mode" for agents
                   if (_currentUser != null &&
-                      !_currentUser!.roles.contains(UserRole.propertyAgent))
-                    _buildSettingsTile(
-                      icon: Icons.business_center,
-                      title: 'Become an Agent',
-                      subtitle: 'Start listing and managing properties',
-                      onTap: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const BecomeAgentScreen(),
-                          ),
-                        );
-                        if (result == true) {
-                          _loadUserData(); // Reload to get updated roles
-                        }
-                      },
-                    ),
+                      !_currentUser!.roles.contains(UserRole.admin))
+                    if (!_currentUser!.roles.contains(UserRole.propertyAgent))
+                      _buildSettingsTile(
+                        icon: Icons.business_center,
+                        title: 'Become an Agent',
+                        subtitle: 'Start listing and managing properties',
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const BecomeAgentScreen(),
+                            ),
+                          );
+                          if (result == true) {
+                            _loadUserData(); // Reload to get updated roles
+                          }
+                        },
+                      )
+                    else
+                      _buildSettingsTile(
+                        icon: Icons.person_outline,
+                        title: 'Switch to Customer Mode',
+                        subtitle: 'Browse properties as a customer',
+                        onTap: () async {
+                          // Show loading
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+
+                          try {
+                            await RoleService().switchActiveRole(
+                              UserRole.customer,
+                            );
+
+                            if (mounted) {
+                              Navigator.of(context).pop(); // Close loading
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Switched to Customer mode'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+
+                              // Force app restart to reload UI
+                              Navigator.of(
+                                context,
+                              ).pushNamedAndRemoveUntil('/', (route) => false);
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              Navigator.of(context).pop(); // Close loading
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error switching role: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
                   _buildSettingsTile(
                     icon: Icons.verified_user,
                     title: 'Account Verification',
@@ -353,17 +407,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
                   _buildSettingsTile(
-                    icon: Icons.policy,
-                    title: 'Privacy Policy',
+                    icon: Icons.gavel,
+                    title: 'Legal & Policies',
+                    subtitle: 'Terms, privacy, and agreements',
                     onTap: () {
-                      _showPrivacyPolicy();
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.description,
-                    title: 'Terms of Service',
-                    onTap: () {
-                      _showTermsOfService();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LegalPoliciesScreen(),
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(height: 16),
@@ -792,8 +845,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 SnackBar(
                                   content: Row(
                                     children: [
-                                      Icon(Icons.check_circle,
-                                          color: Colors.white),
+                                      Icon(
+                                        Icons.check_circle,
+                                        color: Colors.white,
+                                      ),
                                       SizedBox(width: 8),
                                       Text('${blocked['name']} unblocked'),
                                     ],
@@ -866,7 +921,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.lightbulb_outline, color: Colors.blue, size: 20),
+                      Icon(
+                        Icons.lightbulb_outline,
+                        color: Colors.blue,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -890,7 +949,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.amber.shade800,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -985,7 +1048,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Olulimi lukyusiddwa okudda ku Luganda'),
+                          content: Text(
+                            'Olulimi lukyusiddwa okudda ku Luganda',
+                          ),
                         ),
                       );
                       setState(() {});
@@ -1031,7 +1096,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (mounted) {
                       Navigator.pop(context);
                       // Update app theme
-                      final appState = context.findAncestorStateOfType<MyAppState>();
+                      final appState = context
+                          .findAncestorStateOfType<MyAppState>();
                       appState?.changeTheme(ThemeMode.light);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -1054,7 +1120,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (mounted) {
                       Navigator.pop(context);
                       // Update app theme
-                      final appState = context.findAncestorStateOfType<MyAppState>();
+                      final appState = context
+                          .findAncestorStateOfType<MyAppState>();
                       appState?.changeTheme(ThemeMode.dark);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -1077,7 +1144,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (mounted) {
                       Navigator.pop(context);
                       // Update app theme
-                      final appState = context.findAncestorStateOfType<MyAppState>();
+                      final appState = context
+                          .findAncestorStateOfType<MyAppState>();
                       appState?.changeTheme(ThemeMode.system);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -1138,11 +1206,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     duration: Duration(seconds: 1),
                   ),
                 );
-                
+
                 // Clear favorites and search history (not user settings)
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.remove('search_history');
-                
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -1171,7 +1239,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   builder: (context) => AlertDialog(
                     title: const Text('Clear All Data?'),
                     content: const Text(
-                        'This will remove all your preferences, favorites, and search history. Your account data will not be affected.'),
+                      'This will remove all your preferences, favorites, and search history. Your account data will not be affected.',
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
@@ -1193,9 +1262,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   await prefs.clear();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('All data cleared'),
-                      ),
+                      const SnackBar(content: Text('All data cleared')),
                     );
                   }
                 }
@@ -1207,7 +1274,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Text('Local Storage: ${(storageSize / 1024).toStringAsFixed(2)} KB'),
+            Text(
+              'Local Storage: ${(storageSize / 1024).toStringAsFixed(2)} KB',
+            ),
             const Text('Favorites: Stored locally'),
             const Text('Search History: Stored locally'),
           ],
@@ -1296,15 +1365,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ListTile(
               leading: const Icon(Icons.email),
               title: const Text('Email'),
-              subtitle: const Text('truehome376@gmail.com\nramzyhaden@gmail.com'),
+              subtitle: const Text(
+                'truehome376@gmail.com\nramzyhaden@gmail.com',
+              ),
               onTap: () async {
-                final emailUri = Uri.parse('mailto:truehome376@gmail.com,ramzyhaden@gmail.com?subject=True Home Support');
+                final emailUri = Uri.parse(
+                  'mailto:truehome376@gmail.com,ramzyhaden@gmail.com?subject=True Home Support',
+                );
                 if (await canLaunchUrl(emailUri)) {
                   await launchUrl(emailUri);
                 } else {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Could not open email client')),
+                      const SnackBar(
+                        content: Text('Could not open email client'),
+                      ),
                     );
                   }
                 }
@@ -1321,7 +1396,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 } else {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Could not open phone dialer')),
+                      const SnackBar(
+                        content: Text('Could not open phone dialer'),
+                      ),
                     );
                   }
                 }
@@ -1334,7 +1411,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () async {
                 final whatsappUri = Uri.parse('https://wa.me/256702021112');
                 if (await canLaunchUrl(whatsappUri)) {
-                  await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+                  await launchUrl(
+                    whatsappUri,
+                    mode: LaunchMode.externalApplication,
+                  );
                 } else {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1359,7 +1439,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showFeedbackDialog() {
     final feedbackController = TextEditingController();
     String selectedCategory = 'General';
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1381,10 +1461,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   items: const [
                     DropdownMenuItem(value: 'General', child: Text('General')),
-                    DropdownMenuItem(value: 'Bug Report', child: Text('Bug Report')),
-                    DropdownMenuItem(value: 'Feature Request', child: Text('Feature Request')),
+                    DropdownMenuItem(
+                      value: 'Bug Report',
+                      child: Text('Bug Report'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Feature Request',
+                      child: Text('Feature Request'),
+                    ),
                     DropdownMenuItem(value: 'UI/UX', child: Text('UI/UX')),
-                    DropdownMenuItem(value: 'Performance', child: Text('Performance')),
+                    DropdownMenuItem(
+                      value: 'Performance',
+                      child: Text('Performance'),
+                    ),
                     DropdownMenuItem(value: 'Other', child: Text('Other')),
                   ],
                   onChanged: (value) {
@@ -1426,14 +1515,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 final navigator = Navigator.of(context);
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 navigator.pop();
-                
+
                 // Show loading
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (ctx) => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  builder: (ctx) =>
+                      const Center(child: CircularProgressIndicator()),
                 );
 
                 try {
@@ -1453,33 +1541,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       .collection('users')
                       .where('role', isEqualTo: 'admin')
                       .get();
-                  
+
                   for (var admin in admins.docs) {
                     await _firestore
                         .collection('users')
                         .doc(admin.id)
                         .collection('notifications')
                         .add({
-                      'type': 'feedback',
-                      'title': 'New Feedback: $selectedCategory',
-                      'message': 'From ${_currentUser!.name}: ${feedbackController.text.trim()}',
-                      'userId': _currentUser!.id,
-                      'userName': _currentUser!.name,
-                      'read': false,
-                      'createdAt': DateTime.now().toIso8601String(),
-                    });
+                          'type': 'feedback',
+                          'title': 'New Feedback: $selectedCategory',
+                          'message':
+                              'From ${_currentUser!.name}: ${feedbackController.text.trim()}',
+                          'userId': _currentUser!.id,
+                          'userName': _currentUser!.name,
+                          'read': false,
+                          'createdAt': DateTime.now().toIso8601String(),
+                        });
                   }
 
                   // Send email to admin
                   final emailUri = Uri.parse(
                     'mailto:truehome376@gmail.com?subject=${Uri.encodeComponent('True Home Feedback: $selectedCategory')}&body=${Uri.encodeComponent('From: ${_currentUser!.name} (${_currentUser!.email})\nCategory: $selectedCategory\n\nFeedback:\n${feedbackController.text.trim()}')}',
                   );
-                  
+
                   // Close dialog first before launching email
                   if (mounted) {
                     Navigator.pop(context);
                   }
-                  
+
                   if (await canLaunchUrl(emailUri)) {
                     await launchUrl(emailUri);
                   }
@@ -1520,7 +1609,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showRateDialog() {
     int selectedRating = 0;
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1557,14 +1646,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(context);
-                
+
                 try {
                   // Try opening Play Store
-                  final packageName = 'com.truehome.app'; // Replace with actual package name
+                  final packageName =
+                      'com.truehome.app'; // Replace with actual package name
                   final playStoreUrl = Uri.parse(
                     'https://play.google.com/store/apps/details?id=$packageName',
                   );
-                  
+
                   if (await canLaunchUrl(playStoreUrl)) {
                     await launchUrl(
                       playStoreUrl,
@@ -1581,7 +1671,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     }
                   }
-                  
+
                   // Save rating to Firestore
                   if (selectedRating > 0) {
                     await _firestore.collection('ratings').add({
@@ -1648,7 +1738,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showPrivacyPolicy() async {
-    final uri = Uri.parse('https://kainamuradarius.github.io/true-home-privacy-policy/');
+    final uri = Uri.parse(
+      'https://kainamuradarius.github.io/true-home-privacy-policy/',
+    );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
@@ -1809,9 +1901,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       try {

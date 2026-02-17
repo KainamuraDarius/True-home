@@ -57,8 +57,8 @@ service cloud.firestore {
         resource.data.ownerId == request.auth.uid ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-        // Allow updating only roomTypes field for availability tracking
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomTypes'])
+        // Allow updating roomTypes and updatedAt fields for availability tracking
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomTypes', 'updatedAt'])
       );
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }

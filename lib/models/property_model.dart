@@ -73,6 +73,7 @@ class RoomType {
 class PropertyModel {
   final String id;
   final String title;
+  final String category; // Property category (Flat, Bungalow, Condo, Villa, Apartment, Studio room)
   final String description;
   final PropertyType type;
   final double price;
@@ -81,6 +82,8 @@ class PropertyModel {
   final int bedrooms;
   final int bathrooms;
   final double areaSqft;
+  final String areaUnit; // 'sqft' or 'sqm'
+  final String currency; // 'UGX' or 'USD'
   final List<String> imageUrls;
   final String ownerId;
   final String ownerName;
@@ -105,10 +108,13 @@ class PropertyModel {
   final DateTime? promotionEndDate; // When promotion ends
   final bool promotionRequested; // Agent requested spotlight promotion
   final double? inspectionFee; // Custom inspection fee for rental properties
+  final bool isActive; // Whether property is active (true) or sold/deactivated (false)
+  final int viewCount; // Number of times this property has been viewed
 
   PropertyModel({
     required this.id,
     required this.title,
+    required this.category,
     required this.description,
     required this.type,
     required this.price,
@@ -117,6 +123,8 @@ class PropertyModel {
     required this.bedrooms,
     required this.bathrooms,
     required this.areaSqft,
+    this.areaUnit = 'sqft', // Default to sqft for backward compatibility
+    this.currency = 'UGX', // Default to UGX for backward compatibility
     required this.imageUrls,
     required this.ownerId,
     required this.ownerName,
@@ -140,12 +148,15 @@ class PropertyModel {
     this.promotionEndDate,
     this.promotionRequested = false,
     this.inspectionFee,
+    this.isActive = true, // Default to active
+    this.viewCount = 0, // Default to 0 views
   });
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'title': title,
+      'category': category,
       'description': description,
       'type': type.name,
       'price': price,
@@ -154,6 +165,8 @@ class PropertyModel {
       'bedrooms': bedrooms,
       'bathrooms': bathrooms,
       'areaSqft': areaSqft,
+      'areaUnit': areaUnit,
+      'currency': currency,
       'imageUrls': imageUrls,
       'ownerId': ownerId,
       'ownerName': ownerName,
@@ -177,6 +190,8 @@ class PropertyModel {
       'promotionEndDate': promotionEndDate?.toIso8601String(),
       'promotionRequested': promotionRequested,
       'inspectionFee': inspectionFee,
+      'isActive': isActive,
+      'viewCount': viewCount,
     };
   }
 
@@ -185,6 +200,7 @@ class PropertyModel {
     return PropertyModel(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
+      category: json['category'] ?? 'Flat', // Default to Flat for old data
       description: json['description'] ?? '',
       type: PropertyType.values.firstWhere(
         (e) => e.name == json['type'],
@@ -196,6 +212,8 @@ class PropertyModel {
       bedrooms: json['bedrooms'] ?? 0,
       bathrooms: json['bathrooms'] ?? 0,
       areaSqft: (json['areaSqft'] ?? 0).toDouble(),
+      areaUnit: json['areaUnit'] ?? 'sqft', // Default to sqft for old data
+      currency: json['currency'] ?? 'UGX', // Default to UGX for old data
       imageUrls: List<String>.from(json['imageUrls'] ?? []),
       ownerId: json['ownerId'] ?? '',
       ownerName: json['ownerName'] ?? '',
@@ -232,12 +250,15 @@ class PropertyModel {
           : null,
       promotionRequested: json['promotionRequested'] ?? false,
       inspectionFee: json['inspectionFee']?.toDouble(),
+      isActive: json['isActive'] ?? true, // Default to active for old data
+      viewCount: json['viewCount'] ?? 0, // Default to 0 for old data
     );
   }
 
   PropertyModel copyWith({
     String? id,
     String? title,
+    String? category,
     String? description,
     PropertyType? type,
     double? price,
@@ -246,6 +267,8 @@ class PropertyModel {
     int? bedrooms,
     int? bathrooms,
     double? areaSqft,
+    String? areaUnit,
+    String? currency,
     List<String>? imageUrls,
     String? ownerId,
     String? ownerName,
@@ -268,10 +291,12 @@ class PropertyModel {
     bool? hasActivePromotion,
     DateTime? promotionEndDate,
     double? inspectionFee,
+    bool? isActive,
   }) {
     return PropertyModel(
       id: id ?? this.id,
       title: title ?? this.title,
+      category: category ?? this.category,
       description: description ?? this.description,
       type: type ?? this.type,
       price: price ?? this.price,
@@ -280,6 +305,8 @@ class PropertyModel {
       bedrooms: bedrooms ?? this.bedrooms,
       bathrooms: bathrooms ?? this.bathrooms,
       areaSqft: areaSqft ?? this.areaSqft,
+      areaUnit: areaUnit ?? this.areaUnit,
+      currency: currency ?? this.currency,
       imageUrls: imageUrls ?? this.imageUrls,
       ownerId: ownerId ?? this.ownerId,
       ownerName: ownerName ?? this.ownerName,
@@ -302,6 +329,7 @@ class PropertyModel {
       hasActivePromotion: hasActivePromotion ?? this.hasActivePromotion,
       promotionEndDate: promotionEndDate ?? this.promotionEndDate,
       inspectionFee: inspectionFee ?? this.inspectionFee,
+      isActive: isActive ?? this.isActive,
     );
   }
 }
