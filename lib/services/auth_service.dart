@@ -46,12 +46,18 @@ class AuthService {
       }
 
       // Create user document in Firestore
-      final userModel = UserModel(
+      // If user is registering as an agent, give them both customer and agent roles
+      // so they can switch between them
+      final List<UserRole> userRoles = role == UserRole.propertyAgent
+          ? [UserRole.customer, UserRole.propertyAgent]
+          : [role];
+
+      final UserModel userModel = UserModel(
         id: credential.user!.uid,
         email: email,
         name: name,
         phoneNumber: phoneNumber,
-        roles: [role], // Initialize with single role in array
+        roles: userRoles, // Initialize with role(s) in array
         activeRole: role, // Set as active role
         companyName: companyName,
         companyAddress: companyAddress,
