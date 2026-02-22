@@ -1,3 +1,5 @@
+#!/bin/bash
+cat > storage.rules << 'RULES'
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -37,3 +39,6 @@ service firebase.storage {
     }
   }
 }
+RULES
+
+firebase deploy --only storage

@@ -202,3 +202,181 @@ exports.sendVerificationEmailHttp = functions.https.onCall(async (data, context)
     throw new functions.https.HttpsError('internal', 'Failed to send email');
   }
 });
+
+// ============================================
+// PUSH NOTIFICATIONS (FCM)
+// ============================================
+
+// Send notification when property is approved
+exports.onPropertyApproved = functions.firestore
+  .document('properties/{propertyId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    
+    // Check if status changed to approved
+    if (before.status !== 'approved' && after.status === 'approved') {
+      const ownerId = after.ownerId;
+      
+      // Get owner's FCM token
+      const userDoc = await admin.firestore().collection('users').doc(ownerId).get();
+      const fcmToken = userDoc.data()?.fcmToken;
+      
+      if (fcmToken) {
+        const message = {
+          notification: {
+            title: '✅ Property Approved!',
+            body: `Your property "${after.title}" has been approved and is now live!`
+          },
+          data: {
+            type: 'property_approved',
+            propertyId: context.params.propertyId
+          },
+          token: fcmToken
+        };
+        
+        try {
+          await admin.messaging().send(message);
+          console.log('Approval notification sent to:', ownerId);
+        } catch (error) {
+          console.error('Error sending notification:', error);
+        }
+      }
+    }
+    
+    // Check if status changed to rejected
+    if (before.status !== 'rejected' && after.status === 'rejected') {
+      const ownerId = after.ownerId;
+      const userDoc = await admin.firestore().collection('users').doc(ownerId).get();
+      const fcmToken = userDoc.data()?.fcmToken;
+      
+      if (fcmToken) {
+        const message = {
+          notification: {
+            title: '❌ Property Update Required',
+            body: `Your property "${after.title}" needs review. ${after.rejectionReason || 'Please check details.'}`
+          },
+          data: {
+            type: 'property_rejected',
+            propertyId: context.params.propertyId
+          },
+          token: fcmToken
+        };
+        
+        try {
+          await admin.messaging().send(message);
+        } catch (error) {
+          console.error('Error sending notification:', error);
+        }
+      }
+    }
+  });
+
+// Send notification when new property is added (to all customers)
+exports.onNewProperty = functions.firestore
+  .document('properties/{propertyId}')
+  .onCreate(async (snap, context) => {
+    const property = snap.data();
+    
+    if (property.status === 'approved') {
+      const message = {
+        notification: {
+          title: '🏠 New Property Available!',
+          body: `${property.title} in ${property.location} - ${property.currency} ${property.price.toLocaleString()}`
+        },
+        data: {
+          type: 'new_property',
+          propertyId: context.params.propertyId
+        },
+        topic: 'all_customers'
+      };
+      
+      try {
+        await admin.messaging().send(message);
+        console.log('New property notification sent');
+      } catch (error) {
+        console.error('Error sending notification:', error);
+      }
+    }
+  });
+
+// Callable function to send custom notification
+exports.sendCustomNotification = functions.https.onCall(async (data, context) => {
+  // Check if user is admin
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+  
+  const userDoc = await admin.firestore().collection('users').doc(context.auth.uid).get();
+  const roles = userDoc.data()?.roles || [];
+  
+  if (!roles.includes('admin')) {
+    throw new functions.https.HttpsError('permission-denied', 'Only admins can send notifications');
+  }
+  
+  const { userId, title, body, type, propertyId } = data;
+  
+  // Get user's FCM token
+  const targetUserDoc = await admin.firestore().collection('users').doc(userId).get();
+  const fcmToken = targetUserDoc.data()?.fcmToken;
+  
+  if (!fcmToken) {
+    throw new functions.https.HttpsError('not-found', 'User has no FCM token');
+  }
+  
+  const message = {
+    notification: {
+      title: title,
+      body: body
+    },
+    data: {
+      type: type || 'custom',
+      propertyId: propertyId || ''
+    },
+    token: fcmToken
+  };
+  
+  try {
+    await admin.messaging().send(message);
+    return { success: true, message: 'Notification sent successfully' };
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send notification');
+  }
+});
+
+// Send notification to topic (all users, agents, customers)
+exports.sendTopicNotification = functions.https.onCall(async (data, context) => {
+  // Check if user is admin
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+  
+  const userDoc = await admin.firestore().collection('users').doc(context.auth.uid).get();
+  const roles = userDoc.data()?.roles || [];
+  
+  if (!roles.includes('admin')) {
+    throw new functions.https.HttpsError('permission-denied', 'Only admins can send notifications');
+  }
+  
+  const { topic, title, body, type } = data;
+  
+  const message = {
+    notification: {
+      title: title,
+      body: body
+    },
+    data: {
+      type: type || 'announcement'
+    },
+    topic: topic
+  };
+  
+  try {
+    await admin.messaging().send(message);
+    return { success: true, message: `Notification sent to topic: ${topic}` };
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send notification');
+  }
+});

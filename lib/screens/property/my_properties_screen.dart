@@ -314,7 +314,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
 
                                 // Price
                                 Text(
-                                  'UGX ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
+                                  '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,

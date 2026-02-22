@@ -267,7 +267,7 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
 
                   // Price
                   Text(
-                    'UGX ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
+                    '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
                     style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,

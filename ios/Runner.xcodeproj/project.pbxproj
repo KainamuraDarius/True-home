@@ -247,6 +247,7 @@
 			inputPaths = (
 			);
 			name = "Run Script";
+			
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;

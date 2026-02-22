@@ -27,6 +27,7 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
       // Allow user to update their own profile OR allow rating service to update agent stats
       // OR allow updating verification status fields OR allow admins to update verification
+      // TEMPORARY: Allow users to update their own roles field to set up admin
       allow update: if isOwner(userId) || 
         (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
           ['averageRating', 'totalRatings', 'totalReviews']
@@ -35,8 +36,12 @@ service cloud.firestore {
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
           ['verificationStatus', 'verificationRequestedAt']
         )) ||
+        (isSignedIn() && request.auth.uid == userId && 
+         request.resource.data.diff(resource.data).affectedKeys().hasAny(
+          ['roles', 'role']
+        )) ||
         (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-          ['isVerified', 'verifiedAt', 'verificationStatus']
+          ['isVerified', 'verifiedAt', 'verificationStatus', 'unverifiedAt']
         ));
     }
     
@@ -52,13 +57,15 @@ service cloud.firestore {
       // Only property owner can create
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       // Owner can update/delete their own properties, admins can update any property
-      // Also allow anyone to update room availability (roomTypes array)
+      // Also allow anyone to update room availability (roomTypes array) or view count
       allow update: if isSignedIn() && (
         resource.data.ownerId == request.auth.uid ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
         // Allow updating roomTypes and updatedAt fields for availability tracking
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomTypes', 'updatedAt'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomTypes', 'updatedAt']) ||
+        // Allow anyone authenticated to update view count
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount'])
       );
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
@@ -68,13 +75,14 @@ service cloud.firestore {
       // Anyone authenticated can read approved projects
       allow read: if isSignedIn();
       // Only project owner can write (except view/click counts)
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      // Allow anyone to update view/click counts, but owner can update everything
+      allow create: if isSignedIn() && request.resource.data.developerId == request.auth.uid;
+      // Allow anyone to update view/click counts, but owner can update everything, or admin can update approval
       allow update: if isSignedIn() && (
-        resource.data.userId == request.auth.uid ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'clickCount']))
+        resource.data.developerId == request.auth.uid ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'clickCount'])) ||
+        (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isApproved']))
       );
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.developerId == request.auth.uid;
     }
     
     // Bookmarks collection

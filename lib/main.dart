@@ -12,6 +12,7 @@ import 'screens/owner/owner_dashboard_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
+import 'services/fcm_service.dart';
 
 // Conditional import for web-only dart:html
 import 'package:true_home/utils/web_utils.dart'
@@ -40,6 +41,11 @@ void main() async {
   
   // Initialize local notifications
   await NotificationService.initialize();
+  
+  // Initialize FCM (only on mobile, not web)
+  if (!kIsWeb) {
+    await FCMService().initialize();
+  }
   
   runApp(const MyApp());
 }

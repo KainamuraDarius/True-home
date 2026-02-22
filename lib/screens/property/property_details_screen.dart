@@ -338,7 +338,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   // Price (hidden for hostels - they show room pricing below)
                   if (widget.property.type != PropertyType.hostel) ...[
                     Text(
-                      'UGX ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent
+                      '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent
                           ? '/month'
                           : widget.property.type == PropertyType.hostel
                           ? '/semester'
@@ -561,7 +561,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                               CrossAxisAlignment.end,
                                           children: [
                                             Text(
-                                              'UGX ${CurrencyFormatter.format(roomType.price)}',
+                                              '${widget.property.currency} ${CurrencyFormatter.format(roomType.price)}',
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.bold,
@@ -1387,7 +1387,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
-                                            'UGX ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
+                                            '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
                                                 ? '/month'
                                                 : property.type == PropertyType.hostel
                                                 ? '/semester'
@@ -1744,4 +1744,5 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     }
     return Icons.hotel;
   }
+
 }

@@ -4,9 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:image/image.dart' as img;
 import '../../models/project_model.dart';
 import '../../services/project_service.dart';
-import '../../services/imgbb_service.dart';
+import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
 
 class SubmitProjectScreen extends StatefulWidget {
@@ -33,6 +35,8 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
   List<XFile> _selectedImages = [];
   bool _isSubmitting = false;
   String? _developerName;
+  double _uploadProgress = 0.0;
+  String _uploadStatus = '';
   
   // Flat pricing - minimum payment
   final double _flatPrice = 20000; // UGX 20,000 minimum for 30 days
@@ -66,28 +70,94 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
   }
 
   Future<List<String>> _uploadImages() async {
-    List<String> imageUrls = [];
+    final List<String> imageUrls = [];
+    final totalImages = _selectedImages.length;
     
-    for (var i = 0; i < _selectedImages.length; i++) {
-      try {
-        final file = File(_selectedImages[i].path);
-        final imageBytes = await file.readAsBytes();
-        
-        // Upload to ImgBB
-        final url = await ImgBBService.uploadImage(imageBytes);
-        
+    // Process and upload images in parallel batches of 3 for faster upload
+    const batchSize = 3;
+    
+    for (int batchStart = 0; batchStart < totalImages; batchStart += batchSize) {
+      final batchEnd = (batchStart + batchSize).clamp(0, totalImages);
+      final batch = _selectedImages.sublist(batchStart, batchEnd);
+      
+      setState(() {
+        _uploadProgress = (batchStart / totalImages);
+        _uploadStatus = 'Uploading images ${batchStart + 1}-$batchEnd of $totalImages...';
+      });
+      
+      // Process batch in parallel
+      final batchResults = await Future.wait(
+        batch.asMap().entries.map((entry) async {
+          final index = batchStart + entry.key;
+          final image = entry.value;
+          
+          try {
+            print('Processing image ${index + 1}/$totalImages');
+            
+            // Read and decode image
+            final bytes = await image.readAsBytes();
+            print('Original size: ${(bytes.length / 1024).toStringAsFixed(1)} KB');
+            
+            img.Image? decodedImage = img.decodeImage(bytes);
+            if (decodedImage == null) {
+              print('Failed to decode image ${index + 1}');
+              return null;
+            }
+            
+            // Aggressive resizing for faster uploads
+            if (decodedImage.width > 600 || decodedImage.height > 900) {
+              if (decodedImage.width > decodedImage.height) {
+                decodedImage = img.copyResize(decodedImage, width: 600);
+              } else {
+                decodedImage = img.copyResize(decodedImage, height: 900);
+              }
+            }
+            
+            // Compress with lower quality for smaller file size
+            final compressedBytes = Uint8List.fromList(
+              img.encodeJpg(decodedImage, quality: 55),
+            );
+            
+            print('Compressed size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB');
+            
+            // Upload to Firebase Storage
+            final imageUrl = await StorageService.uploadImage(
+              compressedBytes,
+              folder: 'projects',
+            );
+            
+            if (imageUrl != null) {
+              print('✅ Uploaded image ${index + 1}');
+              return imageUrl;
+            } else {
+              print('❌ Failed to upload image ${index + 1}');
+              return null;
+            }
+          } catch (e) {
+            print('❌ Error with image ${index + 1}: $e');
+            return null;
+          }
+        }),
+      );
+      
+      // Add successful uploads to the list
+      for (var url in batchResults) {
         if (url != null) {
           imageUrls.add(url);
-          print('Image ${i + 1}/${_selectedImages.length} uploaded successfully');
-        } else {
-          throw Exception('Failed to upload image ${i + 1}');
         }
-      } catch (e) {
-        print('Error uploading image $i: $e');
-        rethrow; // Re-throw to be caught by _submitProject
       }
+      
+      setState(() {
+        _uploadProgress = (batchEnd / totalImages);
+        _uploadStatus = 'Uploaded ${imageUrls.length} of $totalImages images';
+      });
     }
     
+    if (imageUrls.isEmpty) {
+      throw Exception('Failed to upload any images');
+    }
+    
+    print('✅ Upload complete: ${imageUrls.length}/$totalImages images');
     return imageUrls;
   }
 
@@ -110,11 +180,19 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _uploadProgress = 0.0;
+      _uploadStatus = 'Starting upload...';
+    });
 
     try {
       // Upload images
       final imageUrls = await _uploadImages();
+      
+      setState(() {
+        _uploadStatus = 'Saving project...';
+      });
       
       // Create project
       final user = FirebaseAuth.instance.currentUser!;
@@ -145,30 +223,137 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
       );
 
       await _projectService.createProject(project);
+      
+      setState(() {
+        _uploadProgress = 1.0;
+        _uploadStatus = 'Complete!';
+      });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Project submitted successfully!\n'
-              'Total Cost: UGX ${CurrencyFormatter.format(_calculateTotalCost())}\n'
-              'Awaiting admin approval and payment verification.'
+        setState(() => _isSubmitting = false);
+        
+        // Show full-screen success overlay
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Dialog.fullscreen(
+            backgroundColor: Colors.white,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF10B981).withOpacity(0.1),
+                    Colors.white,
+                  ],
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF10B981),
+                      size: 120,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  const Text(
+                    'Project Submitted Successfully!',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 48),
+                    child: Text(
+                      'Waiting for Admin Approval',
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: Color(0xFF10B981),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                    child: Text(
+                      'Total Cost: UGX ${CurrencyFormatter.format(_calculateTotalCost())}\n\nYour project has been submitted and is awaiting admin approval and payment verification.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.textSecondary,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Close dialog
+                          Navigator.of(context).pop(); // Go back
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Back to Dashboard',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
           ),
         );
-        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _uploadProgress = 0.0;
+          _uploadStatus = '';
+        });
+        
         String errorMessage = 'Error submitting project';
         
         // Provide specific error messages
-        if (e.toString().contains('Failed to upload image')) {
+        if (e.toString().contains('Failed to upload') || e.toString().contains('upload any images')) {
           errorMessage = 'Image upload failed. Please check your internet connection and try again.';
-        } else if (e.toString().contains('ImgBB')) {
-          errorMessage = 'Image hosting service error. Please try again later.';
+        } else if (e.toString().contains('SocketException') ||
+            e.toString().contains('NetworkException') ||
+            e.toString().contains('timeout')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (e.toString().contains('Firebase')) {
+          errorMessage = 'Upload error. Please try again later.';
         } else {
           errorMessage = 'Error: ${e.toString()}';
         }
@@ -183,7 +368,11 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isSubmitting = false);
+        setState(() {
+          _isSubmitting = false;
+          _uploadProgress = 0.0;
+          _uploadStatus = '';
+        });
       }
     }
   }
@@ -192,57 +381,23 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
   Widget build(BuildContext context) {
     final totalCost = _calculateTotalCost();
     
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Advertise Your Project'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-      ),
-      body: _isSubmitting
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('Advertise Your Project'),
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+          ),
+          body: _isSubmitting
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Info Card
-                    Card(
-                      color: AppColors.primary.withOpacity(0.1),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.info_outline, color: AppColors.primary),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'How it works',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              '1. Fill in your project details and upload images\n'
-                              '2. Choose your advertising package\n'
-                              '3. Submit for admin review\n'
-                              '4. Admin will verify payment and approve\n'
-                              '5. Your project goes live for 30 days!',
-                              style: TextStyle(height: 1.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
                     // Project Name
                     TextFormField(
                       controller: _nameController,
@@ -340,7 +495,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
                     TextFormField(
                       controller: _emailController,
                       decoration: const InputDecoration(
-                        labelText: 'Email',
+                        labelText: 'Email (Optional)',
                         hintText: 'contact@company.com',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.email),
@@ -352,17 +507,19 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
                     TextFormField(
                       controller: _websiteController,
                       decoration: const InputDecoration(
-                        labelText: 'Website / Blog URL (Optional)',
-                        hintText: 'https://yoursite.com',
+                        labelText: 'Website / Social Media Link (Optional)',
+                        hintText: 'yoursite.com, YouTube, Facebook, etc.',
                         border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.language),
-                        helperText: 'Add your website for customers to learn more',
+                        prefixIcon: Icon(Icons.link),
+                        helperText: 'Add any link: website, YouTube video, Facebook page, Instagram, etc.',
+                        helperMaxLines: 2,
                       ),
                       keyboardType: TextInputType.url,
                       validator: (value) {
                         if (value != null && value.isNotEmpty) {
+                          // Auto-add https:// if the link doesn't start with http:// or https://
                           if (!value.startsWith('http://') && !value.startsWith('https://')) {
-                            return 'URL must start with http:// or https://';
+                            _websiteController.text = 'https://$value';
                           }
                         }
                         return null;
@@ -444,149 +601,6 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Advertising Package
-                    Card(
-                      color: AppColors.primary.withOpacity(0.05),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.campaign, color: AppColors.primary, size: 28),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Advertising Package',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'What\'s Included:',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildFeatureItem('Your project listed by location'),
-                            _buildFeatureItem('Up to 20 project images'),
-                            _buildFeatureItem('Contact information displayed'),
-                            _buildFeatureItem('Link to your website/blog'),
-                            _buildFeatureItem('30 days visibility'),
-                            _buildFeatureItem('View and click analytics'),
-                            const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade50,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.green.shade200, width: 2),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Flexible(
-                                    child: Text(
-                                      'One-time Payment:',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'UGX 20,000',
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green.shade700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Total Cost Display
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primary, width: 2),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Flexible(
-                            child: Text(
-                              'Total Cost:',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'UGX ${CurrencyFormatter.format(totalCost)}',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Payment Instructions
-                    Card(
-                      color: Colors.orange.shade50,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: const [
-                                Icon(Icons.payment, color: Colors.orange),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Payment Instructions',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'After submitting, please make payment to:\n\n'
-                              'Mobile Money: +256-XXX-XXXXXX\n'
-                              'Bank Account: XXXXXXX\n\n'
-                              'Admin will verify your payment and approve your project within 24 hours.',
-                              style: TextStyle(height: 1.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
                     // Submit Button
                     SizedBox(
                       width: double.infinity,
@@ -614,6 +628,83 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
                 ),
               ),
             ),
+        ),
+        // Circular progress overlay
+        if (_isSubmitting && _uploadProgress > 0)
+          Container(
+            color: Colors.black.withOpacity(0.7),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 150,
+                      height: 150,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 150,
+                            height: 150,
+                            child: CircularProgressIndicator(
+                              value: _uploadProgress,
+                              strokeWidth: 12,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                            ),
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${(_uploadProgress * 100).toInt()}%',
+                                style: const TextStyle(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Icon(
+                                Icons.cloud_upload_outlined,
+                                color: AppColors.primary,
+                                size: 32,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      _uploadStatus,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please wait...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

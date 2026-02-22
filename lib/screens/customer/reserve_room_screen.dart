@@ -582,16 +582,16 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(
-                  labelText: 'Email Address *',
+                  labelText: 'Email Address (Optional)',
                   prefixIcon: Icon(Icons.email),
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter your email address';
-                  }
-                  if (!value.contains('@')) {
+                  // Only validate format if email is provided
+                  if (value != null &&
+                      value.trim().isNotEmpty &&
+                      !value.contains('@')) {
                     return 'Please enter a valid email address';
                   }
                   return null;

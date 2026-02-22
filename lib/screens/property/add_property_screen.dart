@@ -9,7 +9,7 @@ import 'package:image/image.dart' as img;
 import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
-import '../../services/imgbb_service.dart';
+import '../../services/storage_service.dart';
 import '../common/legal_policies_screen.dart';
 
 class AddPropertyScreen extends StatefulWidget {
@@ -42,10 +42,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _requestSpotlightPromotion = false;
   bool _agreedToAgentTerms = false;
-  double?
-  _selectedInspectionFee; // Selected inspection fee for rental properties
   String _areaUnit = 'sqft'; // Default unit is square feet
   String _currency = 'UGX'; // Default currency is UGX
+  double _uploadProgress = 0.0;
+  String _uploadStatus = '';
 
   // Amenities
   final List<String> _selectedAmenities = [];
@@ -87,7 +87,33 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile> images = await _picker.pickMultiImage();
+      // Show a small loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Loading images...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      final List<XFile> images = await _picker.pickMultiImage(
+        imageQuality: 85, // Reduce quality during selection for faster loading
+      );
+      
       if (images.isNotEmpty) {
         // Check if adding these images would exceed the limit
         final totalImages = _selectedImages.length + images.length;
@@ -114,12 +140,25 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
             _selectedImages.addAll(images);
           });
         }
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${images.length} image(s) selected'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error picking images: $e')));
+        ).showSnackBar(SnackBar(
+          content: Text('Error picking images: $e'),
+          backgroundColor: Colors.red,
+        ));
       }
     }
   }
@@ -130,99 +169,121 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     });
   }
 
+  // Generate thumbnail for faster preview
+  Future<Uint8List> _getThumbnail(XFile image) async {
+    try {
+      final bytes = await image.readAsBytes();
+      
+      // Decode image
+      img.Image? decodedImage = img.decodeImage(bytes);
+      if (decodedImage == null) {
+        return bytes; // Return original if decode fails
+      }
+      
+      // Create small thumbnail (150px) for fast display
+      img.Image thumbnail;
+      if (decodedImage.width > decodedImage.height) {
+        thumbnail = img.copyResize(decodedImage, width: 150);
+      } else {
+        thumbnail = img.copyResize(decodedImage, height: 150);
+      }
+      
+      // Compress thumbnail
+      return Uint8List.fromList(
+        img.encodeJpg(thumbnail, quality: 60),
+      );
+    } catch (e) {
+      print('Error generating thumbnail: $e');
+      // Return original bytes if thumbnail generation fails
+      return await image.readAsBytes();
+    }
+  }
+
   Future<List<String>> _uploadImages() async {
     final List<String> imageUrls = [];
-
-    for (int i = 0; i < _selectedImages.length; i++) {
-      try {
-        print('Uploading image ${i + 1}/${_selectedImages.length} to ImgBB');
-        // Use XFile.readAsBytes() for web compatibility
-        final bytes = await _selectedImages[i].readAsBytes();
-        print('Original image size: ${bytes.length} bytes');
-
-        // Decode and compress the image
-        img.Image? image = img.decodeImage(bytes);
-        if (image == null) {
-          print('Failed to decode image ${i + 1}');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to process image ${i + 1}'),
-                backgroundColor: Colors.orange,
-              ),
+    final totalImages = _selectedImages.length;
+    
+    // Process and upload images in parallel batches of 3 for faster upload
+    const batchSize = 3;
+    
+    for (int batchStart = 0; batchStart < totalImages; batchStart += batchSize) {
+      final batchEnd = (batchStart + batchSize).clamp(0, totalImages);
+      final batch = _selectedImages.sublist(batchStart, batchEnd);
+      
+      setState(() {
+        _uploadProgress = (batchStart / totalImages);
+        _uploadStatus = 'Uploading images ${batchStart + 1}-$batchEnd of $totalImages...';
+      });
+      
+      // Process batch in parallel
+      final batchResults = await Future.wait(
+        batch.asMap().entries.map((entry) async {
+          final index = batchStart + entry.key;
+          final image = entry.value;
+          
+          try {
+            print('Processing image ${index + 1}/$totalImages');
+            
+            // Read and decode image
+            final bytes = await image.readAsBytes();
+            print('Original size: ${(bytes.length / 1024).toStringAsFixed(1)} KB');
+            
+            img.Image? decodedImage = img.decodeImage(bytes);
+            if (decodedImage == null) {
+              print('Failed to decode image ${index + 1}');
+              return null;
+            }
+            
+            // More aggressive resizing for faster uploads
+            if (decodedImage.width > 600 || decodedImage.height > 900) {
+              if (decodedImage.width > decodedImage.height) {
+                decodedImage = img.copyResize(decodedImage, width: 600);
+              } else {
+                decodedImage = img.copyResize(decodedImage, height: 900);
+              }
+            }
+            
+            // Compress with lower quality for smaller file size
+            final compressedBytes = Uint8List.fromList(
+              img.encodeJpg(decodedImage, quality: 55),
             );
-          }
-          continue;
-        }
-
-        print('Original dimensions: ${image.width}x${image.height}');
-
-        // Resize image more aggressively to reduce upload time
-        if (image.width > 800) {
-          image = img.copyResize(image, width: 800);
-        } else if (image.height > 1200) {
-          image = img.copyResize(image, height: 1200);
-        }
-
-        print('Resized dimensions: ${image.width}x${image.height}');
-
-        // Compress more to reduce upload size
-        final compressedBytes = Uint8List.fromList(
-          img.encodeJpg(image, quality: 70),
-        );
-
-        print('Compressed image size: ${compressedBytes.length} bytes');
-
-        // Upload to ImgBB (FREE unlimited storage!)
-        final imageUrl = await ImgBBService.uploadImage(compressedBytes);
-
-        if (imageUrl != null) {
-          imageUrls.add(imageUrl);
-          print('Successfully uploaded image ${i + 1} to ImgBB: $imageUrl');
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Uploaded image ${i + 1}/${_selectedImages.length}',
-                ),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 1),
-              ),
+            
+            print('Compressed size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB');
+            
+            // Upload to Firebase Storage
+            final imageUrl = await StorageService.uploadImage(
+              compressedBytes,
+              folder: 'properties',
             );
+            
+            if (imageUrl != null) {
+              print('✅ Uploaded image ${index + 1}');
+              return imageUrl;
+            } else {
+              print('❌ Failed to upload image ${index + 1}');
+              return null;
+            }
+          } catch (e) {
+            print('❌ Error with image ${index + 1}: $e');
+            return null;
           }
-        } else {
-          print('❌ Failed to upload image ${i + 1} to ImgBB - No URL returned');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Upload failed for image ${i + 1}. Check your internet connection.',
-                ),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
+        }),
+      );
+      
+      // Add successful uploads to the list
+      for (var url in batchResults) {
+        if (url != null) {
+          imageUrls.add(url);
         }
-      } catch (e) {
-        print('Error processing image ${i + 1}: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error with image ${i + 1}: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        // Continue with other images
-        continue;
       }
+      
+      setState(() {
+        _uploadProgress = (batchEnd / totalImages);
+        _uploadStatus = 'Uploaded ${imageUrls.length} of $totalImages images';
+      });
     }
-
-    print(
-      'Successfully uploaded ${imageUrls.length}/${_selectedImages.length} images to ImgBB',
-    );
+    
+    print('✅ Upload complete: ${imageUrls.length}/$totalImages images');
     return imageUrls;
   }
 
@@ -244,6 +305,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
     setState(() {
       _isLoading = true;
+      _uploadProgress = 0.0;
+      _uploadStatus = 'Starting upload...';
     });
 
     try {
@@ -331,10 +394,14 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         university: null,
         roomTypes: const [],
         promotionRequested: _requestSpotlightPromotion,
-        inspectionFee: _selectedInspectionFee,
+        inspectionFee: null,
       );
 
       await propertyRef.set(property.toJson());
+
+      setState(() {
+        _uploadStatus = 'Notifying admins...';
+      });
 
       // Notify all admins about new property submission
       final admins = await FirebaseFirestore.instance
@@ -355,30 +422,141 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         });
       }
 
+      setState(() {
+        _uploadProgress = 1.0;
+        _uploadStatus = 'Complete!';
+      });
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Property submitted for review successfully!'),
-            backgroundColor: Colors.green,
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Show full-screen success overlay
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Dialog.fullscreen(
+            backgroundColor: Colors.white,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF10B981).withOpacity(0.1),
+                    Colors.white,
+                  ],
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF10B981),
+                      size: 120,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  const Text(
+                    'Property Submitted Successfully!',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 48),
+                    child: Text(
+                      'Waiting for Admin Approval',
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: Color(0xFF10B981),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                    child: Text(
+                      'Your property has been submitted successfully. Our admin team will review it and get back to you soon.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.textSecondary,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Close dialog
+                          Navigator.of(context).pop(); // Go back
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Back to Dashboard',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
-        Navigator.pop(context);
       }
     } catch (e) {
       print('Error submitting property: $e');
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _uploadProgress = 0.0;
+          _uploadStatus = '';
+        });
+        
         String errorMessage = 'Error submitting property';
 
         // Provide specific error messages
         if (e.toString().contains('timeout') ||
-            e.toString().contains('connection')) {
+            e.toString().contains('connection') ||
+            e.toString().contains('SocketException') ||
+            e.toString().contains('NetworkException')) {
           errorMessage =
               'Network error. Please check your internet connection and try again.';
         } else if (e.toString().contains('Rate limit')) {
           errorMessage =
               'Too many uploads. Please wait a few minutes and try again.';
-        } else if (e.toString().contains('ImgBB') ||
-            e.toString().contains('upload')) {
+        } else if (e.toString().contains('upload')) {
           errorMessage =
               'Image upload failed. Please try again or use different images.';
         } else {
@@ -397,6 +575,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _uploadProgress = 0.0;
+          _uploadStatus = '';
         });
       }
     }
@@ -404,28 +584,30 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Property'),
-        backgroundColor: AppColors.primary,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('Add Property'),
+            backgroundColor: AppColors.primary,
+          ),
+          body: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Subscription Notice
+                    // Instructions
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
+                        color: AppColors.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.shade300),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -434,12 +616,12 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             children: [
                               Icon(
                                 Icons.info_outline,
-                                color: Colors.orange.shade700,
+                                color: AppColors.primary,
                                 size: 24,
                               ),
                               const SizedBox(width: 8),
                               const Text(
-                                'Subscription Required',
+                                'Property Submission Guide',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -449,52 +631,34 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            'To add properties, you need an active monthly subscription of UGX 50,000.',
-                            style: TextStyle(fontSize: 14, height: 1.5),
-                          ),
+                          _buildInstructionItem('Fields marked with * are required'),
+                          _buildInstructionItem('Fields without * are optional'),
+                          _buildInstructionItem('Provide accurate contact information'),
+                          _buildInstructionItem('Ensure phone numbers are active and correct'),
+                          _buildInstructionItem('Add clear, high-quality property images'),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Admin will only review and publish properties from subscribed agents.',
-                            style: TextStyle(fontSize: 14, height: 1.5),
-                          ),
-                          const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orange.shade200),
                             ),
                             child: Row(
                               children: [
                                 Icon(
-                                  Icons.payment,
-                                  color: Colors.orange.shade700,
+                                  Icons.verified_outlined,
+                                  color: AppColors.primary,
+                                  size: 20,
                                 ),
                                 const SizedBox(width: 12),
                                 const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Pay subscription to:',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.black54,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        '+256 702021112',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ],
+                                  child: Text(
+                                    'Your property will be reviewed by admin before publishing',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black87,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -824,82 +988,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Inspection Fee Section
-                    const Divider(height: 32),
-                    const Text(
-                      'Inspection Fee',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Select the inspection fee that clients will pay when viewing the property',
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<double>(
-                      decoration: InputDecoration(
-                        labelText: 'Select Inspection Fee *',
-                        border: const OutlineInputBorder(),
-                        hintText: 'Choose inspection fee amount',
-                        helperText: _selectedInspectionFee != null
-                            ? _selectedInspectionFee == 0
-                                  ? 'No inspection fee will be charged'
-                                  : 'Clients will be informed they need to pay UGX ${_selectedInspectionFee!.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} after confirming property availability'
-                            : null,
-                        helperMaxLines: 3,
-                      ),
-                      value: _selectedInspectionFee,
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Please select an inspection fee option';
-                        }
-                        return null;
-                      },
-                      items: [
-                        ...[
-                          10000.0,
-                          15000.0,
-                          20000.0,
-                          25000.0,
-                          30000.0,
-                          35000.0,
-                          40000.0,
-                          45000.0,
-                          50000.0,
-                          55000.0,
-                          60000.0,
-                          65000.0,
-                          70000.0,
-                          75000.0,
-                          80000.0,
-                          85000.0,
-                          90000.0,
-                          95000.0,
-                          100000.0,
-                        ].map((fee) {
-                          return DropdownMenuItem<double>(
-                            value: fee,
-                            child: Text(
-                              'UGX ${fee.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
-                            ),
-                          );
-                        }).toList(),
-                        const DropdownMenuItem<double>(
-                          value: 0.0,
-                          child: Text('No Inspection Fee'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedInspectionFee = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
                     // Agent Information Section
                     const Divider(height: 32),
                     const Text(
@@ -1117,21 +1205,34 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                   height: 120,
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(8),
+                                    color: Colors.grey.shade200,
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
                                     child: FutureBuilder<Uint8List>(
-                                      future: _selectedImages[index]
-                                          .readAsBytes(),
+                                      future: _getThumbnail(_selectedImages[index]),
                                       builder: (context, snapshot) {
                                         if (snapshot.hasData) {
                                           return Image.memory(
                                             snapshot.data!,
                                             fit: BoxFit.cover,
                                           );
+                                        } else if (snapshot.hasError) {
+                                          return const Center(
+                                            child: Icon(
+                                              Icons.error_outline,
+                                              color: Colors.red,
+                                            ),
+                                          );
                                         }
                                         return const Center(
-                                          child: CircularProgressIndicator(),
+                                          child: SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
                                         );
                                       },
                                     ),
@@ -1314,33 +1415,194 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Progress indicator when uploading
+                    if (_isLoading) ...[
+                      LinearProgressIndicator(
+                        value: _uploadProgress,
+                        backgroundColor: Colors.grey.shade200,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        minHeight: 6,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _uploadStatus,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            '${(_uploadProgress * 100).toInt()}%',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
                     // Submit Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _agreedToAgentTerms ? _submitProperty : null,
+                        onPressed: (_agreedToAgentTerms && !_isLoading) ? _submitProperty : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           disabledBackgroundColor: Colors.grey.shade300,
                         ),
-                        child: Text(
-                          _agreedToAgentTerms
-                              ? 'Submit for Review'
-                              : 'Accept Agreement to Submit',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: _agreedToAgentTerms
-                                ? Colors.white
-                                : Colors.grey.shade600,
-                          ),
-                        ),
+                        child: _isLoading
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Uploading ${(_uploadProgress * 100).toInt()}%',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                _agreedToAgentTerms
+                                    ? 'Submit for Review'
+                                    : 'Accept Agreement to Submit',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: _agreedToAgentTerms
+                                      ? Colors.white
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
+        ),
+        // Circular progress overlay
+        if (_isLoading && _uploadProgress > 0)
+          Container(
+            color: Colors.black.withOpacity(0.7),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 150,
+                      height: 150,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 150,
+                            height: 150,
+                            child: CircularProgressIndicator(
+                              value: _uploadProgress,
+                              strokeWidth: 12,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                            ),
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${(_uploadProgress * 100).toInt()}%',
+                                style: const TextStyle(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Icon(
+                                Icons.cloud_upload_outlined,
+                                color: AppColors.primary,
+                                size: 32,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      _uploadStatus,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please wait...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildInstructionItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            color: AppColors.primary,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

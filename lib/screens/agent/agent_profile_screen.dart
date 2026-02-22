@@ -556,7 +556,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'UGX ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
+                        '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,

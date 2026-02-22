@@ -1,0 +1,37 @@
+SIMPLE FIX FOR IMAGE DISPLAY ISSUE
+===================================
+
+Your images uploaded successfully but the admin web can't display them due to CORS.
+
+EASIEST FIX - Use Firebase Console:
+------------------------------------
+1. Open: https://console.firebase.google.com/project/truehome-9a244/storage/truehome-9a244.appspot.com/files
+
+2. Click the 3 dots menu ⋮ (top right of the Files tab)
+
+3. Select "Edit CORS configuration"
+
+4. Replace the content with this:
+
+[
+  {
+    "origin": ["*"],
+    "method": ["GET", "HEAD"],
+    "maxAgeSeconds": 3600
+  }
+]
+
+5. Click "Save"
+
+6. Refresh your admin web page - images will now display!
+
+---
+
+If you can't find "Edit CORS configuration" option, use this command instead:
+
+Run this in terminal:
+$ firebase login
+$ export PATH=$HOME/google-cloud-sdk/bin:$PATH
+$ gsutil cors set cors.json gs://truehome-9a244.firebasestorage.app
+
+The cors.json file is already created in your project folder.

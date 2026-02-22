@@ -229,7 +229,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                 TextField(
                   controller: _contactEmailController,
                   decoration: const InputDecoration(
-                    labelText: 'Contact Email *',
+                    labelText: 'Contact Email (Optional)',
                     border: OutlineInputBorder(),
                     hintText: 'contact@example.com',
                   ),
@@ -335,11 +335,10 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
             ElevatedButton(
               onPressed: () {
                 if (_contactPhoneController.text.trim().isEmpty ||
-                    _whatsappPhoneController.text.trim().isEmpty ||
-                    _contactEmailController.text.trim().isEmpty) {
+                    _whatsappPhoneController.text.trim().isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Please fill in all contact fields'),
+                      content: Text('Please fill in phone and WhatsApp fields'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -484,7 +483,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'UGX ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
+                          '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,

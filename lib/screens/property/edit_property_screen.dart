@@ -9,7 +9,7 @@ import 'package:image/image.dart' as img;
 import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
-import '../../services/imgbb_service.dart';
+import '../../services/storage_service.dart';
 
 class EditPropertyScreen extends StatefulWidget {
   final PropertyModel property;
@@ -40,6 +40,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
   final _agentNameController = TextEditingController();
   
   late PropertyType _selectedType;
+  String _currency = 'UGX'; // Default currency
   final List<XFile> _newImages = []; // Newly selected images
   final List<String> _existingImageUrls = []; // Existing images from property
   bool _isLoading = false;
@@ -91,6 +92,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
     
     // Set property type
     _selectedType = widget.property.type;
+    
+    // Set currency
+    _currency = widget.property.currency;
     
     // Copy existing images
     _existingImageUrls.addAll(widget.property.imageUrls);
@@ -177,7 +181,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
     for (int i = 0; i < _newImages.length; i++) {
       try {
-        print('Uploading image ${i + 1}/${_newImages.length} to ImgBB');
+        print('Uploading image ${i + 1}/${_newImages.length} to Firebase Storage');
         final file = File(_newImages[i].path);
         final bytes = await file.readAsBytes();
         print('Original image size: ${bytes.length} bytes');
@@ -215,12 +219,12 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         
         print('Compressed image size: ${compressedBytes.length} bytes');
         
-        // Upload to ImgBB (FREE unlimited storage!)
-        final imageUrl = await ImgBBService.uploadImage(compressedBytes);
+        // Upload to Firebase Storage
+        final imageUrl = await StorageService.uploadImage(compressedBytes, folder: 'properties');
         
         if (imageUrl != null) {
           imageUrls.add(imageUrl);
-          print('Successfully uploaded image ${i + 1} to ImgBB: $imageUrl');
+          print('Successfully uploaded image ${i + 1} to Firebase Storage: $imageUrl');
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -232,7 +236,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
             );
           }
         } else {
-          print('Failed to upload image ${i + 1} to ImgBB');
+          print('Failed to upload image ${i + 1} to Firebase Storage');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -258,7 +262,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
       }
     }
 
-    print('Successfully uploaded ${imageUrls.length}/${_newImages.length} images to ImgBB');
+    print('Successfully uploaded ${imageUrls.length}/${_newImages.length} images to Firebase Storage');
     return imageUrls;
   }
 
@@ -293,7 +297,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         'id': userDoc.id,
       });
 
-      // Upload new images to ImgBB if any
+      // Upload new images to Firebase Storage if any
       List<String> newlyUploadedUrls = [];
       if (_newImages.isNotEmpty) {
         newlyUploadedUrls = await _uploadNewImages();
@@ -318,6 +322,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         description: _descriptionController.text.trim(),
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
+        currency: _currency,
         location: _locationController.text.trim(),
         address: _addressController.text.trim(),
         bedrooms: _bedroomsController.text.trim().isEmpty ? 0 : int.parse(_bedroomsController.text.trim()),
@@ -485,25 +490,58 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Price
-                    TextFormField(
-                      controller: _priceController,
-                      decoration: InputDecoration(
-                        labelText: _selectedType == PropertyType.sale
-                            ? 'Price (UGX) *'
-                            : 'Monthly Rent (UGX) *',
-                        border: const OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter price';
-                        }
-                        if (double.tryParse(value) == null) {
-                          return 'Please enter a valid number';
-                        }
-                        return null;
-                      },
+                    // Price with currency selector
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _priceController,
+                            decoration: InputDecoration(
+                              labelText: _selectedType == PropertyType.sale
+                                  ? 'Price *'
+                                  : 'Monthly Rent *',
+                              border: const OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter price';
+                              }
+                              if (double.tryParse(value) == null) {
+                                return 'Please enter a valid number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _currency,
+                            decoration: const InputDecoration(
+                              labelText: 'Currency',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'UGX',
+                                child: Text('UGX'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'USD',
+                                child: Text('USD'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                _currency = value!;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
 
@@ -749,17 +787,17 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     TextFormField(
                       controller: _contactEmailController,
                       decoration: const InputDecoration(
-                        labelText: 'Contact Email *',
+                        labelText: 'Contact Email (Optional)',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.email),
                         hintText: 'email@example.com',
                       ),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter email';
-                        }
-                        if (!value.contains('@')) {
+                        // Only validate format if email is provided
+                        if (value != null &&
+                            value.isNotEmpty &&
+                            !value.contains('@')) {
                           return 'Please enter a valid email';
                         }
                         return null;

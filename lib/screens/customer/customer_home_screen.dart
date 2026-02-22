@@ -96,9 +96,6 @@ class _HomeTabState extends State<HomeTab> {
 
   // Projects section state
   List<String> _projectLocations = [];
-  String _selectedProjectLocation = 'Bugolobi';
-  List<Project> _locationProjects = [];
-  bool _loadingProjects = false;
 
   // Properties location filter state
   String? _selectedPropertyLocation;
@@ -190,17 +187,21 @@ class _HomeTabState extends State<HomeTab> {
   final PageController _newProjectsPageController = PageController(
     viewportFraction: 0.9,
   );
-  int _currentNewProjectIndex = 0;
+  final ValueNotifier<int> _currentNewProjectIndex = ValueNotifier<int>(0);
 
   @override
   void initState() {
     super.initState();
     _loadUnreadCount();
     _loadCurrentUser();
-    _loadProjectLocations(); // This will now also load projects
-    _loadPropertyLocations();
-    _loadSearchHistory();
-    _loadNewProjects(); // Load new projects carousel
+    
+    // Load these in background without blocking UI
+    Future.microtask(() {
+      _loadProjectLocations(); // This will now also load projects
+      _loadPropertyLocations();
+      _loadSearchHistory();
+      _loadNewProjects(); // Load new projects carousel
+    });
 
     // Initialize price controllers
     _minPriceController.text = '';
@@ -214,6 +215,7 @@ class _HomeTabState extends State<HomeTab> {
     _maxPriceController.dispose();
     _searchFocusNode.dispose();
     _newProjectsPageController.dispose();
+    _currentNewProjectIndex.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -642,6 +644,7 @@ class _HomeTabState extends State<HomeTab> {
         ],
       ),
       body: SingleChildScrollView(
+        key: const PageStorageKey<String>('customer_home_scroll'),
         controller: _scrollController,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2306,35 +2309,7 @@ class _HomeTabState extends State<HomeTab> {
     if (mounted) {
       setState(() {
         _projectLocations = locations;
-        if (_projectLocations.isNotEmpty) {
-          if (!_projectLocations.contains(_selectedProjectLocation)) {
-            _selectedProjectLocation = _projectLocations.first;
-          }
-          // Load projects for the selected location after locations are loaded
-          _loadProjectsForLocation(_selectedProjectLocation);
-        }
       });
-    }
-  }
-
-  // Load projects for selected location
-  Future<void> _loadProjectsForLocation(String location) async {
-    setState(() {
-      _loadingProjects = true;
-    });
-
-    final projects = await _projectService.getProjectsByLocation(location);
-
-    if (mounted) {
-      setState(() {
-        _locationProjects = projects;
-        _loadingProjects = false;
-      });
-
-      // Increment view counts for displayed projects
-      for (var project in projects.take(5)) {
-        _projectService.incrementViewCount(project.id);
-      }
     }
   }
 
@@ -2436,152 +2411,10 @@ class _HomeTabState extends State<HomeTab> {
     }
   }
 
-  // Build Browse New Projects Section
+  // Build Browse New Projects Section - Now using separate widget to prevent scroll jumps
   Widget _buildBrowseNewProjectsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Browse New Projects In Uganda',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.bodyLarge!.color,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        // Location tabs
-        SizedBox(
-          height: 45,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: _projectLocations.length,
-            itemBuilder: (context, index) {
-              final location = _projectLocations[index];
-              final isSelected = location == _selectedProjectLocation;
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: ChoiceChip(
-                  label: Text(location),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() {
-                        _selectedProjectLocation = location;
-                      });
-                      _loadProjectsForLocation(location);
-                    }
-                  },
-                  selectedColor: Theme.of(context).colorScheme.primary,
-                  labelStyle: TextStyle(
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.onPrimary
-                        : Theme.of(context).textTheme.bodyLarge!.color,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                  backgroundColor: Theme.of(context).chipTheme.backgroundColor,
-                  elevation: isSelected ? 4 : 0,
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 16),
-        // Projects horizontal list
-        if (_loadingProjects)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator(),
-            ),
-          )
-        else if (_locationProjects.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.apartment,
-                    size: 48,
-                    color: Theme.of(
-                      context,
-                    ).textTheme.bodySmall!.color?.withOpacity(0.4),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No projects in $_selectedProjectLocation yet',
-                    style: TextStyle(
-                      color: Theme.of(context).textTheme.bodySmall!.color,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          Column(
-            children: [
-              SizedBox(
-                height: 320,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: _locationProjects.length > 3
-                      ? 3
-                      : _locationProjects.length,
-                  itemBuilder: (context, index) {
-                    return _buildProjectCard(_locationProjects[index]);
-                  },
-                ),
-              ),
-              // View More button if there are more than 3 projects
-              if (_locationProjects.length > 3)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        // Navigate to a full list view of projects
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AllProjectsScreen(
-                              location: _selectedProjectLocation,
-                              projects: _locationProjects,
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.arrow_forward),
-                      label: const Text('View More'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                        side: BorderSide(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-      ],
+    return BrowseNewProjectsSection(
+      projectLocations: _projectLocations,
     );
   }
 
@@ -2630,10 +2463,9 @@ class _HomeTabState extends State<HomeTab> {
           child: PageView.builder(
             controller: _newProjectsPageController,
             itemCount: _newProjects.length,
+            physics: const PageScrollPhysics(),
             onPageChanged: (index) {
-              setState(() {
-                _currentNewProjectIndex = index;
-              });
+              _currentNewProjectIndex.value = index;
             },
             itemBuilder: (context, index) {
               return _buildNewProjectCard(_newProjects[index]);
@@ -2642,22 +2474,27 @@ class _HomeTabState extends State<HomeTab> {
         ),
         const SizedBox(height: 12),
         // Page indicators
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            _newProjects.length,
-            (index) => Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: _currentNewProjectIndex == index ? 24 : 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: _currentNewProjectIndex == index
-                    ? AppColors.primary
-                    : Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(4),
+        ValueListenableBuilder<int>(
+          valueListenable: _currentNewProjectIndex,
+          builder: (context, currentIndex, child) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                _newProjects.length,
+                (index) => Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: currentIndex == index ? 24 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: currentIndex == index
+                        ? AppColors.primary
+                        : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ],
     );
@@ -2850,165 +2687,12 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'UGX ${CurrencyFormatter.format(property.price)}',
+                      '${property.currency} ${CurrencyFormatter.format(property.price)}',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.primary,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Build project card
-  Widget _buildProjectCard(Project project) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    return Container(
-      width: screenWidth * 0.85, // 85% of screen width for horizontal scrolling
-      margin: const EdgeInsets.only(right: 16),
-      child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: InkWell(
-          onTap: () {
-            _projectService.incrementClickCount(project.id);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ProjectDetailsScreen(project: project),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Project image
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
-                child: Stack(
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: project.imageUrls.isNotEmpty
-                          ? project.imageUrls.first
-                          : 'https://via.placeholder.com/280x180?text=No+Image',
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        height: 180,
-                        color: Theme.of(context).cardColor,
-                        child: const Center(child: CircularProgressIndicator()),
-                      ),
-                      errorWidget: (context, url, error) {
-                        return Container(
-                          height: 180,
-                          color: Theme.of(context).cardColor,
-                          child: const Center(
-                            child: Icon(Icons.apartment, size: 40),
-                          ),
-                        );
-                      },
-                    ),
-                    // Ad tier badge
-                    if (project.isFirstPlaceSubscriber)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.amber,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.star,
-                                size: 12,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSecondary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'FEATURED',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              // Project details
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      project.name,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.bodyLarge!.color,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'By ${project.developerName}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).textTheme.bodySmall!.color,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: 14,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            project.location,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -3182,7 +2866,7 @@ class _HomeTabState extends State<HomeTab> {
                     const SizedBox(height: 8),
                     // Price
                     Text(
-                      'UGX ${_formatPrice(property.price)}',
+                      '${property.currency} ${CurrencyFormatter.format(property.price)}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -3434,7 +3118,7 @@ class _HomeTabState extends State<HomeTab> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'From UGX ${_formatPrice(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}',
+                                    'From ${property.currency} ${CurrencyFormatter.format(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}',
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -3453,7 +3137,7 @@ class _HomeTabState extends State<HomeTab> {
                                 ],
                               )
                             : Text(
-                                'UGX ${_formatPrice(property.price)}${property.type == PropertyType.rent
+                                '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
                                     ? "/month"
                                     : property.type == PropertyType.hostel
                                     ? "/semester"
@@ -3507,15 +3191,6 @@ class _HomeTabState extends State<HomeTab> {
         ),
       ),
     );
-  }
-
-  String _formatPrice(double price) {
-    if (price >= 1000000) {
-      return '${(price / 1000000).toStringAsFixed(1)}M';
-    } else if (price >= 1000) {
-      return '${(price / 1000).toStringAsFixed(0)}K';
-    }
-    return CurrencyFormatter.format(price);
   }
 }
 
@@ -4551,7 +4226,7 @@ class _SearchTabState extends State<SearchTab> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'UGX ${property.price.toStringAsFixed(0)}',
+                    '${property.currency} ${property.price.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
@@ -4964,12 +4639,335 @@ class _FavoritesTabState extends State<FavoritesTab> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'UGX ${property.price.toStringAsFixed(0)}',
+                    '${property.currency} ${property.price.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
                       fontSize: 14,
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Separate StatefulWidget to prevent scroll jumping when switching locations
+class BrowseNewProjectsSection extends StatefulWidget {
+  final List<String> projectLocations;
+
+  const BrowseNewProjectsSection({
+    super.key,
+    required this.projectLocations,
+  });
+
+  @override
+  State<BrowseNewProjectsSection> createState() => _BrowseNewProjectsSectionState();
+}
+
+class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
+  final ProjectService _projectService = ProjectService();
+  String _selectedProjectLocation = '';
+  List<Project> _locationProjects = [];
+  bool _loadingProjects = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.projectLocations.isNotEmpty) {
+      _selectedProjectLocation = widget.projectLocations.first;
+      _loadProjectsForLocation(_selectedProjectLocation);
+    }
+  }
+
+  @override
+  void didUpdateWidget(BrowseNewProjectsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If locations changed and current selection is not in new list
+    if (widget.projectLocations.isNotEmpty &&
+        !widget.projectLocations.contains(_selectedProjectLocation)) {
+      _selectedProjectLocation = widget.projectLocations.first;
+      _loadProjectsForLocation(_selectedProjectLocation);
+    }
+  }
+
+  Future<void> _loadProjectsForLocation(String location) async {
+    if (!mounted) return;
+
+    setState(() {
+      _selectedProjectLocation = location;
+      _loadingProjects = true;
+    });
+
+    final projects = await _projectService.getProjectsByLocation(location);
+
+    if (mounted) {
+      setState(() {
+        _locationProjects = projects;
+        _loadingProjects = false;
+      });
+
+      // Increment view counts for displayed projects
+      for (var project in projects.take(5)) {
+        _projectService.incrementViewCount(project.id);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.projectLocations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      key: const ValueKey('browse_projects_section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Browse New Projects In Uganda',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).textTheme.bodyLarge!.color,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Location tabs
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: widget.projectLocations.map((location) {
+              final isSelected = location == _selectedProjectLocation;
+              return InkWell(
+                onTap: () {
+                  if (location != _selectedProjectLocation) {
+                    _loadProjectsForLocation(location);
+                  }
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).chipTheme.backgroundColor,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey.shade300,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    location,
+                    style: TextStyle(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Theme.of(context).textTheme.bodyLarge!.color,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Projects horizontal list
+        if (_loadingProjects)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_locationProjects.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.apartment,
+                    size: 48,
+                    color: Theme.of(context).textTheme.bodySmall!.color?.withOpacity(0.4),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No projects in $_selectedProjectLocation yet',
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodySmall!.color,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Column(
+            children: [
+              SizedBox(
+                height: 320,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  physics: const ClampingScrollPhysics(),
+                  primary: false,
+                  shrinkWrap: true,
+                  itemCount: _locationProjects.length > 3 ? 3 : _locationProjects.length,
+                  itemBuilder: (context, index) {
+                    return _buildProjectCard(_locationProjects[index], context);
+                  },
+                ),
+              ),
+              // View More button if there are more than 3 projects
+              if (_locationProjects.length > 3)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // Navigate to a full list view of projects
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AllProjectsScreen(
+                              location: _selectedProjectLocation,
+                              projects: _locationProjects,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.arrow_forward),
+                      label: const Text('View More'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildProjectCard(Project project, BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        _projectService.incrementClickCount(project.id);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProjectDetailsScreen(project: project),
+          ),
+        );
+      },
+      child: Container(
+        width: 280,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Project image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: project.imageUrls.isNotEmpty
+                  ? Image.network(
+                      project.imageUrls.first,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 180,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.apartment, size: 48),
+                        );
+                      },
+                    )
+                  : Container(
+                      height: 180,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.apartment, size: 48),
+                    ),
+            ),
+            // Project details
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    project.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          project.location,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    project.description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

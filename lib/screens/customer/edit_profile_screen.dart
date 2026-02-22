@@ -8,7 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import '../../utils/app_theme.dart';
 import '../../models/user_model.dart';
-import '../../services/imgbb_service.dart';
+import '../../services/storage_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -157,15 +157,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         throw Exception('Image too large. Please choose a smaller image.');
       }
 
-      // Upload to ImgBB
-      print('Uploading profile image to ImgBB...');
-      final imageUrl = await ImgBBService.uploadImage(compressedBytes);
+      // Upload to Firebase Storage
+      print('Uploading profile image to Firebase Storage...');
+      final imageUrl = await StorageService.uploadImage(compressedBytes, folder: 'profiles');
       
       if (imageUrl != null) {
         print('Profile image uploaded successfully: $imageUrl');
         return imageUrl;
       } else {
-        throw Exception('Failed to upload image to ImgBB');
+        throw Exception('Failed to upload image to Firebase Storage');
       }
     } catch (e) {
       print('Error uploading profile image: $e');

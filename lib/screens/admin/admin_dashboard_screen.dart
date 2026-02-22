@@ -14,6 +14,8 @@ import 'admin_projects_screen.dart';
 import 'add_hostel_screen.dart';
 import 'admin_reservations_screen.dart';
 import 'admin_verification_requests_screen.dart';
+import 'send_notification_screen.dart';
+import 'add_admin_role_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -402,6 +404,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminProjectsScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionCard(
+              context,
+              'Add Admin Role',
+              'Grant admin access to truehome376@gmail.com',
+              Icons.person_add,
+              Colors.purple,
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddAdminRoleScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionCard(
+              context,
+              'Send Notifications',
+              'Broadcast messages to users, agents, or customers',
+              Icons.notifications_active,
+              Colors.deepOrange,
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SendNotificationScreen(),
                   ),
                 );
               },

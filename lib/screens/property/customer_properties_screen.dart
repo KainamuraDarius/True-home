@@ -230,7 +230,7 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'UGX ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
+                    '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,

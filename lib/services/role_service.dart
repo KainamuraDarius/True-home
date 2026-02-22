@@ -18,6 +18,18 @@ class RoleService {
     final userData = userDoc.data()!;
     final userModel = UserModel.fromJson(userData);
 
+    // If switching to customer role and user doesn't have it, add it automatically
+    // (Everyone should be able to browse as a customer)
+    if (newRole == UserRole.customer && !userModel.roles.contains(UserRole.customer)) {
+      final updatedRoles = [...userModel.roles, UserRole.customer];
+      await _firestore.collection('users').doc(user.uid).update({
+        'roles': updatedRoles.map((r) => r.name).toList(),
+        'activeRole': newRole.name,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      return;
+    }
+
     // Check if user has the role they're trying to switch to
     if (!userModel.roles.contains(newRole)) {
       throw Exception('You do not have permission to access this role');

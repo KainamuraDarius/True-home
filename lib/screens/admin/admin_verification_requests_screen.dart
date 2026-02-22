@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart';
 import '../../utils/app_theme.dart';
 
 class AdminVerificationRequestsScreen extends StatefulWidget {
@@ -335,6 +336,27 @@ class _AdminVerificationRequestsScreenState
                   ),
                 ],
 
+                // Unverify Button (only for approved)
+                if (status == 'approved') ...[
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showUnverifyDialog(userId),
+                      icon: const Icon(Icons.remove_circle_outline),
+                      label: const Text('Unverify Agent'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.orange.shade700,
+                        side: BorderSide(color: Colors.orange.shade700),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
                 // Rejection Reason (if rejected)
                 if (status == 'rejected' && data['rejectionReason'] != null) ...[
                   const SizedBox(height: 12),
@@ -433,69 +455,108 @@ class _AdminVerificationRequestsScreenState
     IconData icon,
     bool isRequired,
   ) {
-    return InkWell(
-      onTap: () => _showFullImage(imageUrl, title),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: AppColors.primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => _showFullImage(imageUrl, title),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            if (isRequired) ...[
+                              const SizedBox(width: 4),
+                              const Text(
+                                '*',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ),
-                      if (isRequired) ...[
-                        const SizedBox(width: 4),
+                        const SizedBox(height: 4),
                         const Text(
-                          '*',
+                          'Tap to view full image',
                           style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red,
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Tap to view full image',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
                     ),
+                  ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: _buildImageWidget(imageUrl, 60, 60, BoxFit.cover),
                   ),
                 ],
               ),
             ),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: _buildImageWidget(imageUrl, 60, 60, BoxFit.cover),
+          ),
+          Divider(height: 1, color: Colors.grey.shade300),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () => _showFullImage(imageUrl, title),
+                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                    label: const Text('View'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 24,
+                  color: Colors.grey.shade300,
+                ),
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () => _downloadDocument(imageUrl, title),
+                    icon: const Icon(Icons.download_outlined, size: 18),
+                    label: const Text('Download'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -505,8 +566,8 @@ class _AdminVerificationRequestsScreenState
       context: context,
       builder: (context) => Dialog(
         backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(10),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
             AppBar(
               title: Text(title),
@@ -516,10 +577,53 @@ class _AdminVerificationRequestsScreenState
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.pop(context),
               ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.download),
+                  onPressed: () => _downloadDocument(imageUrl, title),
+                  tooltip: 'Download',
+                ),
+              ],
             ),
             Expanded(
-              child: InteractiveViewer(
-                child: _buildImageWidget(imageUrl, null, null, BoxFit.contain),
+              child: Container(
+                color: Colors.black,
+                child: Center(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4.0,
+                    child: _buildImageWidget(imageUrl, null, null, BoxFit.contain),
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              color: Colors.black,
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => _downloadDocument(imageUrl, title),
+                    icon: const Icon(Icons.download),
+                    label: const Text('Download'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _openInNewTab(imageUrl),
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Open in Browser'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -672,6 +776,123 @@ class _AdminVerificationRequestsScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error rejecting verification: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showUnverifyDialog(String userId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+            const SizedBox(width: 12),
+            const Text('Unverify Agent'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to unverify this agent? They will need to submit verification documents again.',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _unverifyAgent(userId);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Unverify'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _unverifyAgent(String userId) async {
+    try {
+      // Update user document - set isVerified to false
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .update({
+        'isVerified': false,
+        'verificationStatus': 'unverified',
+        'unverifiedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Agent unverified successfully. They can resubmit documents.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error unverifying agent: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadDocument(String imageUrl, String documentName) async {
+    try {
+      // For web, we'll open in a new tab with download attribute
+      // For mobile, we'll use url_launcher to open the URL
+      await _openInNewTab(imageUrl);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Opening $documentName for download...'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error downloading document: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openInNewTab(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        throw 'Could not launch $url';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening URL: $e'),
             backgroundColor: Colors.red,
           ),
         );
