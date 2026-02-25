@@ -8,7 +8,7 @@ import 'utils/app_theme.dart';
 import 'screens/auth/welcome_screen.dart';
 import 'screens/auth/admin_login_screen.dart';
 import 'screens/customer/customer_home_screen.dart';
-import 'screens/owner/owner_dashboard_screen.dart';
+import 'screens/owner/agent_main_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
@@ -39,12 +39,16 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Initialize local notifications
-  await NotificationService.initialize();
+  // Initialize local notifications (non-blocking)
+  NotificationService.initialize().catchError((e) {
+    print('Notification initialization error: $e');
+  });
   
-  // Initialize FCM (only on mobile, not web)
+  // Initialize FCM in background (only on mobile, not web)
   if (!kIsWeb) {
-    await FCMService().initialize();
+    FCMService().initialize().catchError((e) {
+      print('FCM initialization error: $e');
+    });
   }
   
   runApp(const MyApp());
@@ -180,7 +184,7 @@ class AuthenticationWrapper extends StatelessWidget {
                   case 'customer':
                     return const CustomerHomeScreen();
                   case 'propertyAgent':
-                    return const OwnerDashboardScreen();
+                    return const AgentMainScreen();
                   case 'admin':
                     return const AdminDashboardScreen();
                   default:

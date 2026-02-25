@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/property_model.dart';
 import '../../utils/app_theme.dart';
 import 'edit_property_screen.dart';
@@ -24,8 +24,9 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
         title: const Text('Property Details'),
         backgroundColor: AppColors.primary,
         actions: [
-          // Edit button - only show for pending properties
-          if (widget.property.status == PropertyStatus.pending)
+          // Edit button - available for pending and approved properties
+          if (widget.property.status == PropertyStatus.pending ||
+              widget.property.status == PropertyStatus.approved)
             IconButton(
               icon: const Icon(Icons.edit),
               tooltip: 'Edit Property',
@@ -43,6 +44,12 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                 });
               },
             ),
+          // Delete button
+          IconButton(
+            icon: const Icon(Icons.delete),
+            tooltip: 'Delete Property',
+            onPressed: () => _showDeleteDialog(),
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -146,71 +153,46 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                   ),
                   const SizedBox(height: 16),
 
-                  // Status Message for Approved/Rejected
-                  if (widget.property.status != PropertyStatus.pending)
+                  // Status Badge - Simplified for Approved Properties
+                  if (widget.property.status == PropertyStatus.approved)
                     Container(
                       padding: const EdgeInsets.all(16),
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: widget.property.status == PropertyStatus.approved
-                            ? Colors.green.withOpacity(0.1)
-                            : Colors.orange.withOpacity(0.1),
+                        color: Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: widget.property.status == PropertyStatus.approved
-                              ? Colors.green.withOpacity(0.3)
-                              : Colors.orange.withOpacity(0.3),
+                          color: Colors.green.withOpacity(0.3),
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                widget.property.status == PropertyStatus.approved
-                                    ? Icons.check_circle
-                                    : Icons.info,
-                                color: widget.property.status == PropertyStatus.approved
-                                    ? Colors.green
-                                    : Colors.orange,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  widget.property.status == PropertyStatus.approved
-                                      ? 'Property Approved'
-                                      : 'Editing Disabled',
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Property Approved & Live',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: widget.property.status == PropertyStatus.approved
-                                        ? Colors.green
-                                        : Colors.orange,
+                                    color: Colors.green,
                                     fontSize: 16,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            widget.property.status == PropertyStatus.approved
-                                ? 'This property is approved and visible to customers. To make changes, please contact the admin.'
-                                : 'This property cannot be edited. Please contact the admin for assistance.',
-                            style: TextStyle(
-                              color: widget.property.status == PropertyStatus.approved
-                                  ? Colors.green[800]
-                                  : Colors.orange[800],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            onPressed: () => _contactAdmin(),
-                            icon: const Icon(Icons.support_agent),
-                            label: const Text('Contact Admin'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
+                                const SizedBox(height: 4),
+                                Text(
+                                  'This property is visible to customers. You can edit or manage it anytime.',
+                                  style: TextStyle(
+                                    color: Colors.green[800],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -249,6 +231,83 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                           Text(
                             widget.property.rejectionReason!,
                             style: TextStyle(color: Colors.red[800]),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // View Count (only for approved properties)
+                  if (widget.property.status == PropertyStatus.approved)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            AppColors.primary.withOpacity(0.1),
+                            AppColors.primary.withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.visibility,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Property Views',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${widget.property.viewCount}',
+                                  style: TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                Text(
+                                  widget.property.viewCount == 1 
+                                      ? 'customer has viewed this property'
+                                      : 'customers have viewed this property',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.trending_up,
+                            color: AppColors.primary.withOpacity(0.5),
+                            size: 32,
                           ),
                         ],
                       ),
@@ -503,33 +562,69 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
     }
   }
 
-  Future<void> _contactAdmin() async {
-    // You can customize this to your admin contact details
-    final Uri emailUri = Uri(
-      scheme: 'mailto',
-      path: 'admin@truehome.com',
-      query: 'subject=Property ${widget.property.id} - ${widget.property.title}&body=Hello Admin,%0D%0A%0D%0AI need assistance with my property (ID: ${widget.property.id}).%0D%0A%0D%0AProperty: ${widget.property.title}%0D%0AStatus: ${widget.property.status.name}%0D%0A%0D%0APlease help me with...',
-    );
-
-    try {
-      if (await canLaunchUrl(emailUri)) {
-        await launchUrl(emailUri);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please contact admin at: admin@truehome.com'),
-              duration: Duration(seconds: 3),
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Property'),
+        content: const Text(
+          'Are you sure you want to delete this property? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteProperty();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
             ),
-          );
-        }
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteProperty() async {
+    try {
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Deleting property...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // Delete property from Firestore
+      await FirebaseFirestore.instance
+          .collection('properties')
+          .doc(widget.property.id)
+          .delete();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Property deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Go back to properties list
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please contact admin at: admin@truehome.com'),
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: Text('Error deleting property: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }

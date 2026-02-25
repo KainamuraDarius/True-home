@@ -192,20 +192,30 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
-    _loadUnreadCount();
-    _loadCurrentUser();
     
-    // Load these in background without blocking UI
-    Future.microtask(() {
-      _loadProjectLocations(); // This will now also load projects
-      _loadPropertyLocations();
-      _loadSearchHistory();
-      _loadNewProjects(); // Load new projects carousel
-    });
-
     // Initialize price controllers
     _minPriceController.text = '';
     _maxPriceController.text = '';
+    
+    // Load critical data first (non-blocking)
+    Future.microtask(() async {
+      _loadUnreadCount();
+      _loadCurrentUser();
+      _loadSearchHistory();
+    });
+    
+    // Defer heavy data loading until after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) {
+            _loadProjectLocations();
+            _loadPropertyLocations();
+            _loadNewProjects();
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -1721,7 +1731,9 @@ class _HomeTabState extends State<HomeTab> {
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'No properties available in $_selectedPropertyLocation yet',
+                                    _selectedPropertyLocation != null && _selectedFilter == PropertyType.hostel
+                                        ? 'We are currently onboarding listings in $_selectedPropertyLocation. Please check back shortly!'
+                                        : 'No properties available in $_selectedPropertyLocation yet',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 16,
@@ -1778,11 +1790,11 @@ class _HomeTabState extends State<HomeTab> {
                                     Text(
                                       _selectedFilter == null
                                           ? 'No properties available yet'
-                                          : 'No ${_selectedFilter == PropertyType.rent
-                                                ? "rental"
-                                                : _selectedFilter == PropertyType.sale
-                                                ? "sale"
-                                                : "hostel"} properties available',
+                                          : _selectedFilter == PropertyType.hostel
+                                              ? 'We are currently onboarding listings in this area. Please check back shortly!'
+                                              : 'No ${_selectedFilter == PropertyType.rent
+                                                    ? "rental"
+                                                    : "sale"} properties available',
                                       style: TextStyle(color: Colors.grey[600]),
                                     ),
                                   ],
@@ -2315,14 +2327,18 @@ class _HomeTabState extends State<HomeTab> {
 
   // Load available property locations from Firestore
   Future<void> _loadPropertyLocations() async {
+    if (!mounted) return;
+    
     setState(() {
       _loadingPropertyLocations = true;
     });
 
     try {
+      // Optimized: Only fetch location field, limit to reduce load
       var query = FirebaseFirestore.instance
           .collection('properties')
-          .where('status', isEqualTo: 'approved');
+          .where('status', isEqualTo: 'approved')
+          .limit(200); // Limit to first 200 properties for faster loading
 
       // Filter by property type if a filter is selected
       if (_selectedFilter != null) {
@@ -2358,6 +2374,8 @@ class _HomeTabState extends State<HomeTab> {
 
   // Load new projects for rotating carousel
   Future<void> _loadNewProjects() async {
+    if (!mounted) return;
+    
     setState(() {
       _loadingNewProjects = true;
     });
@@ -2365,12 +2383,13 @@ class _HomeTabState extends State<HomeTab> {
     try {
       final now = DateTime.now();
 
-      // Query for properties marked as new projects with active promotions
+      // Optimized: Query with limit for faster loading
       final querySnapshot = await FirebaseFirestore.instance
           .collection('properties')
           .where('status', isEqualTo: 'approved')
           .where('isNewProject', isEqualTo: true)
           .where('hasActivePromotion', isEqualTo: true)
+          .limit(10) // Only load up to 10 promoted projects
           .get();
 
       List<PropertyModel> newProjects = [];
@@ -2385,14 +2404,17 @@ class _HomeTabState extends State<HomeTab> {
             property.promotionEndDate!.isAfter(now)) {
           newProjects.add(property);
         }
+        
+        // Break early if we have enough
+        if (newProjects.length >= 6) break;
       }
 
-      // Limit to max 6 projects and randomize order
+      // Shuffle for variety
+      newProjects.shuffle();
+      
+      // Limit to max 6 projects
       if (newProjects.length > 6) {
-        newProjects.shuffle();
         newProjects = newProjects.sublist(0, 6);
-      } else {
-        newProjects.shuffle(); // Randomize even if less than 6
       }
 
       if (mounted) {
@@ -4698,11 +4720,14 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
   Future<void> _loadProjectsForLocation(String location) async {
     if (!mounted) return;
 
-    setState(() {
-      _selectedProjectLocation = location;
-      _loadingProjects = true;
-    });
+    // Prevent reload if same location and already has data
+    if (_selectedProjectLocation == location && _locationProjects.isNotEmpty) {
+      return;
+    }
 
+    // Update selection and load data in single setState to minimize rebuilds
+    _selectedProjectLocation = location;
+    
     final projects = await _projectService.getProjectsByLocation(location);
 
     if (mounted) {
@@ -4785,14 +4810,7 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
         ),
         const SizedBox(height: 16),
         // Projects horizontal list
-        if (_loadingProjects)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator(),
-            ),
-          )
-        else if (_locationProjects.isEmpty)
+        if (_locationProjects.isEmpty && !_loadingProjects)
           Padding(
             padding: const EdgeInsets.all(20),
             child: Center(
@@ -4820,16 +4838,30 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
             children: [
               SizedBox(
                 height: 320,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  physics: const ClampingScrollPhysics(),
-                  primary: false,
-                  shrinkWrap: true,
-                  itemCount: _locationProjects.length > 3 ? 3 : _locationProjects.length,
-                  itemBuilder: (context, index) {
-                    return _buildProjectCard(_locationProjects[index], context);
-                  },
+                child: Stack(
+                  children: [
+                    // Show projects list (or empty container during first load)
+                    if (_locationProjects.isNotEmpty)
+                      ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        physics: const ClampingScrollPhysics(),
+                        primary: false,
+                        shrinkWrap: true,
+                        itemCount: _locationProjects.length > 3 ? 3 : _locationProjects.length,
+                        itemBuilder: (context, index) {
+                          return _buildProjectCard(_locationProjects[index], context);
+                        },
+                      ),
+                    // Show loading overlay only during loading
+                    if (_loadingProjects)
+                      Container(
+                        color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
+                        child: const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               // View More button if there are more than 3 projects

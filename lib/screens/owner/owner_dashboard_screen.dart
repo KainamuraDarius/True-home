@@ -17,7 +17,9 @@ import 'verification_benefits_screen.dart';
 import '../admin/admin_verification_requests_screen.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
-  const OwnerDashboardScreen({super.key});
+  final bool isTabView;
+  
+  const OwnerDashboardScreen({super.key, this.isTabView = false});
 
   @override
   State<OwnerDashboardScreen> createState() => _OwnerDashboardScreenState();
@@ -29,12 +31,44 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   int _unreadCount = 0;
   UserModel? _currentUser;
   int _refreshKey = 0; // Used to force rebuild of verification banner
+  Map<String, int>? _cachedCounts; // Cache counts to avoid reloading
+  bool _isLoadingCounts = false;
 
   @override
   void initState() {
     super.initState();
-    _loadUnreadCount();
-    _loadCurrentUser();
+    
+    // Load counts immediately in background
+    Future.microtask(() {
+      _loadUnreadCount();
+      _loadCurrentUser();
+      _loadCounts();
+    });
+  }
+
+  Future<void> _loadCounts() async {
+    if (_isLoadingCounts) return;
+    
+    setState(() {
+      _isLoadingCounts = true;
+    });
+    
+    try {
+      final counts = await _getCounts();
+      if (mounted) {
+        setState(() {
+          _cachedCounts = counts;
+          _isLoadingCounts = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading counts: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCounts = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadCurrentUser() async {
@@ -66,11 +100,18 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   Future<Map<String, int>> _getCounts() async {
     final userId = FirebaseAuth.instance.currentUser!.uid;
     
-    // Get total properties count
+    // Get total properties count and calculate total views
     final propertiesSnapshot = await FirebaseFirestore.instance
         .collection('properties')
         .where('ownerId', isEqualTo: userId)
         .get();
+    
+    // Calculate total views across all properties
+    int totalViews = 0;
+    for (var doc in propertiesSnapshot.docs) {
+      final data = doc.data();
+      totalViews += (data['viewCount'] ?? 0) as int;
+    }
     
     // Get pending submissions count
     final pendingSnapshot = await FirebaseFirestore.instance
@@ -82,13 +123,14 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     return {
       'properties': propertiesSnapshot.docs.length,
       'submissions': pendingSnapshot.docs.length,
+      'totalViews': totalViews,
     };
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: widget.isTabView ? null : AppBar(
         title: const Text('Agent Dashboard'),
         actions: [
           // Show role switcher when user data is loaded
@@ -158,18 +200,17 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<Map<String, int>>(
-        future: _getCounts(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: _cachedCounts == null && _isLoadingCounts
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: _buildDashboardContent(_cachedCounts ?? {'properties': 0, 'submissions': 0, 'totalViews': 0}),
+            ),
+    );
+  }
 
-          final counts = snapshot.data ?? {'properties': 0, 'submissions': 0};
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
+  Widget _buildDashboardContent(Map<String, int> counts) {
+    return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
@@ -221,10 +262,19 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         AppColors.primary,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: _buildStatCard(
-                        'Submissions',
+                        'Total Views',
+                        '${counts['totalViews']}',
+                        Icons.visibility_outlined,
+                        const Color(0xFF10B981),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildStatCard(
+                        'Pending',
                         '${counts['submissions']}',
                         Icons.pending_outlined,
                         AppColors.warning,
@@ -356,67 +406,69 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 
                 const SizedBox(height: 24),
                 
-                const SizedBox(height: 8),
-                // Quick Actions
-                const Text(
-                  'Quick Actions',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                // Quick Actions - Only show if not in tab view
+                if (!widget.isTabView) ...[                
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Quick Actions',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                _buildActionCard(
-                  context,
-                  'My Properties',
-                  'View and manage all your properties',
-                  Icons.list_outlined,
-                  AppColors.secondary,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MyPropertiesScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildActionCard(
-                  context,
-                  'Advertise Project',
-                  'Promote your ongoing project to customers',
-                  Icons.campaign_outlined,
-                  Colors.orange,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SubmitProjectScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildActionCard(
-                  context,
-                  'My Project Ads',
-                  'View and track your project advertisements',
-                  Icons.analytics_outlined,
-                  Colors.purple,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MyProjectsScreen(),
-                      ),
-                    );
-                  },
-                ),
+                  const SizedBox(height: 16),
+                  _buildActionCard(
+                    context,
+                    'My Properties',
+                    'View and manage all your properties',
+                    Icons.list_outlined,
+                    AppColors.secondary,
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MyPropertiesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionCard(
+                    context,
+                    'Advertise Project',
+                    'Promote your ongoing project to customers',
+                    Icons.campaign_outlined,
+                    Colors.orange,
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SubmitProjectScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionCard(
+                    context,
+                    'My Project Ads',
+                    'View and track your project advertisements',
+                    Icons.analytics_outlined,
+                    Colors.purple,
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MyProjectsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
                 
                 // Admin Only: Verification Requests
-                if (_currentUser?.roles.contains(UserRole.admin) ?? false) ...[
+                if (!widget.isTabView && (_currentUser?.roles.contains(UserRole.admin) ?? false)) ...[
                   const SizedBox(height: 12),
                   _buildActionCard(
                     context,
@@ -435,11 +487,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   ),
                 ],
               ],
-            ),
-          );
-        },
-      ),
-    );
+            );
   }
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {

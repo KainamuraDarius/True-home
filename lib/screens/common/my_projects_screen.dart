@@ -7,7 +7,9 @@ import '../../utils/app_theme.dart';
 import 'submit_project_screen.dart';
 
 class MyProjectsScreen extends StatefulWidget {
-  const MyProjectsScreen({super.key});
+  final bool isTabView;
+  
+  const MyProjectsScreen({super.key, this.isTabView = false});
 
   @override
   State<MyProjectsScreen> createState() => _MyProjectsScreenState();
@@ -31,7 +33,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: widget.isTabView ? null : AppBar(
         title: const Text('My Project Advertisements'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,

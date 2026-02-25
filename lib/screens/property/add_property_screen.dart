@@ -26,7 +26,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
   final _locationController = TextEditingController();
-  final _addressController = TextEditingController();
   final _bedroomsController = TextEditingController();
   final _bathroomsController = TextEditingController();
   final _areaSqftController = TextEditingController();
@@ -73,7 +72,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     _descriptionController.dispose();
     _priceController.dispose();
     _locationController.dispose();
-    _addressController.dispose();
     _bedroomsController.dispose();
     _bathroomsController.dispose();
     _areaSqftController.dispose();
@@ -365,7 +363,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
         location: _locationController.text.trim(),
-        address: _addressController.text.trim(),
+        address: _locationController.text.trim(),
         bedrooms: _bedroomsController.text.trim().isEmpty
             ? 0
             : int.parse(_bedroomsController.text.trim()),
@@ -864,22 +862,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter location';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Address
-                    TextFormField(
-                      controller: _addressController,
-                      decoration: const InputDecoration(
-                        labelText: 'Full Address *',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter address';
                         }
                         return null;
                       },

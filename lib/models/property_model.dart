@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum PropertyType { sale, rent, hostel }
 
 enum PropertyStatus { pending, approved, rejected, removed }
@@ -195,6 +197,37 @@ class PropertyModel {
     };
   }
 
+  // Helper method to safely parse DateTime from various Firestore formats
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    
+    // Already a DateTime object
+    if (value is DateTime) return value;
+    
+    // Firestore Timestamp object
+    if (value is Timestamp) return value.toDate();
+    
+    // Milliseconds since epoch (integer)
+    if (value is int) {
+      try {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      } catch (e) {
+        return null;
+      }
+    }
+    
+    // ISO 8601 string
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return null; // Fail gracefully for invalid formats
+      }
+    }
+    
+    return null;
+  }
+
   factory PropertyModel.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
     return PropertyModel(
@@ -228,12 +261,8 @@ class PropertyModel {
         (e) => e.name == json['status'],
         orElse: () => PropertyStatus.pending,
       ),
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : now,
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'])
-          : now,
+      createdAt: _parseDateTime(json['createdAt']) ?? now,
+      updatedAt: _parseDateTime(json['updatedAt']) ?? now,
       rejectionReason: json['rejectionReason'],
       amenities: List<String>.from(json['amenities'] ?? []),
       university: json['university'],
@@ -245,9 +274,7 @@ class PropertyModel {
       paymentInstructions: json['paymentInstructions'],
       isNewProject: json['isNewProject'] ?? false,
       hasActivePromotion: json['hasActivePromotion'] ?? false,
-      promotionEndDate: json['promotionEndDate'] != null
-          ? DateTime.parse(json['promotionEndDate'])
-          : null,
+      promotionEndDate: _parseDateTime(json['promotionEndDate']),
       promotionRequested: json['promotionRequested'] ?? false,
       inspectionFee: json['inspectionFee']?.toDouble(),
       isActive: json['isActive'] ?? true, // Default to active for old data

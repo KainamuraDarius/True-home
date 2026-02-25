@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/property_model.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/app_theme.dart';
 import 'agent_property_details_screen.dart';
+import 'add_property_screen.dart';
 
 class MyPropertiesScreen extends StatefulWidget {
-  const MyPropertiesScreen({super.key});
+  final bool isTabView;
+  
+  const MyPropertiesScreen({super.key, this.isTabView = false});
 
   @override
   State<MyPropertiesScreen> createState() => _MyPropertiesScreenState();
@@ -22,7 +24,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
     final userId = FirebaseAuth.instance.currentUser!.uid;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: widget.isTabView ? null : AppBar(
         title: const Text('My Properties'),
         backgroundColor: AppColors.primary,
       ),
@@ -136,51 +138,88 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                     propertyData['id'] = properties[index].id;
                     final property = PropertyModel.fromJson(propertyData);
 
-                    return InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AgentPropertyDetailsScreen(property: property),
-                          ),
-                        );
+                    return Dismissible(
+                      key: Key(property.id),
+                      direction: DismissDirection.endToStart,
+                      confirmDismiss: (direction) async {
+                        return await _showDeleteConfirmDialog(property);
                       },
-                      child: Card(
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
                         margin: const EdgeInsets.only(bottom: 16),
-                        shape: RoundedRectangleBorder(
+                        decoration: BoxDecoration(
+                          color: Colors.red,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                          // Property Image
-                          if (property.imageUrls.isNotEmpty)
-                            ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(12),
-                              ),
-                              child: Image.network(
-                                property.imageUrls.first,
-                                height: 240,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    height: 240,
-                                    color: Colors.grey[300],
-                                    child: const Center(child: CircularProgressIndicator()),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    height: 240,
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.image_not_supported, size: 50),
-                                  );
-                                },
-                              ),
+                        child: const Icon(
+                          Icons.delete,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AgentPropertyDetailsScreen(property: property),
                             ),
+                          );
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                            // Property Image
+                            if (property.imageUrls.isNotEmpty)
+                              Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(12),
+                                    ),
+                                    child: Image.network(
+                                      property.imageUrls.first,
+                                      height: 240,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return Container(
+                                          height: 240,
+                                          color: Colors.grey[300],
+                                          child: const Center(child: CircularProgressIndicator()),
+                                        );
+                                      },
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          height: 240,
+                                          color: Colors.grey[300],
+                                          child: const Icon(Icons.image_not_supported, size: 50),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  // Delete button overlay
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.delete),
+                                      color: Colors.white,
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.red.withOpacity(0.8),
+                                      ),
+                                      onPressed: () => _showDeleteConfirmDialog(property),
+                                    ),
+                                  ),
+                                ],
+                              ),
 
                           Padding(
                             padding: const EdgeInsets.all(16),
@@ -390,6 +429,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                         ],
                       ),
                     ),
+                  ),
                   );
                   },
                 );
@@ -398,6 +438,20 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
           ),
         ],
       ),
+      floatingActionButton: widget.isTabView ? FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddPropertyScreen(),
+            ),
+          ).then((_) => setState(() {}));
+        },
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_home),
+        label: const Text('Add Property'),
+      ) : null,
     );
   }
 
@@ -458,6 +512,71 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
         return Colors.red;
       case PropertyStatus.removed:
         return Colors.grey;
+    }
+  }
+
+  Future<bool?> _showDeleteConfirmDialog(PropertyModel property) async {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Property'),
+        content: Text(
+          'Are you sure you want to delete "${property.title}"? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, true);
+              _deleteProperty(property);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteProperty(PropertyModel property) async {
+    try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Deleting property...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      // Delete property from Firestore
+      await FirebaseFirestore.instance
+          .collection('properties')
+          .doc(property.id)
+          .delete();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Property deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting property: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }
