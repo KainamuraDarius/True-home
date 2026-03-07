@@ -8,7 +8,8 @@ import '../../services/room_availability_service.dart';
 import '../../utils/app_theme.dart';
 
 class AdminReservationsScreen extends StatefulWidget {
-  const AdminReservationsScreen({super.key});
+  final bool embedded;
+  const AdminReservationsScreen({super.key, this.embedded = false});
 
   @override
   State<AdminReservationsScreen> createState() => _AdminReservationsScreenState();

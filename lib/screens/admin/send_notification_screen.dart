@@ -6,7 +6,8 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class SendNotificationScreen extends StatefulWidget {
-  const SendNotificationScreen({super.key});
+  final bool embedded;
+  const SendNotificationScreen({super.key, this.embedded = false});
 
   @override
   State<SendNotificationScreen> createState() => _SendNotificationScreenState();
@@ -231,7 +232,7 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ),
@@ -256,7 +257,7 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
-                        value: _selectedType,
+                        initialValue: _selectedType,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.category),

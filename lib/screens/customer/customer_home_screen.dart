@@ -389,8 +389,8 @@ class _HomeTabState extends State<HomeTab> {
       _maxPrice = actualMaxPrice;
 
       print('🔍 Filter Debug:');
-      print('   Min Price: $_minPrice (text: \"${_minPriceController.text}\")');
-      print('   Max Price: $_maxPrice (text: \"${_maxPriceController.text}\")');
+      print('   Min Price: $_minPrice (text: "${_minPriceController.text}")');
+      print('   Max Price: $_maxPrice (text: "${_maxPriceController.text}")');
       print('   Bedrooms: $_bedrooms');
       print('   Property Type: $_selectedPropertyType');
       print('   Search Term: ${_searchController.text}');
@@ -399,6 +399,10 @@ class _HomeTabState extends State<HomeTab> {
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
+        
+        // Debug: Print raw imageUrls from Firestore
+        print('🖼️ Property ${doc.id}: imageUrls = ${data['imageUrls']}');
+        
         final property = PropertyModel.fromJson(data);
 
         bool matchesSearch = true;
@@ -1665,6 +1669,8 @@ class _HomeTabState extends State<HomeTab> {
                           var allProperties = snapshot.data!.docs.map((doc) {
                             final data = doc.data() as Map<String, dynamic>;
                             data['id'] = doc.id;
+                            // Debug: Print imageUrls for each property
+                            print('🏠 Property ${doc.id}: images=${data['imageUrls']?.length ?? 0}, urls=${data['imageUrls']}');
                             return PropertyModel.fromJson(data);
                           }).toList();
 
@@ -2284,7 +2290,7 @@ class _HomeTabState extends State<HomeTab> {
                           _scrollToProperties();
                         },
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
               ),
@@ -2558,14 +2564,19 @@ class _HomeTabState extends State<HomeTab> {
                             height: 220,
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              height: 220,
-                              color: Theme.of(context).cardColor,
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            ),
+                            placeholder: (context, url) {
+                              print('🔄 Loading image: $url');
+                              return Container(
+                                height: 220,
+                                color: Theme.of(context).cardColor,
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            },
                             errorWidget: (context, url, error) {
+                              print('❌ Image load failed: $url');
+                              print('   Error: $error');
                               return Container(
                                 height: 220,
                                 color: Theme.of(context).cardColor,
@@ -2936,7 +2947,10 @@ class _HomeTabState extends State<HomeTab> {
                           height: 180,
                           fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
+                            if (loadingProgress == null) {
+                              print('✅ Image loaded: ${property.title}');
+                              return child;
+                            }
                             return Container(
                               height: 180,
                               width: double.infinity,
@@ -2953,6 +2967,8 @@ class _HomeTabState extends State<HomeTab> {
                             );
                           },
                           errorBuilder: (context, error, stackTrace) {
+                            print('❌ Image FAILED for ${property.title}: ${property.imageUrls.first}');
+                            print('   Error: $error');
                             return Container(
                               height: 180,
                               width: double.infinity,

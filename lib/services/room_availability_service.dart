@@ -26,9 +26,14 @@ class RoomAvailabilityService {
         'id': propertyDoc.id,
       });
 
-      // Find and update the specific room type
+      print('📦 Updating room availability for: $roomTypeName');
+      print('📦 Property has ${property.roomTypes.length} room types');
+      
+      // Find and update the specific room type (case-insensitive comparison)
+      bool found = false;
       final updatedRoomTypes = property.roomTypes.map((roomType) {
-        if (roomType.name == roomTypeName) {
+        if (roomType.name.trim().toLowerCase() == roomTypeName.trim().toLowerCase()) {
+          found = true;
           // Validate that available rooms doesn't exceed total
           if (newAvailableCount > roomType.totalRooms) {
             throw Exception(
@@ -37,10 +42,17 @@ class RoomAvailabilityService {
           if (newAvailableCount < 0) {
             throw Exception('Available rooms cannot be negative');
           }
+          print('✅ Updated ${roomType.name}: ${roomType.availableRooms} → $newAvailableCount');
           return roomType.copyWith(availableRooms: newAvailableCount);
         }
         return roomType;
       }).toList();
+
+      if (!found) {
+        print('❌ Room type "$roomTypeName" not found in property');
+        print('📋 Available room types: ${property.roomTypes.map((r) => r.name).join(", ")}');
+        throw Exception('Room type not found: $roomTypeName');
+      }
 
       // Update in Firestore
       await _firestore.collection('properties').doc(propertyId).update({
@@ -61,6 +73,8 @@ class RoomAvailabilityService {
     required String roomTypeName,
   }) async {
     try {
+      print('🏨 Booking room: $roomTypeName in property: $propertyId');
+      
       final propertyDoc = await _firestore
           .collection('properties')
           .doc(propertyId)
@@ -75,11 +89,13 @@ class RoomAvailabilityService {
         'id': propertyDoc.id,
       });
 
-      // Find the room type and check availability
+      // Find the room type (case-insensitive) and check availability
       final roomType = property.roomTypes.firstWhere(
-        (rt) => rt.name == roomTypeName,
-        orElse: () => throw Exception('Room type not found'),
+        (rt) => rt.name.trim().toLowerCase() == roomTypeName.trim().toLowerCase(),
+        orElse: () => throw Exception('Room type not found: $roomTypeName'),
       );
+
+      print('📊 Current availability: ${roomType.availableRooms}/${roomType.totalRooms}');
 
       if (roomType.availableRooms <= 0) {
         throw Exception('No rooms available for $roomTypeName');
@@ -87,13 +103,18 @@ class RoomAvailabilityService {
 
       // Decrease available count
       final newAvailableCount = roomType.availableRooms - 1;
-      return await updateRoomAvailability(
+      final success = await updateRoomAvailability(
         propertyId: propertyId,
-        roomTypeName: roomTypeName,
+        roomTypeName: roomType.name, // Use the actual name from DB
         newAvailableCount: newAvailableCount,
       );
+      
+      if (success) {
+        print('✅ Room booked! New availability: $newAvailableCount/${roomType.totalRooms}');
+      }
+      return success;
     } catch (e) {
-      print('Error booking room: $e');
+      print('❌ Error booking room: $e');
       return false;
     }
   }
@@ -104,6 +125,8 @@ class RoomAvailabilityService {
     required String roomTypeName,
   }) async {
     try {
+      print('🔄 Cancelling booking for: $roomTypeName');
+      
       final propertyDoc = await _firestore
           .collection('properties')
           .doc(propertyId)
@@ -119,23 +142,29 @@ class RoomAvailabilityService {
       });
 
       final roomType = property.roomTypes.firstWhere(
-        (rt) => rt.name == roomTypeName,
-        orElse: () => throw Exception('Room type not found'),
+        (rt) => rt.name.trim().toLowerCase() == roomTypeName.trim().toLowerCase(),
+        orElse: () => throw Exception('Room type not found: $roomTypeName'),
       );
 
       // Can't exceed total rooms
       if (roomType.availableRooms >= roomType.totalRooms) {
-        throw Exception('All rooms are already available');
+        print('⚠️ All rooms are already available');
+        return true; // Already at max, no need to update
       }
 
       final newAvailableCount = roomType.availableRooms + 1;
-      return await updateRoomAvailability(
+      final success = await updateRoomAvailability(
         propertyId: propertyId,
-        roomTypeName: roomTypeName,
+        roomTypeName: roomType.name,
         newAvailableCount: newAvailableCount,
       );
+      
+      if (success) {
+        print('✅ Booking cancelled! New availability: $newAvailableCount/${roomType.totalRooms}');
+      }
+      return success;
     } catch (e) {
-      print('Error canceling booking: $e');
+      print('❌ Error canceling booking: $e');
       return false;
     }
   }
@@ -161,7 +190,7 @@ class RoomAvailabilityService {
       });
 
       return property.roomTypes.firstWhere(
-        (rt) => rt.name == roomTypeName,
+        (rt) => rt.name.trim().toLowerCase() == roomTypeName.trim().toLowerCase(),
         orElse: () => throw Exception('Room type not found'),
       );
     } catch (e) {

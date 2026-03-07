@@ -4,7 +4,8 @@ import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
 
 class AdminCreateUserScreen extends StatefulWidget {
-  const AdminCreateUserScreen({super.key});
+  final bool embedded;
+  const AdminCreateUserScreen({super.key, this.embedded = false});
 
   @override
   State<AdminCreateUserScreen> createState() => _AdminCreateUserScreenState();

@@ -37,7 +37,7 @@
     },
     {
       "site": "truehome-admin",
-      "public": "build/web",
+      "public": "build/web_admin",
       "ignore": [
         "firebase.json",
         "**/.*",

@@ -753,7 +753,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
                     // Category
                     DropdownButtonFormField<String>(
-                      value: _selectedCategory,
+                      initialValue: _selectedCategory,
                       decoration: const InputDecoration(
                         labelText: 'Property Category *',
                         border: OutlineInputBorder(),
@@ -826,7 +826,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         Expanded(
                           flex: 1,
                           child: DropdownButtonFormField<String>(
-                            value: _currency,
+                            initialValue: _currency,
                             decoration: const InputDecoration(
                               labelText: 'Currency',
                               border: OutlineInputBorder(),
@@ -942,7 +942,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         Expanded(
                           flex: 1,
                           child: DropdownButtonFormField<String>(
-                            value: _areaUnit,
+                            initialValue: _areaUnit,
                             decoration: const InputDecoration(
                               labelText: 'Unit',
                               border: OutlineInputBorder(),

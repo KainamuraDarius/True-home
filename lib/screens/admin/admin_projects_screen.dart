@@ -6,7 +6,8 @@ import '../../services/project_service.dart';
 import '../../utils/app_theme.dart';
 
 class AdminProjectsScreen extends StatefulWidget {
-  const AdminProjectsScreen({super.key});
+  final bool embedded;
+  const AdminProjectsScreen({super.key, this.embedded = false});
 
   @override
   State<AdminProjectsScreen> createState() => _AdminProjectsScreenState();

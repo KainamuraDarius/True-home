@@ -24,7 +24,7 @@ void main() async {
   stdout.write('Environment (sandbox/production): ');
   final environment = stdin.readLineSync()?.toLowerCase() ?? 'sandbox';
   
-  print('\n' + '─' * 55);
+  print('\n${'─' * 55}');
   print('Testing credentials...\n');
   
   final baseUrl = environment == 'production'

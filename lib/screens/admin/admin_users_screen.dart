@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/app_theme.dart';
 
 class AdminUsersScreen extends StatefulWidget {
-  const AdminUsersScreen({super.key});
+  final bool embedded;
+  const AdminUsersScreen({super.key, this.embedded = false});
 
   @override
   State<AdminUsersScreen> createState() => _AdminUsersScreenState();
@@ -15,11 +16,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('User Management'),
-      ),
-      body: Column(
+    final content = Column(
         children: [
           // Filter Tabs
           Container(
@@ -49,6 +46,25 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       .where('role', isEqualTo: _selectedFilter)
                       .snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+                        const SizedBox(height: 16),
+                        const Text('Error loading users'),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${snapshot.error}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -89,7 +105,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             ),
           ),
         ],
+      );
+
+    if (widget.embedded) {
+      return content;
+    }
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('User Management'),
       ),
+      body: content,
     );
   }
 
@@ -117,7 +143,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Widget _buildUserCard(String userId, Map<String, dynamic> data) {
-    final role = data['role'] as String;
+    final role = (data['role'] ?? 'customer').toString();
     final roleColor = _getRoleColor(role);
     final roleIcon = _getRoleIcon(role);
 

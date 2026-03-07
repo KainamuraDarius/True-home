@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_theme.dart';
 import '../../models/user_model.dart';
-import '../admin/admin_dashboard_screen.dart';
+import '../admin/admin_panel_screen.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -47,10 +47,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             throw Exception('Unauthorized: Admin access only');
           }
 
-          // Navigate directly to admin dashboard, clearing all previous routes
+          // Navigate directly to admin panel, clearing all previous routes
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+              MaterialPageRoute(builder: (context) => const AdminPanelScreen()),
               (route) => false,
             );
           }

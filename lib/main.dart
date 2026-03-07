@@ -6,30 +6,15 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
 import 'utils/app_theme.dart';
 import 'screens/auth/welcome_screen.dart';
-import 'screens/auth/admin_login_screen.dart';
 import 'screens/customer/customer_home_screen.dart';
 import 'screens/owner/agent_main_screen.dart';
-import 'screens/admin/admin_dashboard_screen.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_service.dart';
 
-// Conditional import for web-only dart:html
-import 'package:true_home/utils/web_utils.dart'
-    if (dart.library.io) 'package:true_home/utils/web_utils_stub.dart';
-
-// Check if running on admin domain
-bool get isAdminSite {
-  if (kIsWeb) {
-    final hostname = getHostname();
-    return hostname != null && (
-      hostname.contains('truehome-admin') || 
-      hostname == 'admin.truehome.com.ug' ||
-      hostname.startsWith('admin.')
-    );
-  }
-  return false;
-}
+/// Customer/Agent app entry point
+/// Build with: flutter build web --release
+/// For admin panel, use main_admin.dart instead
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -185,22 +170,51 @@ class AuthenticationWrapper extends StatelessWidget {
                     return const CustomerHomeScreen();
                   case 'propertyAgent':
                     return const AgentMainScreen();
-                  case 'admin':
-                    return const AdminDashboardScreen();
                   default:
+                    // Admin users should use the admin portal
+                    if (activeRole == 'admin') {
+                      FirebaseAuth.instance.signOut();
+                      return Scaffold(
+                        body: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.admin_panel_settings, size: 64, color: Colors.orange),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Admin Portal',
+                                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text('Please use the admin portal at:'),
+                              const SizedBox(height: 8),
+                              const SelectableText(
+                                'https://truehome-admin.web.app',
+                                style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton(
+                                onPressed: () => FirebaseAuth.instance.signOut(),
+                                child: const Text('Back to Login'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
                     return const WelcomeScreen();
                 }
               }
 
               // User data not found, log out and show welcome screen
               FirebaseAuth.instance.signOut();
-              return isAdminSite ? const AdminLoginScreen() : const WelcomeScreen();
+              return const WelcomeScreen();
             },
           );
         }
 
-        // User is not logged in - show admin login if on admin site
-        return isAdminSite ? const AdminLoginScreen() : const WelcomeScreen();
+        // User not logged in
+        return const WelcomeScreen();
       },
     );
   }

@@ -519,7 +519,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: _currency,
+                            initialValue: _currency,
                             decoration: const InputDecoration(
                               labelText: 'Currency',
                               border: OutlineInputBorder(),

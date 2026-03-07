@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,10 +7,11 @@ import 'package:image/image.dart' as img;
 import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/universities.dart';
-import '../../services/imgbb_service.dart';
+import '../../services/storage_service.dart';
 
 class AddHostelScreen extends StatefulWidget {
-  const AddHostelScreen({super.key});
+  final bool embedded;
+  const AddHostelScreen({super.key, this.embedded = false});
 
   @override
   State<AddHostelScreen> createState() => _AddHostelScreenState();
@@ -31,7 +32,10 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
   String? _selectedUniversity;
   PricingPeriod _pricingPeriod = PricingPeriod.month;
   final List<XFile> _selectedImages = [];
+  final Map<String, Uint8List> _imageBytes = {}; // Cache bytes for web preview
   bool _isLoading = false;
+  String _uploadStatus = '';
+  double _uploadProgress = 0.0;
   final ImagePicker _picker = ImagePicker();
   
   // Amenities
@@ -127,18 +131,27 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('You can only upload up to 20 images. Currently: ${_selectedImages.length}, Selected: ${images.length}'),
+                content: Text('You can only upload up to 12 images. Currently: ${_selectedImages.length}, Selected: ${images.length}'),
                 backgroundColor: Colors.orange,
               ),
             );
           }
           final remainingSlots = 12 - _selectedImages.length;
           if (remainingSlots > 0) {
+            final imagesToAdd = images.take(remainingSlots).toList();
+            // Cache bytes for web preview
+            for (final img in imagesToAdd) {
+              _imageBytes[img.path] = await img.readAsBytes();
+            }
             setState(() {
-              _selectedImages.addAll(images.take(remainingSlots));
+              _selectedImages.addAll(imagesToAdd);
             });
           }
         } else {
+          // Cache bytes for web preview
+          for (final img in images) {
+            _imageBytes[img.path] = await img.readAsBytes();
+          }
           setState(() {
             _selectedImages.addAll(images);
           });
@@ -154,8 +167,10 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
   }
 
   void _removeImage(int index) {
+    final path = _selectedImages[index].path;
     setState(() {
       _selectedImages.removeAt(index);
+      _imageBytes.remove(path);
     });
   }
 
@@ -164,9 +179,15 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
 
     for (int i = 0; i < _selectedImages.length; i++) {
       try {
-        print('Uploading image ${i + 1}/${_selectedImages.length} to ImgBB');
-        final file = File(_selectedImages[i].path);
-        final bytes = await file.readAsBytes();
+        setState(() {
+          _uploadStatus = 'Uploading image ${i + 1}/${_selectedImages.length}...';
+          _uploadProgress = (i / _selectedImages.length);
+        });
+        print('Uploading image ${i + 1}/${_selectedImages.length} to Firebase Storage');
+        
+        // Use cached bytes or read from XFile (works on both web and mobile)
+        final xfile = _selectedImages[i];
+        final bytes = _imageBytes[xfile.path] ?? await xfile.readAsBytes();
         
         img.Image? image = img.decodeImage(bytes);
         if (image == null) {
@@ -175,22 +196,37 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
         }
         
         // Resize if too large
-        if (image.width > 1920 || image.height > 1920) {
-          image = img.copyResize(image, width: 1920);
+        if (image.width > 600 || image.height > 900) {
+          if (image.width > image.height) {
+            image = img.copyResize(image, width: 600);
+          } else {
+            image = img.copyResize(image, height: 900);
+          }
         }
         
-        final compressedBytes = img.encodeJpg(image, quality: 85);
-        print('Compressed image size: ${compressedBytes.length} bytes');
+        final compressedBytes = Uint8List.fromList(img.encodeJpg(image, quality: 55));
+        print('Compressed image size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB');
         
-        final url = await ImgBBService.uploadImage(compressedBytes);
+        // Upload to Firebase Storage
+        final url = await StorageService.uploadImage(compressedBytes, folder: 'properties');
         if (url != null) {
           imageUrls.add(url);
-          print('Successfully uploaded image ${i + 1}');
+          print('✅ Successfully uploaded image ${i + 1}');
+          setState(() {
+            _uploadProgress = ((i + 1) / _selectedImages.length);
+          });
+        } else {
+          print('❌ Failed to upload image ${i + 1}');
         }
       } catch (e) {
-        print('Error uploading image ${i + 1}: $e');
+        print('❌ Error uploading image ${i + 1}: $e');
       }
     }
+    
+    setState(() {
+      _uploadStatus = '';
+      _uploadProgress = 0.0;
+    });
 
     return imageUrls;
   }
@@ -328,34 +364,28 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Student Hostel'),
-        backgroundColor: Colors.purple,
-        foregroundColor: Colors.white,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // Info banner
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.purple.shade50, Colors.white],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.purple.shade200),
+    final content = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // Info banner
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.purple.shade50, Colors.white],
                     ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.school, color: Colors.purple.shade700, size: 32),
-                        const SizedBox(width: 12),
-                        Expanded(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.purple.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.school, color: Colors.purple.shade700, size: 32),
+                      const SizedBox(width: 12),
+                      Expanded(
                           child: Text(
                             'Student hostels are added by Admin only and are automatically published',
                             style: TextStyle(
@@ -371,7 +401,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
 
                   // University Selection
                   DropdownButtonFormField<String>(
-                    value: _selectedUniversity,
+                    initialValue: _selectedUniversity,
                     decoration: const InputDecoration(
                       labelText: 'University *',
                       border: OutlineInputBorder(),
@@ -615,7 +645,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                   
                   const SizedBox(height: 24),
 
@@ -803,15 +833,15 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
                       ),
                       itemCount: _selectedImages.length,
                       itemBuilder: (context, index) {
+                        final bytes = _imageBytes[_selectedImages[index].path];
                         return Stack(
                           fit: StackFit.expand,
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(_selectedImages[index].path),
-                                fit: BoxFit.cover,
-                              ),
+                              child: bytes != null
+                                  ? Image.memory(bytes, fit: BoxFit.cover)
+                                  : const Center(child: CircularProgressIndicator()),
                             ),
                             Positioned(
                               top: 4,
@@ -844,9 +874,39 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
                     ),
                   const SizedBox(height: 32),
 
+                  // Upload progress indicator
+                  if (_uploadStatus.isNotEmpty) ...[
+                    Card(
+                      color: Colors.purple.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Text(
+                              _uploadStatus,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 12),
+                            LinearProgressIndicator(
+                              value: _uploadProgress,
+                              backgroundColor: Colors.purple.shade100,
+                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.purple),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${(_uploadProgress * 100).toStringAsFixed(0)}%',
+                              style: TextStyle(color: Colors.purple.shade700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Submit button
                   ElevatedButton(
-                    onPressed: _submitHostel,
+                    onPressed: _isLoading ? null : _submitHostel,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.purple,
                       foregroundColor: Colors.white,
@@ -855,15 +915,36 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'Publish Hostel',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Publish Hostel',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
                   ),
                   const SizedBox(height: 16),
                 ],
               ),
-            ),
+            );
+
+    if (widget.embedded) {
+      return content;
+    }
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Add Student Hostel'),
+        backgroundColor: Colors.purple,
+        foregroundColor: Colors.white,
+      ),
+      body: content,
     );
   }
 }

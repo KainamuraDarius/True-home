@@ -412,7 +412,7 @@ class _ManageRoomAvailabilityScreenState
                       ),
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           );

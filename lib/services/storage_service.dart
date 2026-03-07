@@ -22,7 +22,7 @@ class StorageService {
 
         // Generate unique filename
         final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final fileName = '${user.uid}_${timestamp}_${attempt}.jpg';
+        final fileName = '${user.uid}_${timestamp}_$attempt.jpg';
         final path = '$folder/$fileName';
 
         print('🔄 Uploading image to Firebase Storage (attempt ${attempt + 1}/${retryCount + 1})...');

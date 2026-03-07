@@ -6,7 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../utils/app_theme.dart';
 
 class AdminVerificationRequestsScreen extends StatefulWidget {
-  const AdminVerificationRequestsScreen({super.key});
+  final bool embedded;
+  const AdminVerificationRequestsScreen({super.key, this.embedded = false});
 
   @override
   State<AdminVerificationRequestsScreen> createState() =>
@@ -19,15 +20,7 @@ class _AdminVerificationRequestsScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        title: const Text('Verification Requests'),
-        elevation: 0,
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-      ),
-      body: Column(
+    final content = Column(
         children: [
           // Filter Tabs
           Container(
@@ -79,7 +72,7 @@ class _AdminVerificationRequestsScreenState
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No ${_selectedFilter} requests',
+                          'No $_selectedFilter requests',
                           style: TextStyle(
                             fontSize: 16,
                             color: AppColors.textSecondary,
@@ -102,7 +95,21 @@ class _AdminVerificationRequestsScreenState
             ),
           ),
         ],
+      );
+
+    if (widget.embedded) {
+      return content;
+    }
+    
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        title: const Text('Verification Requests'),
+        elevation: 0,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
       ),
+      body: content,
     );
   }
 
@@ -134,10 +141,10 @@ class _AdminVerificationRequestsScreenState
 
   Widget _buildRequestCard(QueryDocumentSnapshot request) {
     final data = request.data() as Map<String, dynamic>;
-    final userId = data['userId'] as String;
+    final userId = (data['userId'] ?? '').toString();
     final nationalIdUrl = data['nationalIdUrl'] as String?;
     final businessLicenseUrl = data['businessLicenseUrl'] as String?;
-    final status = data['status'] as String;
+    final status = (data['status'] ?? 'pending').toString();
     final submittedAt = (data['submittedAt'] as Timestamp?)?.toDate();
 
     return Card(

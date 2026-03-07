@@ -7,7 +7,8 @@ import 'property_review_screen.dart';
 import 'manage_room_availability_screen.dart';
 
 class AdminPropertiesScreen extends StatefulWidget {
-  const AdminPropertiesScreen({super.key});
+  final bool embedded;
+  const AdminPropertiesScreen({super.key, this.embedded = false});
 
   @override
   State<AdminPropertiesScreen> createState() => _AdminPropertiesScreenState();
@@ -522,7 +523,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                     const SizedBox(height: 16),
                     CheckboxListTile(
                       title: const Text('Mark as New Project'),
-                      subtitle: const Text('Show in \"New Projects from Developers\" carousel'),
+                      subtitle: const Text('Show in "New Projects from Developers" carousel'),
                       value: markAsNewProject,
                       contentPadding: EdgeInsets.zero,
                       onChanged: (value) {

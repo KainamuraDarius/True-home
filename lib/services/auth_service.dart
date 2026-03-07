@@ -8,11 +8,17 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
-  // GoogleSignIn configured with serverClientId for Android
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: '843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com',
-    scopes: ['email', 'profile'],
-  );
+  // GoogleSignIn is lazily initialized only when needed (for Google sign-in flow)
+  // This avoids web crash when clientId is not set and Google sign-in isn't needed
+  GoogleSignIn? _googleSignIn;
+  
+  GoogleSignIn get googleSignIn {
+    _googleSignIn ??= GoogleSignIn(
+      serverClientId: '843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com',
+      scopes: ['email', 'profile'],
+    );
+    return _googleSignIn!;
+  }
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -206,10 +212,10 @@ class AuthService {
 
       // Mobile Google Sign-In flow
       // Sign out first to force account picker to show
-      await _googleSignIn.signOut();
+      await googleSignIn.signOut();
       
       // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
       if (googleUser == null) {
         throw Exception('Google Sign-In was cancelled');
@@ -237,7 +243,7 @@ class AuthService {
       final userEmail = userCredential.user!.email ?? '';
       if (userEmail.toLowerCase() == 'truehome376@gmail.com') {
         await _auth.signOut();
-        await _googleSignIn.signOut();
+        await googleSignIn.signOut();
         throw Exception('This email address is reserved for system administrators. Please use the admin login portal.');
       }
 

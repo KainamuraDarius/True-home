@@ -15,7 +15,8 @@ import 'legal_policies_screen.dart';
 import '../../main.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool embedded;
+  const ProfileScreen({super.key, this.embedded = false});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -1452,7 +1453,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const Text('We\'d love to hear your thoughts!'),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedCategory,
+                  initialValue: selectedCategory,
                   decoration: InputDecoration(
                     labelText: 'Category',
                     border: OutlineInputBorder(

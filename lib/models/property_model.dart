@@ -180,8 +180,8 @@ class PropertyModel {
       'whatsappPhone': whatsappPhone,
       'contactEmail': contactEmail,
       'status': status.name,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
       'rejectionReason': rejectionReason,
       'amenities': amenities,
       'university': university,
@@ -189,7 +189,7 @@ class PropertyModel {
       'paymentInstructions': paymentInstructions,
       'isNewProject': isNewProject,
       'hasActivePromotion': hasActivePromotion,
-      'promotionEndDate': promotionEndDate?.toIso8601String(),
+      'promotionEndDate': promotionEndDate != null ? Timestamp.fromDate(promotionEndDate!) : null,
       'promotionRequested': promotionRequested,
       'inspectionFee': inspectionFee,
       'isActive': isActive,
@@ -226,6 +226,41 @@ class PropertyModel {
     }
     
     return null;
+  }
+
+  // Helper method to safely parse roomTypes from various formats (List or Map)
+  static List<RoomType> _parseRoomTypes(dynamic value) {
+    if (value == null) return [];
+    
+    try {
+      // If it's already a List
+      if (value is List) {
+        return value
+            .map((rt) => RoomType.fromJson(rt is Map<String, dynamic> 
+                ? rt 
+                : Map<String, dynamic>.from(rt as Map)))
+            .toList();
+      }
+      
+      // If it's a Map (old format), convert to List
+      if (value is Map) {
+        return value.entries.map((entry) {
+          final data = entry.value is Map<String, dynamic>
+              ? entry.value as Map<String, dynamic>
+              : Map<String, dynamic>.from(entry.value as Map);
+          // Add name from key if not present
+          if (!data.containsKey('name')) {
+            data['name'] = entry.key;
+          }
+          return RoomType.fromJson(data);
+        }).toList();
+      }
+    } catch (e) {
+      // Return empty list on error
+      return [];
+    }
+    
+    return [];
   }
 
   factory PropertyModel.fromJson(Map<String, dynamic> json) {
@@ -266,11 +301,7 @@ class PropertyModel {
       rejectionReason: json['rejectionReason'],
       amenities: List<String>.from(json['amenities'] ?? []),
       university: json['university'],
-      roomTypes: json['roomTypes'] != null
-          ? (json['roomTypes'] as List)
-                .map((rt) => RoomType.fromJson(rt))
-                .toList()
-          : [],
+      roomTypes: _parseRoomTypes(json['roomTypes']),
       paymentInstructions: json['paymentInstructions'],
       isNewProject: json['isNewProject'] ?? false,
       hasActivePromotion: json['hasActivePromotion'] ?? false,

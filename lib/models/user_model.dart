@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum UserRole {
   customer,
   propertyAgent,
@@ -77,6 +79,21 @@ class UserModel {
     };
   }
 
+  // Helper to parse dates from various Firestore formats
+  static DateTime _parseDateTime(dynamic value, DateTime fallback) {
+    if (value == null) return fallback;
+    if (value is DateTime) return value;
+    if (value is Timestamp) return value.toDate();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return fallback;
+      }
+    }
+    return fallback;
+  }
+
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
     
@@ -120,8 +137,8 @@ class UserModel {
       activeRole: currentActiveRole,
       profileImageUrl: json['profileImageUrl'],
       favoritePropertyIds: List<String>.from(json['favoritePropertyIds'] ?? []),
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : now,
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : now,
+      createdAt: _parseDateTime(json['createdAt'], now),
+      updatedAt: _parseDateTime(json['updatedAt'], now),
       companyName: json['companyName'],
       averageRating: json['averageRating']?.toDouble(),
       totalRatings: json['totalRatings'] ?? 0,
@@ -131,7 +148,7 @@ class UserModel {
       isVerified: json['isVerified'] ?? false,
       termsAccepted: json['termsAccepted'] ?? false,
       termsAcceptedAt: json['termsAcceptedAt'] != null 
-          ? DateTime.parse(json['termsAcceptedAt']) 
+          ? _parseDateTime(json['termsAcceptedAt'], now) 
           : null,
     );
   }

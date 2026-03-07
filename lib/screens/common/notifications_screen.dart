@@ -79,14 +79,38 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           notifications.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
             final bData = b.data() as Map<String, dynamic>;
-            final aTime = aData['createdAt'] as String?;
-            final bTime = bData['createdAt'] as String?;
+            final aTime = aData['createdAt'];
+            final bTime = bData['createdAt'];
             
             if (aTime == null && bTime == null) return 0;
             if (aTime == null) return 1;
             if (bTime == null) return -1;
             
-            return DateTime.parse(bTime).compareTo(DateTime.parse(aTime));
+            // Handle different types: Timestamp, int (milliseconds), or String
+            DateTime? aDateTime;
+            DateTime? bDateTime;
+            
+            if (aTime is Timestamp) {
+              aDateTime = aTime.toDate();
+            } else if (aTime is int) {
+              aDateTime = DateTime.fromMillisecondsSinceEpoch(aTime);
+            } else if (aTime is String) {
+              aDateTime = DateTime.tryParse(aTime);
+            }
+            
+            if (bTime is Timestamp) {
+              bDateTime = bTime.toDate();
+            } else if (bTime is int) {
+              bDateTime = DateTime.fromMillisecondsSinceEpoch(bTime);
+            } else if (bTime is String) {
+              bDateTime = DateTime.tryParse(bTime);
+            }
+            
+            if (aDateTime == null && bDateTime == null) return 0;
+            if (aDateTime == null) return 1;
+            if (bDateTime == null) return -1;
+            
+            return bDateTime.compareTo(aDateTime);
           });
 
           return ListView.builder(
@@ -99,7 +123,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               final message = data['message'] ?? '';
               final type = data['type'] ?? 'general';
               final propertyId = data['propertyId'];
-              final createdAt = data['createdAt'] as String?;
+              final createdAtRaw = data['createdAt'];
+              
+              // Parse createdAt from different formats
+              DateTime? createdAtDateTime;
+              if (createdAtRaw is Timestamp) {
+                createdAtDateTime = createdAtRaw.toDate();
+              } else if (createdAtRaw is int) {
+                createdAtDateTime = DateTime.fromMillisecondsSinceEpoch(createdAtRaw);
+              } else if (createdAtRaw is String) {
+                createdAtDateTime = DateTime.tryParse(createdAtRaw);
+              }
 
               return Dismissible(
                 key: Key(notification.id),
@@ -131,10 +165,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       children: [
                         const SizedBox(height: 4),
                         Text(message),
-                        if (createdAt != null) ...[
+                        if (createdAtDateTime != null) ...[
                           const SizedBox(height: 4),
                           Text(
-                            _formatTime(DateTime.parse(createdAt)),
+                            _formatTime(createdAtDateTime),
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],

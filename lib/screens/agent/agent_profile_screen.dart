@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/property_model.dart';
 import '../../utils/app_theme.dart';
 import '../property/property_details_screen.dart';

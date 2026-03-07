@@ -320,7 +320,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                           onChanged: (value) async {
                                             await _togglePropertyStatus(property.id, value);
                                           },
-                                          activeColor: AppColors.primary,
+                                          activeThumbColor: AppColors.primary,
                                         ),
                                       ],
                                     ),
