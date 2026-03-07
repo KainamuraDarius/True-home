@@ -38,6 +38,123 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      children: [
+        // Header for embedded mode
+        if (widget.embedded)
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.rate_review, color: AppColors.primary, size: 28),
+                const SizedBox(width: 12),
+                const Text(
+                  'Property Reviews',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                if (_pendingCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$_pendingCount pending',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        // Filter Chips
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterChip('Pending', PropertyStatus.pending),
+                const SizedBox(width: 8),
+                _buildFilterChip('Approved', PropertyStatus.approved),
+                const SizedBox(width: 8),
+                _buildFilterChip('Rejected', PropertyStatus.rejected),
+                const SizedBox(width: 8),
+                _buildFilterChip('Removed', PropertyStatus.removed),
+              ],
+            ),
+          ),
+        ),
+
+        // Properties List
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('properties')
+                .where('status', isEqualTo: _selectedFilter.name)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final properties = snapshot.data!.docs;
+
+              if (properties.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.home_work_outlined,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No ${_selectedFilter.name} properties',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: properties.length,
+                itemBuilder: (context, index) {
+                  final data = properties[index].data() as Map<String, dynamic>;
+                  final property = PropertyModel.fromJson({
+                    ...data,
+                    'id': properties[index].id,
+                  });
+                  return _buildPropertyCard(property);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+
+    if (widget.embedded) {
+      return content;
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -65,83 +182,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
         ),
         backgroundColor: AppColors.primary,
       ),
-      body: Column(
-        children: [
-          // Filter Chips
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('Pending', PropertyStatus.pending),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Approved', PropertyStatus.approved),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Rejected', PropertyStatus.rejected),                  const SizedBox(width: 8),
-                  _buildFilterChip('Removed', PropertyStatus.removed),                ],
-              ),
-            ),
-          ),
-
-          // Properties List
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('properties')
-                  .where('status', isEqualTo: _selectedFilter.name)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final properties = snapshot.data!.docs;
-
-                if (properties.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.home_work_outlined,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No ${_selectedFilter.name} properties',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: properties.length,
-                  itemBuilder: (context, index) {
-                    final data = properties[index].data() as Map<String, dynamic>;
-                    final property = PropertyModel.fromJson({
-                      ...data,
-                      'id': properties[index].id,
-                    });
-                    return _buildPropertyCard(property);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+      body: content,
     );
   }
 

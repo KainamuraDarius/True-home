@@ -361,22 +361,329 @@ exports.sendTopicNotification = functions.https.onCall(async (data, context) => 
   
   const { topic, title, body, type } = data;
   
+  // Send FCM push notification to topic
   const message = {
     notification: {
       title: title,
       body: body
     },
     data: {
-      type: type || 'announcement'
+      type: type || 'announcement',
+      click_action: 'FLUTTER_NOTIFICATION_CLICK'
     },
     topic: topic
   };
   
   try {
     await admin.messaging().send(message);
-    return { success: true, message: `Notification sent to topic: ${topic}` };
+    console.log(`✅ Push notification sent to topic: ${topic}`);
+    
+    // Store notifications in Firestore for in-app viewing
+    const usersRef = admin.firestore().collection('users');
+    let usersSnapshot;
+    
+    // Get users based on topic
+    if (topic === 'all_users') {
+      usersSnapshot = await usersRef.get();
+    } else if (topic === 'agents') {
+      usersSnapshot = await usersRef.where('roles', 'array-contains', 'propertyAgent').get();
+    } else if (topic === 'customers') {
+      usersSnapshot = await usersRef.where('roles', 'array-contains', 'customer').get();
+    } else {
+      usersSnapshot = await usersRef.get();
+    }
+    
+    // Create notification document for each user
+    const batch = admin.firestore().batch();
+    const notificationsRef = admin.firestore().collection('notifications');
+    
+    usersSnapshot.docs.forEach(userDoc => {
+      const notificationRef = notificationsRef.doc();
+      batch.set(notificationRef, {
+        userId: userDoc.id,
+        title: title,
+        message: body,
+        type: type || 'announcement',
+        isRead: false,
+        createdAt: new Date().toISOString()
+      });
+    });
+    
+    await batch.commit();
+    console.log(`✅ In-app notifications stored for ${usersSnapshot.docs.length} users`);
+    
+    return { 
+      success: true, 
+      message: `Notification sent to ${topic} (${usersSnapshot.docs.length} users)` 
+    };
   } catch (error) {
     console.error('Error sending notification:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to send notification');
+    throw new functions.https.HttpsError('internal', 'Failed to send notification: ' + error.message);
+  }
+});
+
+// Send notification for new hostel added (triggered when a hostel property is created/approved)
+exports.onNewHostelApproved = functions.firestore
+  .document('properties/{propertyId}')
+  .onWrite(async (change, context) => {
+    // Skip if document was deleted
+    if (!change.after.exists) return null;
+    
+    const before = change.before.exists ? change.before.data() : null;
+    const after = change.after.data();
+    
+    // Check if this is a new approval (status changed to approved)
+    const isNewApproval = (!before || before.status !== 'approved') && after.status === 'approved';
+    
+    // Check if it's a hostel
+    if (!isNewApproval || after.propertyType !== 'hostel') return null;
+    
+    console.log(`🏠 New hostel approved: ${after.title}`);
+    
+    // Send push notification to all customers about new hostel
+    const message = {
+      notification: {
+        title: '🏠 New Hostel Available!',
+        body: `${after.title} in ${after.location} - ${after.currency} ${after.price?.toLocaleString() || 'N/A'}`
+      },
+      data: {
+        type: 'new_hostel',
+        propertyId: context.params.propertyId,
+        click_action: 'FLUTTER_NOTIFICATION_CLICK'
+      },
+      topic: 'customers'
+    };
+    
+    try {
+      await admin.messaging().send(message);
+      console.log('✅ New hostel notification sent to customers');
+      
+      // Store in-app notifications for customers
+      const customersSnapshot = await admin.firestore()
+        .collection('users')
+        .where('roles', 'array-contains', 'customer')
+        .get();
+      
+      const batch = admin.firestore().batch();
+      const notificationsRef = admin.firestore().collection('notifications');
+      
+      customersSnapshot.docs.forEach(userDoc => {
+        const notificationRef = notificationsRef.doc();
+        batch.set(notificationRef, {
+          userId: userDoc.id,
+          title: '🏠 New Hostel Available!',
+          message: `${after.title} in ${after.location} - ${after.currency} ${after.price?.toLocaleString() || 'N/A'}`,
+          type: 'new_hostel',
+          propertyId: context.params.propertyId,
+          isRead: false,
+          createdAt: new Date().toISOString()
+        });
+      });
+      
+      await batch.commit();
+      console.log(`✅ In-app notifications created for ${customersSnapshot.docs.length} customers`);
+    } catch (error) {
+      console.error('Error sending new hostel notification:', error);
+    }
+    
+    return null;
+  });
+
+// Process scheduled notifications - runs every minute
+exports.processScheduledNotifications = functions.pubsub
+  .schedule('every 1 minutes')
+  .onRun(async (context) => {
+    const now = new Date();
+    console.log(`⏰ Checking scheduled notifications at ${now.toISOString()}`);
+    
+    try {
+      // Get all pending notifications that are due
+      const pendingSnapshot = await admin.firestore()
+        .collection('scheduled_notifications')
+        .where('status', '==', 'pending')
+        .where('scheduledTime', '<=', now.toISOString())
+        .get();
+      
+      if (pendingSnapshot.empty) {
+        console.log('No scheduled notifications to process');
+        return null;
+      }
+      
+      console.log(`📬 Processing ${pendingSnapshot.docs.length} scheduled notification(s)`);
+      
+      for (const doc of pendingSnapshot.docs) {
+        const notification = doc.data();
+        
+        try {
+          // Send FCM push notification
+          const message = {
+            notification: {
+              title: notification.title,
+              body: notification.body
+            },
+            data: {
+              type: notification.type || 'scheduled',
+              click_action: 'FLUTTER_NOTIFICATION_CLICK'
+            },
+            topic: notification.topic
+          };
+          
+          await admin.messaging().send(message);
+          console.log(`✅ Sent scheduled notification: ${notification.title}`);
+          
+          // Store notifications in Firestore for in-app viewing
+          const usersRef = admin.firestore().collection('users');
+          let usersSnapshot;
+          
+          if (notification.topic === 'all_users') {
+            usersSnapshot = await usersRef.get();
+          } else if (notification.topic === 'agents') {
+            usersSnapshot = await usersRef.where('roles', 'array-contains', 'propertyAgent').get();
+          } else if (notification.topic === 'customers') {
+            usersSnapshot = await usersRef.where('roles', 'array-contains', 'customer').get();
+          } else {
+            usersSnapshot = await usersRef.get();
+          }
+          
+          // Create notification document for each user
+          const batch = admin.firestore().batch();
+          const notificationsRef = admin.firestore().collection('notifications');
+          
+          usersSnapshot.docs.forEach(userDoc => {
+            const notificationRef = notificationsRef.doc();
+            batch.set(notificationRef, {
+              userId: userDoc.id,
+              title: notification.title,
+              message: notification.body,
+              type: notification.type || 'scheduled',
+              isRead: false,
+              createdAt: new Date().toISOString()
+            });
+          });
+          
+          await batch.commit();
+          console.log(`✅ Created in-app notifications for ${usersSnapshot.docs.length} users`);
+          
+          // Mark as sent
+          await doc.ref.update({
+            status: 'sent',
+            sentAt: new Date().toISOString()
+          });
+          
+        } catch (error) {
+          console.error(`❌ Failed to send notification ${doc.id}:`, error);
+          
+          // Mark as failed
+          await doc.ref.update({
+            status: 'failed',
+            errorMessage: error.message
+          });
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error processing scheduled notifications:', error);
+    }
+    
+    return null;
+  });
+
+// Callable function to manually process scheduled notifications (for testing)
+exports.processScheduledNotificationsManual = functions.https.onCall(async (data, context) => {
+  // Check if user is admin
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+  
+  const userDoc = await admin.firestore().collection('users').doc(context.auth.uid).get();
+  const roles = userDoc.data()?.roles || [];
+  
+  if (!roles.includes('admin')) {
+    throw new functions.https.HttpsError('permission-denied', 'Only admins can process notifications');
+  }
+  
+  const now = new Date();
+  let processed = 0;
+  let failed = 0;
+  
+  try {
+    const pendingSnapshot = await admin.firestore()
+      .collection('scheduled_notifications')
+      .where('status', '==', 'pending')
+      .where('scheduledTime', '<=', now.toISOString())
+      .get();
+    
+    for (const doc of pendingSnapshot.docs) {
+      const notification = doc.data();
+      
+      try {
+        const message = {
+          notification: {
+            title: notification.title,
+            body: notification.body
+          },
+          data: {
+            type: notification.type || 'scheduled',
+            click_action: 'FLUTTER_NOTIFICATION_CLICK'
+          },
+          topic: notification.topic
+        };
+        
+        await admin.messaging().send(message);
+        
+        // Store in-app notifications
+        const usersRef = admin.firestore().collection('users');
+        let usersSnapshot;
+        
+        if (notification.topic === 'all_users') {
+          usersSnapshot = await usersRef.get();
+        } else if (notification.topic === 'agents') {
+          usersSnapshot = await usersRef.where('roles', 'array-contains', 'propertyAgent').get();
+        } else if (notification.topic === 'customers') {
+          usersSnapshot = await usersRef.where('roles', 'array-contains', 'customer').get();
+        } else {
+          usersSnapshot = await usersRef.get();
+        }
+        
+        const batch = admin.firestore().batch();
+        const notificationsRef = admin.firestore().collection('notifications');
+        
+        usersSnapshot.docs.forEach(userDoc => {
+          const notificationRef = notificationsRef.doc();
+          batch.set(notificationRef, {
+            userId: userDoc.id,
+            title: notification.title,
+            message: notification.body,
+            type: notification.type || 'scheduled',
+            isRead: false,
+            createdAt: new Date().toISOString()
+          });
+        });
+        
+        await batch.commit();
+        
+        await doc.ref.update({
+          status: 'sent',
+          sentAt: new Date().toISOString()
+        });
+        
+        processed++;
+      } catch (error) {
+        await doc.ref.update({
+          status: 'failed',
+          errorMessage: error.message
+        });
+        failed++;
+      }
+    }
+    
+    return {
+      success: true,
+      message: `Processed ${processed} notification(s), ${failed} failed`,
+      processed,
+      failed
+    };
+  } catch (error) {
+    throw new functions.https.HttpsError('internal', 'Failed to process: ' + error.message);
   }
 });

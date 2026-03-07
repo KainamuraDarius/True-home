@@ -31,6 +31,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
   
   String? _selectedUniversity;
   PricingPeriod _pricingPeriod = PricingPeriod.month;
+  GenderPolicy _selectedGenderPolicy = GenderPolicy.mixed;
   final List<XFile> _selectedImages = [];
   final Map<String, Uint8List> _imageBytes = {}; // Cache bytes for web preview
   bool _isLoading = false;
@@ -80,6 +81,54 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
   };
   
   bool _isPickingImages = false;
+
+  Widget _buildGenderPolicyOption(
+    GenderPolicy policy,
+    String label,
+    IconData icon,
+    Color color,
+  ) {
+    final isSelected = _selectedGenderPolicy == policy;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedGenderPolicy = policy),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? color : Colors.grey,
+              size: 28,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? color : Colors.grey.shade600,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                fontSize: 13,
+              ),
+            ),
+            if (isSelected)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -331,6 +380,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
         amenities: _selectedAmenities,
         university: _selectedUniversity,
         roomTypes: roomTypes,
+        genderPolicy: _selectedGenderPolicy,
         paymentInstructions: _paymentInstructionsController.text.trim().isEmpty
             ? null
             : _paymentInstructionsController.text.trim(),
@@ -439,6 +489,48 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
                       }
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Gender Policy Selection
+                  const Text(
+                    'Gender Policy *',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildGenderPolicyOption(
+                            GenderPolicy.maleOnly,
+                            'Male Only',
+                            Icons.male,
+                            Colors.blue,
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildGenderPolicyOption(
+                            GenderPolicy.femaleOnly,
+                            'Female Only',
+                            Icons.female,
+                            Colors.pink,
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildGenderPolicyOption(
+                            GenderPolicy.mixed,
+                            'Mixed',
+                            Icons.people,
+                            Colors.purple,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
 

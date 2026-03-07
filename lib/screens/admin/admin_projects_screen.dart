@@ -151,52 +151,90 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
+    final tabBar = TabBar(
+      controller: _tabController,
+      labelColor: widget.embedded ? Theme.of(context).primaryColor : Colors.white,
+      unselectedLabelColor: widget.embedded ? Colors.grey : Colors.white70,
+      indicatorColor: widget.embedded ? Theme.of(context).primaryColor : Colors.white,
+      tabs: [
+        Tab(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Pending'),
+              if (_pendingProjects.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${_pendingProjects.length}',
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const Tab(text: 'Approved'),
+        const Tab(text: 'All Projects'),
+      ],
+    );
+
+    final body = _loading
+        ? const Center(child: CircularProgressIndicator())
+        : RefreshIndicator(
+            onRefresh: _loadProjects,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildProjectList(_pendingProjects, isPending: true),
+                _buildProjectList(_approvedProjects, isPending: false),
+                _buildProjectList(_allProjects, isPending: null),
+              ],
+            ),
+          );
+
+    if (widget.embedded) {
+      return Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.apartment, color: Colors.green, size: 28),
+                const SizedBox(width: 12),
+                const Text(
+                  'Advertised Projects',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadProjects,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
+          ),
+          // Tab Bar
+          tabBar,
+          // Tab Content
+          Expanded(child: body),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Advertised Projects'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Pending'),
-                  if (_pendingProjects.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${_pendingProjects.length}',
-                        style: const TextStyle(fontSize: 12, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const Tab(text: 'Approved'),
-            const Tab(text: 'All Projects'),
-          ],
-        ),
+        bottom: tabBar,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadProjects,
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildProjectList(_pendingProjects, isPending: true),
-                  _buildProjectList(_approvedProjects, isPending: false),
-                  _buildProjectList(_allProjects, isPending: null),
-                ],
-              ),
-            ),
+      body: body,
     );
   }
 

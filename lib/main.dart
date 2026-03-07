@@ -8,9 +8,11 @@ import 'utils/app_theme.dart';
 import 'screens/auth/welcome_screen.dart';
 import 'screens/customer/customer_home_screen.dart';
 import 'screens/owner/agent_main_screen.dart';
+import 'screens/maintenance_screen.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_service.dart';
+import 'services/maintenance_service.dart';
 
 /// Customer/Agent app entry point
 /// Build with: flutter build web --release
@@ -84,7 +86,76 @@ class MyAppState extends State<MyApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: _themeMode,
-      home: const AuthenticationWrapper(),
+      home: const MaintenanceWrapper(),
+    );
+  }
+}
+
+/// Wrapper that checks maintenance status before showing the app
+class MaintenanceWrapper extends StatelessWidget {
+  const MaintenanceWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<MaintenanceStatus>(
+      stream: MaintenanceService().maintenanceStatusStream(),
+      builder: (context, snapshot) {
+        // Show loading while checking maintenance status
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final status = snapshot.data;
+        
+        // If maintenance is enabled, show maintenance screen
+        if (status != null && status.isEnabled) {
+          // Check if current user is admin and admins are allowed
+          return StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, authSnapshot) {
+              if (authSnapshot.hasData && status.allowAdmins) {
+                // Check if user is admin
+                return FutureBuilder<DocumentSnapshot>(
+                  future: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(authSnapshot.data!.uid)
+                      .get(),
+                  builder: (context, userSnapshot) {
+                    if (userSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Scaffold(
+                        body: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    
+                    if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                      final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                      final role = userData['activeRole'] ?? userData['role'];
+                      
+                      // Allow admins to bypass maintenance
+                      if (role == 'admin') {
+                        return const AuthenticationWrapper();
+                      }
+                    }
+                    
+                    // Not admin, show maintenance screen
+                    return MaintenanceScreen(status: status);
+                  },
+                );
+              }
+              
+              // No user logged in or admins not allowed
+              return MaintenanceScreen(status: status);
+            },
+          );
+        }
+
+        // No maintenance, show regular app
+        return const AuthenticationWrapper();
+      },
     );
   }
 }

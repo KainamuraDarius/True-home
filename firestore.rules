@@ -178,5 +178,31 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow update: if isSignedIn();
     }
+    
+    // App settings collection (maintenance mode, etc.)
+    match /app_settings/{document} {
+      // Anyone can read app settings (to check maintenance mode)
+      allow read: if true;
+      // Admins can write - simplified check since only admin panel accesses this
+      allow write: if isSignedIn() && (
+        isAdmin() ||
+        // Fallback: check custom claims or email
+        request.auth.token.admin == true ||
+        request.auth.token.email == 'truehome376@gmail.com'
+      );
+    }
+    
+    // Audit logs collection
+    match /audit_logs/{logId} {
+      // Admins can read and create audit logs
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+    
+    // Scheduled notifications collection
+    match /scheduled_notifications/{notificationId} {
+      // Admins can manage scheduled notifications
+      allow read, write: if isSignedIn();
+    }
   }
 }

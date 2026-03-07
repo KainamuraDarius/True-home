@@ -21,94 +21,115 @@ class _AdminReservationsScreenState extends State<AdminReservationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      children: [
+        // Header for embedded mode
+        if (widget.embedded)
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_today, color: Colors.orange, size: 28),
+                const SizedBox(width: 12),
+                const Text(
+                  'Hostel Reservations',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        // Filter Chips
+        Container(
+          padding: const EdgeInsets.all(16),
+          color: Colors.grey.shade100,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterChip('All', 'all'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Confirmed', 'confirmed'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Pending', 'pending'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Cancelled', 'cancelled'),
+              ],
+            ),
+          ),
+        ),
+        
+        // Reservations List
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _getReservationsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text('Error: ${snapshot.error}'),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.event_busy,
+                        size: 80,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No reservations found',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final reservations = snapshot.data!.docs
+                  .map((doc) => ReservationModel.fromMap(
+                        doc.data() as Map<String, dynamic>,
+                        doc.id,
+                      ))
+                  .toList();
+
+              // Sort by creation date (newest first)
+              reservations.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: reservations.length,
+                itemBuilder: (context, index) {
+                  return _buildReservationCard(reservations[index]);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+
+    if (widget.embedded) {
+      return content;
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Hostel Reservations'),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
       ),
-      body: Column(
-        children: [
-          // Filter Chips
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.grey.shade100,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('All', 'all'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Confirmed', 'confirmed'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Pending', 'pending'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Cancelled', 'cancelled'),
-                ],
-              ),
-            ),
-          ),
-          
-          // Reservations List
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _getReservationsStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.event_busy,
-                          size: 80,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No reservations found',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                final reservations = snapshot.data!.docs
-                    .map((doc) => ReservationModel.fromMap(
-                          doc.data() as Map<String, dynamic>,
-                          doc.id,
-                        ))
-                    .toList();
-
-                // Sort by creation date (newest first)
-                reservations.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: reservations.length,
-                  itemBuilder: (context, index) {
-                    return _buildReservationCard(reservations[index]);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+      body: content,
     );
   }
 
