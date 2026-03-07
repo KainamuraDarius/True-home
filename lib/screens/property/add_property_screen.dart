@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -109,7 +109,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
       }
       
       final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 85, // Reduce quality during selection for faster loading
+        imageQuality: 95,
       );
       
       if (images.isNotEmpty) {
@@ -201,8 +201,17 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     final List<String> imageUrls = [];
     final totalImages = _selectedImages.length;
     
-    // Process and upload images in parallel batches of 3 for faster upload
-    const batchSize = 3;
+    // Detect mobile web to prevent memory crashes on iOS Safari
+    final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
+    
+    // Use sequential processing on mobile web to avoid memory pressure
+    // Use smaller batches on desktop web for better performance
+    final batchSize = isMobileWeb ? 1 : 3;
+    
+    // Use more conservative settings on mobile web
+    final maxWidth = isMobileWeb ? 1200 : 1920;
+    final maxHeight = isMobileWeb ? 1600 : 2560;
+    final quality = isMobileWeb ? 85 : 92;
     
     for (int batchStart = 0; batchStart < totalImages; batchStart += batchSize) {
       final batchEnd = (batchStart + batchSize).clamp(0, totalImages);
@@ -213,7 +222,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         _uploadStatus = 'Uploading images ${batchStart + 1}-$batchEnd of $totalImages...';
       });
       
-      // Process batch in parallel
+      // Process batch in parallel (or sequentially on mobile)
       final batchResults = await Future.wait(
         batch.asMap().entries.map((entry) async {
           final index = batchStart + entry.key;
@@ -232,18 +241,18 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
               return null;
             }
             
-            // More aggressive resizing for faster uploads
-            if (decodedImage.width > 600 || decodedImage.height > 900) {
+            // Resize based on platform (more aggressive on mobile web)
+            if (decodedImage.width > maxWidth || decodedImage.height > maxHeight) {
               if (decodedImage.width > decodedImage.height) {
-                decodedImage = img.copyResize(decodedImage, width: 600);
+                decodedImage = img.copyResize(decodedImage, width: maxWidth);
               } else {
-                decodedImage = img.copyResize(decodedImage, height: 900);
+                decodedImage = img.copyResize(decodedImage, height: maxHeight);
               }
             }
             
-            // Compress with lower quality for smaller file size
+            // Compress with platform-appropriate quality
             final compressedBytes = Uint8List.fromList(
-              img.encodeJpg(decodedImage, quality: 55),
+              img.encodeJpg(decodedImage, quality: quality),
             );
             
             print('Compressed size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB');

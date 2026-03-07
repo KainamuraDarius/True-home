@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -129,7 +130,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile> images = await _picker.pickMultiImage();
+      final List<XFile> images = await _picker.pickMultiImage(
+        imageQuality: 95,
+      );
       if (images.isNotEmpty) {
         // Check if adding these images would exceed the limit
         final totalImages = _totalImageCount + images.length;
@@ -178,6 +181,12 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
   Future<List<String>> _uploadNewImages() async {
     final List<String> imageUrls = [];
+    
+    // Detect mobile web to prevent memory crashes on iOS Safari
+    final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
+    final maxWidth = isMobileWeb ? 1200 : 1920;
+    final maxHeight = isMobileWeb ? 1600 : 2560;
+    final quality = isMobileWeb ? 85 : 92;
 
     for (int i = 0; i < _newImages.length; i++) {
       try {
@@ -203,18 +212,18 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         
         print('Original dimensions: ${image.width}x${image.height}');
         
-        // Resize image to max width of 1200px for good quality
-        if (image.width > 1200) {
-          image = img.copyResize(image, width: 1200);
-        } else if (image.height > 1600) {
-          image = img.copyResize(image, height: 1600);
+        // Resize based on platform (more aggressive on mobile web)
+        if (image.width > maxWidth) {
+          image = img.copyResize(image, width: maxWidth);
+        } else if (image.height > maxHeight) {
+          image = img.copyResize(image, height: maxHeight);
         }
         
         print('Resized dimensions: ${image.width}x${image.height}');
         
-        // Compress as JPEG with 85% quality
+        // Compress with platform-appropriate quality
         final compressedBytes = Uint8List.fromList(
-          img.encodeJpg(image, quality: 85),
+          img.encodeJpg(image, quality: quality),
         );
         
         print('Compressed image size: ${compressedBytes.length} bytes');
