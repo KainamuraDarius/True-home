@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../utils/app_theme.dart';
+import '../../models/user_model.dart';
 import '../../services/notification_service.dart';
+import '../../services/role_service.dart';
+import '../../widgets/role_switcher.dart';
 import 'owner_dashboard_screen.dart';
 import '../property/my_properties_screen.dart';
 import '../common/my_projects_screen.dart';
@@ -18,13 +21,16 @@ class AgentMainScreen extends StatefulWidget {
 class _AgentMainScreenState extends State<AgentMainScreen> {
   int _currentIndex = 0;
   final NotificationService _notificationService = NotificationService();
+  final RoleService _roleService = RoleService();
   int _unreadCount = 0;
+  UserModel? _currentUser;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
       _loadUnreadCount();
+      _loadCurrentUser();
     });
   }
 
@@ -37,6 +43,19 @@ class _AgentMainScreenState extends State<AgentMainScreen> {
           _unreadCount = count;
         });
       }
+    }
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _roleService.getCurrentUser();
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+        });
+      }
+    } catch (e) {
+      print('Error loading current user: $e');
     }
   }
 
@@ -62,6 +81,15 @@ class _AgentMainScreenState extends State<AgentMainScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Role Switcher (only shows if user has multiple roles)
+          if (_currentUser != null)
+            RoleSwitcher(
+              user: _currentUser!,
+              onRoleChanged: () {
+                // Reload after role change
+                _loadCurrentUser();
+              },
+            ),
           // Notifications
           Stack(
             children: [
