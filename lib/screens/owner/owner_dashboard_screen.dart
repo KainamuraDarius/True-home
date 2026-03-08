@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../utils/app_theme.dart';
@@ -7,6 +8,7 @@ import '../../models/user_model.dart';
 import '../../services/notification_service.dart';
 import '../../services/role_service.dart';
 import '../../widgets/role_switcher.dart';
+import '../../widgets/web_footer.dart';
 import '../common/profile_screen.dart';
 import '../common/notifications_screen.dart';
 import '../property/add_property_screen.dart';
@@ -193,7 +195,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
+                  builder: (context) => const ProfileScreen(showWebFooter: true),
                 ),
               );
             },
@@ -202,9 +204,35 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       ),
       body: _cachedCounts == null && _isLoadingCounts
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: _buildDashboardContent(_cachedCounts ?? {'properties': 0, 'submissions': 0, 'totalViews': 0}),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final counts =
+                    _cachedCounts ?? {'properties': 0, 'submissions': 0, 'totalViews': 0};
+
+                if (kIsWeb && widget.isTabView) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: _buildDashboardContent(counts)),
+                            const SizedBox(height: 24),
+                            const WebFooter(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: _buildDashboardContent(counts),
+                );
+              },
             ),
     );
   }

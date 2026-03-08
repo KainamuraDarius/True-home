@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,7 @@ import '../../services/notification_service.dart';
 import '../../services/project_service.dart';
 import '../../services/role_service.dart';
 import '../../widgets/role_switcher.dart';
+import '../../widgets/web_footer.dart';
 import 'project_details_screen.dart';
 import 'all_projects_screen.dart';
 
@@ -28,19 +30,64 @@ class CustomerHomeScreen extends StatefulWidget {
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   int _currentIndex = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  UserModel? _currentUser;
 
-  final List<Widget> _screens = [
-    const HomeTab(),
-    const SearchTab(),
-    const FavoritesTab(),
-    const ProfileScreen(),
+  List<Widget> get _screens => [
+    HomeTab(
+      isWebNav: kIsWeb,
+      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+    ),
+    SearchTab(
+      isWebNav: kIsWeb,
+      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+    ),
+    FavoritesTab(
+      isWebNav: kIsWeb,
+      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+    ),
+    const ProfileScreen(showWebFooter: true),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      _loadUserData();
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get();
+        if (userDoc.exists && mounted) {
+          setState(() {
+            _currentUser = UserModel.fromJson({
+              ...userDoc.data()!,
+              'id': userDoc.id,
+            });
+          });
+        }
+      } catch (e) {
+        // Silently fail if user data can't be loaded
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: kIsWeb ? _buildDrawer() : null,
       body: _screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: kIsWeb
+          ? null
+          : BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() {
@@ -50,6 +97,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: AppColors.textSecondary,
+        selectedFontSize: 15,
+        unselectedFontSize: 14,
+        iconSize: 30,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
@@ -75,10 +125,136 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       ),
     );
   }
+
+  Widget _buildDrawer() {
+    return Drawer(
+        width: 300,
+      child: Column(
+        children: [
+          // Header with user info
+          UserAccountsDrawerHeader(
+                         margin: EdgeInsets.zero,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primary,
+                  AppColors.primary.withOpacity(0.8),
+                ],
+              ),
+            ),
+            accountName: Text(
+              _currentUser?.name ?? 'User',
+              style: const TextStyle(
+                 fontWeight: FontWeight.bold,
+                 fontSize: 20,
+              ),
+            ),
+            accountEmail: Text(
+              _currentUser?.email ?? '',
+               style: const TextStyle(fontSize: 15),
+            ),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Colors.white,
+                             radius: 32,
+              child: Text(
+                (_currentUser?.name ?? 'U')[0].toUpperCase(),
+                style: TextStyle(
+                   fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+
+          // Navigation items
+          Expanded(
+             child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  _buildDrawerItem(
+                    icon: Icons.home,
+                    title: 'Home',
+                    index: 0,
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.search,
+                    title: 'Search',
+                    index: 1,
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.favorite,
+                    title: 'Favorites',
+                    index: 2,
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.person,
+                    title: 'Profile',
+                    index: 3,
+                  ),
+                ],
+             ),
+          ),
+
+          // Footer
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'True Home',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                 fontSize: 13,
+                 fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String title,
+    required int index,
+  }) {
+    final isSelected = _currentIndex == index;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      leading: Icon(
+        icon,
+        size: 28,
+        color: isSelected ? AppColors.primary : Colors.grey.shade700,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          color: isSelected ? AppColors.primary : Colors.grey.shade800,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: isSelected,
+      selectedTileColor: AppColors.primary.withOpacity(0.1),
+      onTap: () {
+        setState(() {
+          _currentIndex = index;
+        });
+        _scaffoldKey.currentState?.closeDrawer();
+      },
+    );
+  }
 }
 
 class HomeTab extends StatefulWidget {
-  const HomeTab({super.key});
+  final bool isWebNav;
+  final VoidCallback? onMenuTap;
+
+  const HomeTab({super.key, this.isWebNav = false, this.onMenuTap});
 
   @override
   State<HomeTab> createState() => _HomeTabState();
@@ -368,7 +544,8 @@ class _HomeTabState extends State<HomeTab> {
     try {
       Query query = FirebaseFirestore.instance
           .collection('properties')
-          .where('status', isEqualTo: 'approved');
+          .where('status', isEqualTo: 'approved')
+          .where('isActive', isEqualTo: true);
 
       if (_selectedFilter != null) {
         query = query.where('type', isEqualTo: _selectedFilter!.name);
@@ -399,10 +576,6 @@ class _HomeTabState extends State<HomeTab> {
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
-        
-        // Debug: Print raw imageUrls from Firestore
-        print('🖼️ Property ${doc.id}: imageUrls = ${data['imageUrls']}');
-        
         final property = PropertyModel.fromJson(data);
 
         bool matchesSearch = true;
@@ -595,6 +768,13 @@ class _HomeTabState extends State<HomeTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: !widget.isWebNav,
+        leading: widget.isWebNav
+            ? IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onMenuTap,
+              )
+            : null,
         title: Row(
           children: [
             Image.asset(
@@ -1613,6 +1793,7 @@ class _HomeTabState extends State<HomeTab> {
                         stream: FirebaseFirestore.instance
                             .collection('properties')
                             .where('status', isEqualTo: 'approved')
+                            .where('isActive', isEqualTo: true)
                             .orderBy('createdAt', descending: true)
                             .snapshots(),
                         builder: (context, snapshot) {
@@ -1669,8 +1850,10 @@ class _HomeTabState extends State<HomeTab> {
                           var allProperties = snapshot.data!.docs.map((doc) {
                             final data = doc.data() as Map<String, dynamic>;
                             data['id'] = doc.id;
-                            // Debug: Print imageUrls for each property
-                            print('🏠 Property ${doc.id}: images=${data['imageUrls']?.length ?? 0}, urls=${data['imageUrls']}');
+                            
+                            // Debug: Log imageUrls from Firestore
+                            print('🔥 Firestore doc ${doc.id}: imageUrls = ${data['imageUrls']}');
+                            
                             return PropertyModel.fromJson(data);
                           }).toList();
 
@@ -1987,6 +2170,7 @@ class _HomeTabState extends State<HomeTab> {
               // Browse New Projects Section
               _buildBrowseNewProjectsSection(),
               const SizedBox(height: 24),
+              if (kIsWeb) const WebFooter(),
             ], // Close the if (!_isSearchActive) statement
           ], // Close the main Column children
         ),
@@ -2344,6 +2528,7 @@ class _HomeTabState extends State<HomeTab> {
       var query = FirebaseFirestore.instance
           .collection('properties')
           .where('status', isEqualTo: 'approved')
+          .where('isActive', isEqualTo: true)
           .limit(200); // Limit to first 200 properties for faster loading
 
       // Filter by property type if a filter is selected
@@ -2393,6 +2578,7 @@ class _HomeTabState extends State<HomeTab> {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('properties')
           .where('status', isEqualTo: 'approved')
+          .where('isActive', isEqualTo: true)
           .where('isNewProject', isEqualTo: true)
           .where('hasActivePromotion', isEqualTo: true)
           .limit(10) // Only load up to 10 promoted projects
@@ -2564,19 +2750,14 @@ class _HomeTabState extends State<HomeTab> {
                             height: 220,
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) {
-                              print('🔄 Loading image: $url');
-                              return Container(
-                                height: 220,
-                                color: Theme.of(context).cardColor,
-                                child: const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            },
+                            placeholder: (context, url) => Container(
+                              height: 220,
+                              color: Theme.of(context).cardColor,
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
                             errorWidget: (context, url, error) {
-                              print('❌ Image load failed: $url');
-                              print('   Error: $error');
                               return Container(
                                 height: 220,
                                 color: Theme.of(context).cardColor,
@@ -2917,6 +3098,11 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildPropertyCard(BuildContext context, PropertyModel property) {
+    // Debug: Log image URLs for each property
+    print('🏠 Property: ${property.title}');
+    print('📸 Image URLs count: ${property.imageUrls.length}');
+    print('📸 Image URLs: ${property.imageUrls}');
+    
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2947,35 +3133,60 @@ class _HomeTabState extends State<HomeTab> {
                           height: 180,
                           fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) {
-                              print('✅ Image loaded: ${property.title}');
-                              return child;
-                            }
+                            if (loadingProgress == null) return child;
                             return Container(
                               height: 180,
                               width: double.infinity,
                               color: AppColors.surfaceLight,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Loading image...',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
                           },
                           errorBuilder: (context, error, stackTrace) {
-                            print('❌ Image FAILED for ${property.title}: ${property.imageUrls.first}');
+                            print('❌ Error loading image for ${property.title}:');
+                            print('   URL: ${property.imageUrls.first}');
                             print('   Error: $error');
                             return Container(
                               height: 180,
                               width: double.infinity,
-                              color: AppColors.surfaceLight,
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                size: 40,
+                              color: Colors.red.shade50,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.broken_image,
+                                    size: 40,
+                                    color: Colors.red,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Image failed to load',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.red[700],
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           },
@@ -2983,10 +3194,24 @@ class _HomeTabState extends State<HomeTab> {
                       : Container(
                           height: 180,
                           width: double.infinity,
-                          color: AppColors.surfaceLight,
-                          child: const Icon(
-                            Icons.image_not_supported,
-                            size: 40,
+                          color: Colors.orange.shade50,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.hide_image,
+                                size: 40,
+                                color: Colors.orange,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No images available',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                 ),
@@ -3234,7 +3459,10 @@ class _HomeTabState extends State<HomeTab> {
 
 // Placeholder tabs
 class SearchTab extends StatefulWidget {
-  const SearchTab({super.key});
+  final bool isWebNav;
+  final VoidCallback? onMenuTap;
+
+  const SearchTab({super.key, this.isWebNav = false, this.onMenuTap});
 
   @override
   State<SearchTab> createState() => _SearchTabState();
@@ -3331,7 +3559,8 @@ class _SearchTabState extends State<SearchTab> {
     try {
       Query query = FirebaseFirestore.instance
           .collection('properties')
-          .where('status', isEqualTo: 'approved');
+          .where('status', isEqualTo: 'approved')
+          .where('isActive', isEqualTo: true);
 
       // Apply type filter
       if (_selectedType != null) {
@@ -3468,6 +3697,13 @@ class _SearchTabState extends State<SearchTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: !widget.isWebNav,
+        leading: widget.isWebNav
+            ? IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onMenuTap,
+              )
+            : null,
         title: const Text('Search Properties'),
         actions: [
           IconButton(
@@ -4282,7 +4518,10 @@ class _SearchTabState extends State<SearchTab> {
 }
 
 class FavoritesTab extends StatefulWidget {
-  const FavoritesTab({super.key});
+  final bool isWebNav;
+  final VoidCallback? onMenuTap;
+
+  const FavoritesTab({super.key, this.isWebNav = false, this.onMenuTap});
 
   @override
   State<FavoritesTab> createState() => _FavoritesTabState();
@@ -4424,6 +4663,13 @@ class _FavoritesTabState extends State<FavoritesTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: !widget.isWebNav,
+        leading: widget.isWebNav
+            ? IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onMenuTap,
+              )
+            : null,
         title: const Text('My Favorites'),
         actions: [
           if (_favoriteProperties.isNotEmpty)
@@ -4437,10 +4683,12 @@ class _FavoritesTabState extends State<FavoritesTab> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _favoriteProperties.isEmpty
-          ? Center(
+          ? SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  const SizedBox(height: 48),
                   Icon(
                     Icons.favorite_border,
                     size: 100,
@@ -4464,7 +4712,6 @@ class _FavoritesTabState extends State<FavoritesTab> {
                   const SizedBox(height: 32),
                   ElevatedButton.icon(
                     onPressed: () {
-                      // Switch to home tab
                       final homeState = context
                           .findAncestorStateOfType<_CustomerHomeScreenState>();
                       homeState?.setState(() {
@@ -4486,19 +4733,28 @@ class _FavoritesTabState extends State<FavoritesTab> {
             )
           : RefreshIndicator(
               onRefresh: _loadFavorites,
-              child: GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.65,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                ),
-                itemCount: _favoriteProperties.length,
-                itemBuilder: (context, index) {
-                  final property = _favoriteProperties[index];
-                  return _buildPropertyCard(property);
-                },
+              child: ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: 0.65,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                      ),
+                      itemCount: _favoriteProperties.length,
+                      itemBuilder: (context, index) {
+                        final property = _favoriteProperties[index];
+                        return _buildPropertyCard(property);
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
     );
@@ -5032,6 +5288,6 @@ class ProfileTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ProfileScreen();
+    return const ProfileScreen(showWebFooter: true);
   }
 }

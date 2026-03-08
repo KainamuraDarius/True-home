@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../utils/app_theme.dart';
 import '../../models/user_model.dart';
 import '../../services/preferences_service.dart';
 import '../../services/role_service.dart';
+import '../../widgets/web_footer.dart';
 import '../auth/welcome_screen.dart';
 import '../customer/become_agent_screen.dart';
 import '../customer/edit_profile_screen.dart';
@@ -15,8 +16,14 @@ import 'legal_policies_screen.dart';
 import '../../main.dart';
 
 class ProfileScreen extends StatefulWidget {
+  final bool showWebFooter;
   final bool embedded;
-  const ProfileScreen({super.key, this.embedded = false});
+
+  const ProfileScreen({
+    super.key,
+    this.showWebFooter = false,
+    this.embedded = false,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -100,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile'), centerTitle: true),
+      appBar: widget.embedded ? null : AppBar(title: const Text('Profile'), centerTitle: true),
       body: _currentUser == null
           ? const Center(child: Text('No user data found'))
           : SingleChildScrollView(
@@ -439,6 +446,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                     textColor: Colors.red,
                   ),
+                  if (kIsWeb && widget.showWebFooter) ...[
+                    const SizedBox(height: 24),
+                    const WebFooter(),
+                  ],
                   const SizedBox(height: 32),
                 ],
               ),

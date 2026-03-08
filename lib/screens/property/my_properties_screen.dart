@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/property_model.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/app_theme.dart';
+import '../../widgets/web_footer.dart';
 import 'agent_property_details_screen.dart';
 import 'add_property_screen.dart';
 
@@ -108,10 +110,12 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                 final properties = snapshot.data?.docs ?? [];
 
                 if (properties.isEmpty) {
-                  return Center(
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        const SizedBox(height: 48),
                         Icon(
                           Icons.home_work_outlined,
                           size: 80,
@@ -125,6 +129,10 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                             color: Colors.grey[600],
                           ),
                         ),
+                        if (kIsWeb) ...[
+                          const SizedBox(height: 24),
+                          const WebFooter(),
+                        ],
                       ],
                     ),
                   );
@@ -132,8 +140,15 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: properties.length,
+                  itemCount: properties.length + (kIsWeb ? 1 : 0),
                   itemBuilder: (context, index) {
+                    if (kIsWeb && index == properties.length) {
+                      return const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: WebFooter(),
+                      );
+                    }
+
                     final propertyData = properties[index].data() as Map<String, dynamic>;
                     propertyData['id'] = properties[index].id;
                     final property = PropertyModel.fromJson(propertyData);
