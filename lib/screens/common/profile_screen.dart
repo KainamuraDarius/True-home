@@ -17,8 +17,13 @@ import '../../main.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showWebFooter;
+  final bool embedded;
 
-  const ProfileScreen({super.key, this.showWebFooter = false});
+  const ProfileScreen({
+    super.key,
+    this.showWebFooter = false,
+    this.embedded = false,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -102,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile'), centerTitle: true),
+      appBar: widget.embedded ? null : AppBar(title: const Text('Profile'), centerTitle: true),
       body: _currentUser == null
           ? const Center(child: Text('No user data found'))
           : SingleChildScrollView(
