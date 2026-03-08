@@ -6,6 +6,8 @@ enum PropertyStatus { pending, approved, rejected, removed }
 
 enum PricingPeriod { month, semester }
 
+enum GenderPolicy { maleOnly, femaleOnly, mixed }
+
 class RoomType {
   final String name; // e.g., "Single Room", "Double Room", "Triple Room"
   final double price;
@@ -105,6 +107,7 @@ class PropertyModel {
   final List<RoomType> roomTypes; // For student hostels
   final String?
   paymentInstructions; // Optional payment instructions for hostels (deposit info, bank account, etc.)
+  final GenderPolicy genderPolicy; // For hostels: male only, female only, or mixed
   final bool isNewProject; // Mark as new project for developers
   final bool hasActivePromotion; // Whether promotion is active
   final DateTime? promotionEndDate; // When promotion ends
@@ -145,6 +148,7 @@ class PropertyModel {
     this.university,
     this.roomTypes = const [],
     this.paymentInstructions,
+    this.genderPolicy = GenderPolicy.mixed,
     this.isNewProject = false,
     this.hasActivePromotion = false,
     this.promotionEndDate,
@@ -187,6 +191,7 @@ class PropertyModel {
       'university': university,
       'roomTypes': roomTypes.map((rt) => rt.toJson()).toList(),
       'paymentInstructions': paymentInstructions,
+      'genderPolicy': genderPolicy.name,
       'isNewProject': isNewProject,
       'hasActivePromotion': hasActivePromotion,
       'promotionEndDate': promotionEndDate != null ? Timestamp.fromDate(promotionEndDate!) : null,
@@ -303,6 +308,10 @@ class PropertyModel {
       university: json['university'],
       roomTypes: _parseRoomTypes(json['roomTypes']),
       paymentInstructions: json['paymentInstructions'],
+      genderPolicy: GenderPolicy.values.firstWhere(
+        (e) => e.name == json['genderPolicy'],
+        orElse: () => GenderPolicy.mixed,
+      ),
       isNewProject: json['isNewProject'] ?? false,
       hasActivePromotion: json['hasActivePromotion'] ?? false,
       promotionEndDate: _parseDateTime(json['promotionEndDate']),
@@ -345,6 +354,7 @@ class PropertyModel {
     String? university,
     List<RoomType>? roomTypes,
     String? paymentInstructions,
+    GenderPolicy? genderPolicy,
     bool? isNewProject,
     bool? hasActivePromotion,
     DateTime? promotionEndDate,
@@ -383,6 +393,7 @@ class PropertyModel {
       university: university ?? this.university,
       roomTypes: roomTypes ?? this.roomTypes,
       paymentInstructions: paymentInstructions ?? this.paymentInstructions,
+      genderPolicy: genderPolicy ?? this.genderPolicy,
       isNewProject: isNewProject ?? this.isNewProject,
       hasActivePromotion: hasActivePromotion ?? this.hasActivePromotion,
       promotionEndDate: promotionEndDate ?? this.promotionEndDate,

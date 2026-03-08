@@ -2,7 +2,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // Background message handler - must be top-level function
 @pragma('vm:entry-point')
@@ -27,43 +27,49 @@ class FCMService {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    // Request notification permissions
-    await _requestPermissions();
+    try {
+      // Request notification permissions
+      await _requestPermissions();
 
-    // Initialize local notifications for foreground messages
-    await _initializeLocalNotifications();
+      // For non-web platforms, initialize local notifications
+      if (!kIsWeb) {
+        await _initializeLocalNotifications();
+        
+        // Set up background message handler (not supported on web)
+        FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      }
 
-    // Set up background message handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      // Handle foreground messages
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // Handle foreground messages
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      // Handle notification taps when app is in background/terminated
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
-    // Handle notification taps when app is in background/terminated
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+      // Check if app was opened from a notification
+      RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+      if (initialMessage != null) {
+        _handleNotificationTap(initialMessage);
+      }
 
-    // Check if app was opened from a notification
-    RemoteMessage? initialMessage = await _fcm.getInitialMessage();
-    if (initialMessage != null) {
-      _handleNotificationTap(initialMessage);
+      // Get and save FCM token
+      await _saveFCMToken();
+
+      // Subscribe to topics based on user role
+      await _subscribeToTopicsBasedOnRole();
+
+      // Listen for token refresh
+      _fcm.onTokenRefresh.listen(_saveFCMTokenToFirestore);
+
+      _initialized = true;
+      print('✅ FCM Service initialized successfully');
+    } catch (e) {
+      print('❌ FCM Service initialization error: $e');
     }
-
-    // Get and save FCM token
-    await _saveFCMToken();
-
-    // Subscribe to topics based on user role
-    await _subscribeToTopicsBasedOnRole();
-
-    // Listen for token refresh
-    _fcm.onTokenRefresh.listen(_saveFCMTokenToFirestore);
-
-    _initialized = true;
-    print('✅ FCM Service initialized successfully');
   }
 
   /// Request notification permissions
   Future<void> _requestPermissions() async {
-    if (Platform.isIOS || Platform.isMacOS) {
+    try {
       NotificationSettings settings = await _fcm.requestPermission(
         alert: true,
         announcement: false,
@@ -75,12 +81,16 @@ class FCMService {
       );
 
       print('FCM Permission granted: ${settings.authorizationStatus}');
-    } else {
-      // Android 13+ permissions
-      await _localNotifications
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
+      
+      // For Android 13+, also request local notification permission
+      if (!kIsWeb) {
+        await _localNotifications
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.requestNotificationsPermission();
+      }
+    } catch (e) {
+      print('Error requesting permissions: $e');
     }
   }
 
@@ -112,14 +122,40 @@ class FCMService {
     print('📨 Foreground message received: ${message.notification?.title}');
 
     RemoteNotification? notification = message.notification;
-    AndroidNotification? android = message.notification?.android;
 
     if (notification != null) {
-      await _showLocalNotification(
-        title: notification.title ?? 'TrueHome',
-        body: notification.body ?? '',
-        payload: message.data.toString(),
-      );
+      // On web, browser shows notification automatically via service worker
+      // On mobile, show local notification
+      if (!kIsWeb) {
+        await _showLocalNotification(
+          title: notification.title ?? 'TrueHome',
+          body: notification.body ?? '',
+          payload: message.data.toString(),
+        );
+      }
+      
+      // Also store notification in Firestore for in-app viewing
+      await _storeNotificationInApp(message);
+    }
+  }
+  
+  /// Store notification in Firestore for in-app viewing
+  Future<void> _storeNotificationInApp(RemoteMessage message) async {
+    try {
+      User? user = _auth.currentUser;
+      if (user == null) return;
+      
+      await _firestore.collection('notifications').add({
+        'userId': user.uid,
+        'title': message.notification?.title ?? 'TrueHome',
+        'message': message.notification?.body ?? '',
+        'type': message.data['type'] ?? 'general',
+        'propertyId': message.data['propertyId'],
+        'isRead': false,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      print('Error storing notification: $e');
     }
   }
 

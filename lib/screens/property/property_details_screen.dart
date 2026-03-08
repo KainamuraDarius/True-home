@@ -85,6 +85,40 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     }
   }
 
+  // Gender policy helper methods
+  Color _getGenderPolicyColor(GenderPolicy policy) {
+    switch (policy) {
+      case GenderPolicy.maleOnly:
+        return Colors.blue;
+      case GenderPolicy.femaleOnly:
+        return Colors.pink;
+      case GenderPolicy.mixed:
+        return Colors.purple;
+    }
+  }
+
+  IconData _getGenderPolicyIcon(GenderPolicy policy) {
+    switch (policy) {
+      case GenderPolicy.maleOnly:
+        return Icons.male;
+      case GenderPolicy.femaleOnly:
+        return Icons.female;
+      case GenderPolicy.mixed:
+        return Icons.people;
+    }
+  }
+
+  String _getGenderPolicyLabel(GenderPolicy policy) {
+    switch (policy) {
+      case GenderPolicy.maleOnly:
+        return 'Male Only';
+      case GenderPolicy.femaleOnly:
+        return 'Female Only';
+      case GenderPolicy.mixed:
+        return 'Mixed Gender';
+    }
+  }
+
   Future<void> _checkFavoriteStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final favorites = prefs.getStringList(_favoritesKey) ?? [];
@@ -398,6 +432,63 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Gender Policy (for hostels)
+                  if (widget.property.type == PropertyType.hostel) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            _getGenderPolicyColor(widget.property.genderPolicy).withOpacity(0.1),
+                            Colors.white,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _getGenderPolicyColor(widget.property.genderPolicy).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _getGenderPolicyIcon(widget.property.genderPolicy),
+                            color: _getGenderPolicyColor(widget.property.genderPolicy),
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Gender Policy',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _getGenderPolicyLabel(widget.property.genderPolicy),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: _getGenderPolicyColor(widget.property.genderPolicy),
                                   ),
                                 ),
                               ],
