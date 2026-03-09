@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../utils/app_theme.dart';
 import 'login_screen.dart';
 import 'role_selection_screen.dart';
+import 'phone_login_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -137,6 +139,36 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
               ),
+              // Sign in with Phone (Web only)
+              if (kIsWeb) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PhoneLoginScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.phone_android, color: Colors.white),
+                    label: const Text(
+                      'Sign in with Phone',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white, width: 2),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               // Already have an account
               Row(
