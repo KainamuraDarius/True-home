@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import '../models/property_model.dart';
@@ -18,9 +19,16 @@ class NotificationService {
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    // Initialize timezone
-    tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Africa/Kampala'));
+    // Skip local notifications setup on web
+    if (kIsWeb) {
+      _initialized = true;
+      return;
+    }
+
+    try {
+      // Initialize timezone
+      tz.initializeTimeZones();
+      tz.setLocalLocation(tz.getLocation('Africa/Kampala'));
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -62,6 +70,10 @@ class NotificationService {
     await _scheduleDailyNotifications();
 
     _initialized = true;
+    } catch (e) {
+      print('Error initializing local notifications: $e');
+      _initialized = true; // Mark as initialized to prevent repeated attempts
+    }
   }
 
   // Show local push notification
