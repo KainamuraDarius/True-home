@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../../utils/responsive_helper.dart';
 import '../../models/property_model.dart';
 import '../../models/project_model.dart';
 import '../../models/user_model.dart';
@@ -81,10 +82,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = kIsWeb && ResponsiveHelper.isDesktop(context);
+    
     return Scaffold(
       key: _scaffoldKey,
-      drawer: kIsWeb ? _buildDrawer() : null,
-      body: _screens[_currentIndex],
+      drawer: kIsWeb && !isDesktop ? _buildDrawer() : null, // Drawer only for tablet web
+      body: isDesktop 
+          ? _buildDesktopLayout() 
+          : _screens[_currentIndex],
       bottomNavigationBar: kIsWeb
           ? null
           : BottomNavigationBar(
@@ -246,6 +251,253 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         });
         _scaffoldKey.currentState?.closeDrawer();
       },
+    );
+  }
+
+  /// Desktop layout with fixed sidebar navigation
+  Widget _buildDesktopLayout() {
+    return Row(
+      children: [
+        // Fixed Sidebar Navigation
+        _buildDesktopSidebar(),
+        
+        // Main Content Area
+        Expanded(
+          child: _screens[_currentIndex],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopSidebar() {
+    return Container(
+      width: ResponsiveHelper.getSidebarWidth(context),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(2, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Logo Section
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primary,
+                  AppColors.primary.withOpacity(0.85),
+                ],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.home_rounded,
+                    color: AppColors.primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'True Home',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Find your perfect place',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // User Info (if logged in)
+          if (_currentUser != null) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    child: Text(
+                      (_currentUser?.name ?? 'U')[0].toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _currentUser?.name ?? 'User',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          _currentUser?.email ?? '',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey.shade200),
+          ],
+          
+          const SizedBox(height: 8),
+          
+          // Navigation Items
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                _buildSidebarItem(
+                  icon: Icons.home_outlined,
+                  activeIcon: Icons.home_rounded,
+                  title: 'Home',
+                  index: 0,
+                ),
+                _buildSidebarItem(
+                  icon: Icons.search_outlined,
+                  activeIcon: Icons.search_rounded,
+                  title: 'Search',
+                  index: 1,
+                ),
+                _buildSidebarItem(
+                  icon: Icons.favorite_outline,
+                  activeIcon: Icons.favorite_rounded,
+                  title: 'Favorites',
+                  index: 2,
+                ),
+                _buildSidebarItem(
+                  icon: Icons.person_outline,
+                  activeIcon: Icons.person_rounded,
+                  title: 'Profile',
+                  index: 3,
+                ),
+              ],
+            ),
+          ),
+          
+          // Footer
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Divider(height: 1, color: Colors.grey.shade200),
+                const SizedBox(height: 16),
+                Text(
+                  '© 2026 True Home',
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarItem({
+    required IconData icon,
+    required IconData activeIcon,
+    required String title,
+    required int index,
+  }) {
+    final isSelected = _currentIndex == index;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  isSelected ? activeIcon : icon,
+                  size: 24,
+                  color: isSelected ? AppColors.primary : Colors.grey.shade600,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: isSelected ? AppColors.primary : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+                if (isSelected)
+                  Container(
+                    width: 4,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2002,25 +2254,53 @@ class _HomeTabState extends State<HomeTab> {
 
                           return Column(
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: ListView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: propertiesToDisplay.length,
-                                  itemBuilder: (context, index) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 16,
-                                      ),
-                                      child: _buildPropertyCard(
-                                        context,
-                                        propertiesToDisplay[index],
-                                      ),
-                                    );
-                                  },
+                              // Responsive property list - grid on desktop, list on mobile
+                              Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: ResponsiveHelper.getMaxContentWidth(context),
+                                  ),
+                                  child: Padding(
+                                    padding: ResponsiveHelper.getContentPadding(context),
+                                    child: ResponsiveHelper.isDesktop(context)
+                                        ? GridView.builder(
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                              crossAxisCount: ResponsiveHelper.getGridCrossAxisCount(
+                                                context,
+                                                mobileCount: 1,
+                                                tabletCount: 2,
+                                                desktopCount: 3,
+                                                largeDesktopCount: 4,
+                                              ),
+                                              childAspectRatio: 0.75,
+                                              crossAxisSpacing: 20,
+                                              mainAxisSpacing: 20,
+                                            ),
+                                            itemCount: propertiesToDisplay.length,
+                                            itemBuilder: (context, index) {
+                                              return _buildPropertyCard(
+                                                context,
+                                                propertiesToDisplay[index],
+                                              );
+                                            },
+                                          )
+                                        : ListView.builder(
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            itemCount: propertiesToDisplay.length,
+                                            itemBuilder: (context, index) {
+                                              return Padding(
+                                                padding: const EdgeInsets.only(bottom: 16),
+                                                child: _buildPropertyCard(
+                                                  context,
+                                                  propertiesToDisplay[index],
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                  ),
                                 ),
                               ),
                               if (hasMore) ...[
@@ -3098,13 +3378,12 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildPropertyCard(BuildContext context, PropertyModel property) {
-    // Debug: Log image URLs for each property
-    print('🏠 Property: ${property.title}');
-    print('📸 Image URLs count: ${property.imageUrls.length}');
-    print('📸 Image URLs: ${property.imageUrls}');
+    final isDesktopGrid = ResponsiveHelper.isDesktop(context);
+    final imageHeight = isDesktopGrid ? 160.0 : 180.0;
     
     return Card(
       elevation: 2,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
@@ -3115,343 +3394,207 @@ class _HomeTabState extends State<HomeTab> {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: isDesktopGrid ? MainAxisSize.max : MainAxisSize.min,
           children: [
-            // Property Image
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                  child: property.imageUrls.isNotEmpty
-                      ? Image.network(
-                          property.imageUrls.first,
-                          width: double.infinity,
-                          height: 180,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              height: 180,
-                              width: double.infinity,
-                              color: AppColors.surfaceLight,
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Loading image...',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            print('❌ Error loading image for ${property.title}:');
-                            print('   URL: ${property.imageUrls.first}');
-                            print('   Error: $error');
-                            return Container(
-                              height: 180,
-                              width: double.infinity,
-                              color: Colors.red.shade50,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.broken_image,
-                                    size: 40,
-                                    color: Colors.red,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Image failed to load',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.red[700],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        )
-                      : Container(
-                          height: 180,
-                          width: double.infinity,
-                          color: Colors.orange.shade50,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.hide_image,
-                                size: 40,
-                                color: Colors.orange,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No images available',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.orange[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
-                // Sold Out Badge
-                if (!property.isActive)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Text(
-                        'SOLD OUT',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            // Property Image - Use AspectRatio for grid, fixed height for list
+            isDesktopGrid
+                ? Expanded(
+                    flex: 3,
+                    child: _buildPropertyImage(property, null),
+                  )
+                : _buildPropertyImage(property, imageHeight),
             // Property Details
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    property.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (property.companyName.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.business,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'by ${property.companyName}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                              fontStyle: FontStyle.italic,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          property.location,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // University info for hostels
-                  if (property.type == PropertyType.hostel &&
-                      property.university != null) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(Icons.school, size: 16, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            property.university!,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-
-                  if (property.bedrooms > 0 || property.bathrooms > 0) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        if (property.bedrooms > 0) ...[
-                          const Icon(
-                            Icons.bed,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${property.bedrooms}',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          const SizedBox(width: 12),
-                        ],
-                        if (property.bathrooms > 0) ...[
-                          const Icon(
-                            Icons.bathtub,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${property.bathrooms}',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child:
-                            property.type == PropertyType.hostel &&
-                                property.roomTypes.isNotEmpty
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'From ${property.currency} ${CurrencyFormatter.format(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    '${property.roomTypes.length} room type${property.roomTypes.length > 1 ? 's' : ''}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                                    ? "/month"
-                                    : property.type == PropertyType.hostel
-                                    ? "/semester"
-                                    : ""}',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: property.type == PropertyType.hostel
-                              ? Colors.purple.withOpacity(0.1)
-                              : property.type == PropertyType.rent
-                              ? Colors.blue.withOpacity(0.1)
-                              : Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          property.type == PropertyType.hostel
-                              ? 'HOSTEL'
-                              : property.type == PropertyType.rent
-                              ? 'RENT'
-                              : 'SALE',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: property.type == PropertyType.hostel
-                                ? Colors.purple
-                                : property.type == PropertyType.rent
-                                ? Colors.blue
-                                : Colors.green,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            isDesktopGrid
+                ? Expanded(
+                    flex: 2,
+                    child: _buildPropertyDetails(property),
+                  )
+                : _buildPropertyDetails(property),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPropertyImage(PropertyModel property, double? height) {
+    return Stack(
+      fit: height == null ? StackFit.expand : StackFit.loose,
+      children: [
+        ClipRRect(
+          borderRadius: height != null 
+              ? const BorderRadius.vertical(top: Radius.circular(12))
+              : BorderRadius.zero,
+          child: property.imageUrls.isNotEmpty
+              ? Image.network(
+                  property.imageUrls.first,
+                  width: double.infinity,
+                  height: height,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: height ?? double.infinity,
+                      width: double.infinity,
+                      color: AppColors.surfaceLight,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: height ?? double.infinity,
+                      width: double.infinity,
+                      color: Colors.grey.shade200,
+                      child: const Icon(
+                        Icons.broken_image,
+                        size: 40,
+                        color: Colors.grey,
+                      ),
+                    );
+                  },
+                )
+              : Container(
+                  height: height ?? double.infinity,
+                  width: double.infinity,
+                  color: Colors.grey.shade200,
+                  child: const Icon(
+                    Icons.home_outlined,
+                    size: 40,
+                    color: Colors.grey,
+                  ),
+                ),
+        ),
+        // Sold Out Badge
+        if (!property.isActive)
+          Positioned(
+            top: 8,
+            left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'SOLD OUT',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ),
+        // Property Type Badge
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: property.type == PropertyType.hostel
+                  ? Colors.purple
+                  : property.type == PropertyType.rent
+                      ? Colors.blue
+                      : Colors.green,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              property.type == PropertyType.hostel
+                  ? 'HOSTEL'
+                  : property.type == PropertyType.rent
+                      ? 'RENT'
+                      : 'SALE',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPropertyDetails(PropertyModel property) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            property.title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(
+                Icons.location_on_outlined,
+                size: 14,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: Text(
+                  property.location,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          if (property.bedrooms > 0 || property.bathrooms > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                if (property.bedrooms > 0) ...[
+                  const Icon(Icons.bed, size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 2),
+                  Text('${property.bedrooms}', style: const TextStyle(fontSize: 11)),
+                  const SizedBox(width: 8),
+                ],
+                if (property.bathrooms > 0) ...[
+                  const Icon(Icons.bathtub, size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 2),
+                  Text('${property.bathrooms}', style: const TextStyle(fontSize: 11)),
+                ],
+              ],
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            property.type == PropertyType.hostel && property.roomTypes.isNotEmpty
+                ? 'From ${property.currency} ${CurrencyFormatter.format(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}'
+                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? "/month" : property.type == PropertyType.hostel ? "/sem" : ""}',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -4736,22 +4879,28 @@ class _FavoritesTabState extends State<FavoritesTab> {
               child: ListView(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.65,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
+                    padding: ResponsiveHelper.getContentPadding(context),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: ResponsiveHelper.getMaxContentWidth(context),
+                        ),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: ResponsiveHelper.getGridCrossAxisCount(context),
+                            childAspectRatio: ResponsiveHelper.getPropertyCardAspectRatio(context),
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
+                          itemCount: _favoriteProperties.length,
+                          itemBuilder: (context, index) {
+                            final property = _favoriteProperties[index];
+                            return _buildPropertyCard(property);
+                          },
+                        ),
                       ),
-                      itemCount: _favoriteProperties.length,
-                      itemBuilder: (context, index) {
-                        final property = _favoriteProperties[index];
-                        return _buildPropertyCard(property);
-                      },
                     ),
                   ),
                 ],
