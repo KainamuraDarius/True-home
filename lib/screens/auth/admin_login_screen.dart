@@ -381,43 +381,44 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   Widget _buildBrandingPanel() {
     return Container(
       padding: const EdgeInsets.all(48),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAnimatedLogo(),
-          const SizedBox(height: 40),
-          FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'True Home',
-                    style: TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 2,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAnimatedLogo(),
+            const SizedBox(height: 40),
+            FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'True Home',
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 2,
+                      ),
                     ),
-                  ),
-                  const Text(
-                    'Administration Portal',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w300,
-                      color: Colors.white70,
-                      letterSpacing: 4,
+                    const Text(
+                      'Administration Portal',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w300,
+                        color: Colors.white70,
+                        letterSpacing: 4,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 40),
-                  Container(
-                    width: 60,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                    const SizedBox(height: 40),
+                    Container(
+                      width: 60,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
                         colors: [Colors.blue.shade400, Colors.purple.shade400],
                       ),
                       borderRadius: BorderRadius.circular(2),
@@ -446,6 +447,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
             ),
           ),
         ],
+        ),
       ),
     );
   }

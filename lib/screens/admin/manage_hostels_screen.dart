@@ -607,17 +607,17 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.red, size: 20),
+                  Icon(Icons.info_outline, color: Colors.orange, size: 20),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This action cannot be undone. All reservations and data will be lost.',
-                      style: TextStyle(color: Colors.red, fontSize: 13),
+                      'The hostel will be moved to trash. You can restore it later.',
+                      style: TextStyle(color: Colors.orange, fontSize: 13),
                     ),
                   ),
                 ],
@@ -656,24 +656,18 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Delete the hostel
-      await _firestore.collection('properties').doc(id).delete();
-
-      // Also delete related reservations
-      final reservations = await _firestore
-          .collection('reservations')
-          .where('propertyId', isEqualTo: id)
-          .get();
-
-      for (final doc in reservations.docs) {
-        await doc.reference.delete();
-      }
+      // Soft delete - move to trash by changing status to 'removed'
+      await _firestore.collection('properties').doc(id).update({
+        'previousStatus': 'approved', // Save current status for restore
+        'status': 'removed',
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
 
       if (mounted) {
         Navigator.pop(context); // Close loading
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('"$title" deleted successfully'),
+            content: Text('"$title" moved to trash'),
             backgroundColor: Colors.green,
           ),
         );

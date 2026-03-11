@@ -489,12 +489,12 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
 
   Future<void> _deleteProperty(PropertyModel property) async {
     try {
-      // Update property status to 'removed' instead of deleting
-      // This allows admin to view removed properties later
+      // Save the previous status for potential restoration, then set to 'removed'
       await FirebaseFirestore.instance
           .collection('properties')
           .doc(property.id)
           .update({
+        'previousStatus': property.status.name, // Save current status for restore
         'status': PropertyStatus.removed.name,
         'updatedAt': DateTime.now().toIso8601String(),
       });

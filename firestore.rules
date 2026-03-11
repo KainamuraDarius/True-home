@@ -51,8 +51,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.status == 'approved' ||
         resource.data.ownerId == request.auth.uid ||
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        isAdmin()
       );
       // Only property owner can create
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
@@ -60,14 +59,14 @@ service cloud.firestore {
       // Also allow anyone to update room availability (roomTypes array) or view count
       allow update: if isSignedIn() && (
         resource.data.ownerId == request.auth.uid ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        isAdmin() ||
         // Allow updating roomTypes and updatedAt fields for availability tracking
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomTypes', 'updatedAt']) ||
         // Allow anyone authenticated to update view count
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount'])
       );
-      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      // Owner can delete their own properties, admins can delete any property
+      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
     }
     
     // Advertised Projects collection (for Browse New Projects section)
@@ -80,9 +79,10 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         resource.data.developerId == request.auth.uid ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'clickCount'])) ||
-        (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isApproved']))
+        isAdmin()
       );
-      allow delete: if isSignedIn() && resource.data.developerId == request.auth.uid;
+      // Owner can delete their own projects, admins can delete any project
+      allow delete: if isSignedIn() && (resource.data.developerId == request.auth.uid || isAdmin());
     }
     
     // Bookmarks collection
@@ -187,6 +187,18 @@ service cloud.firestore {
       allow write: if isSignedIn() && (
         isAdmin() ||
         // Fallback: check custom claims or email
+        request.auth.token.admin == true ||
+        request.auth.token.email == 'truehome376@gmail.com'
+      );
+    }
+    
+    // App config collection (maintenance mode - used by MaintenanceService)
+    match /app_config/{document} {
+      // Anyone can read app config (to check maintenance mode)
+      allow read: if true;
+      // Admins can write
+      allow write: if isSignedIn() && (
+        isAdmin() ||
         request.auth.token.admin == true ||
         request.auth.token.email == 'truehome376@gmail.com'
       );

@@ -126,7 +126,7 @@ class ProjectService {
   }
 
   // Admin: Get all projects (for management)
-  Future<List<Project>> getAllProjects({bool? isApproved}) async {
+  Future<List<Project>> getAllProjects({bool? isApproved, bool includeDeleted = false}) async {
     try {
       // Simplified query - get all projects first
       final querySnapshot = await _firestore
@@ -137,6 +137,14 @@ class ProjectService {
       List<Project> projects = querySnapshot.docs
           .map((doc) => Project.fromFirestore(doc))
           .toList();
+
+      // Filter out deleted projects unless includeDeleted is true
+      if (!includeDeleted) {
+        projects = projects.where((p) {
+          final data = querySnapshot.docs.firstWhere((d) => d.id == p.id).data();
+          return data['isDeleted'] != true;
+        }).toList();
+      }
 
       // Filter by approval status if specified
       if (isApproved != null) {
@@ -166,13 +174,16 @@ class ProjectService {
     }
   }
 
-  // Admin: Delete project
+  // Admin: Delete project (soft delete - moves to trash)
   Future<void> deleteProject(String projectId) async {
     try {
       await _firestore
           .collection('advertised_projects')
           .doc(projectId)
-          .delete();
+          .update({
+        'isDeleted': true,
+        'deletedAt': DateTime.now().toIso8601String(),
+      });
     } catch (e) {
       print('Error deleting project: $e');
       rethrow;

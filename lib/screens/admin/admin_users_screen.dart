@@ -92,11 +92,40 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   );
                 }
 
+                // Filter out deleted users
+                final activeDocs = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return data['isDeleted'] != true;
+                }).toList();
+
+                if (activeDocs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.people_outline,
+                          size: 80,
+                          color: AppColors.textSecondary.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No users found',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.docs.length,
+                  itemCount: activeDocs.length,
                   itemBuilder: (context, index) {
-                    final doc = snapshot.data!.docs[index];
+                    final doc = activeDocs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     return _buildUserCard(doc.id, data);
                   },
@@ -143,9 +172,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Widget _buildUserCard(String userId, Map<String, dynamic> data) {
-    final role = (data['role'] ?? 'customer').toString();
+    final role = (data['role'] ?? data['activeRole'] ?? 'customer').toString();
     final roleColor = _getRoleColor(role);
     final roleIcon = _getRoleIcon(role);
+    
+    // Get the user's available roles
+    final List<String> roles = _getUserRoles(data);
+    final bool isAgent = roles.contains('propertyAgent');
+    final bool isAdmin = roles.contains('admin');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -211,7 +245,64 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   'Joined',
                   _formatDate(data['createdAt']),
                 ),
+                const SizedBox(height: 8),
+                _buildInfoRow(
+                  'Available Roles',
+                  roles.map((r) => _getRoleDisplayName(r)).join(', '),
+                ),
                 const SizedBox(height: 16),
+                // Role Management Section
+                if (!isAdmin) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Role Management',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (!isAgent)
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _promoteToAgent(userId, data['name']),
+                              icon: const Icon(Icons.upgrade, size: 18),
+                              label: const Text('Promote to Agent'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _demoteToCustomer(userId, data['name']),
+                              icon: const Icon(Icons.arrow_downward, size: 18),
+                              label: const Text('Demote to Customer'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Row(
                   children: [
                     Expanded(
@@ -226,7 +317,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: role != 'admin'
+                        onPressed: !isAdmin
                             ? () => _deleteUser(userId, data['name'])
                             : null,
                         icon: const Icon(Icons.delete_outline, size: 18),
@@ -357,7 +448,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete User'),
         content: Text(
-          'Are you sure you want to delete "$userName"? This action cannot be undone.',
+          'Are you sure you want to delete "$userName"? The user will be moved to trash.',
         ),
         actions: [
           TextButton(
@@ -375,11 +466,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
     if (confirm == true) {
       try {
-        await _firestore.collection('users').doc(userId).delete();
+        // Soft delete - move to trash instead of permanent deletion
+        await _firestore.collection('users').doc(userId).update({
+          'isDeleted': true,
+          'deletedAt': DateTime.now().toIso8601String(),
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('User "$userName" deleted successfully'),
+              content: Text('User "$userName" moved to trash'),
               backgroundColor: AppColors.success,
             ),
           );
@@ -389,6 +484,166 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to delete user: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// Get all roles for a user from Firestore data
+  List<String> _getUserRoles(Map<String, dynamic> data) {
+    final List<String> roles = [];
+    
+    // Check 'roles' array field
+    if (data['roles'] != null && data['roles'] is List) {
+      for (var r in data['roles']) {
+        final roleStr = r.toString();
+        if (!roles.contains(roleStr)) {
+          roles.add(roleStr);
+        }
+      }
+    }
+    
+    // Check legacy 'role' field
+    if (data['role'] != null) {
+      final roleStr = data['role'].toString();
+      if (!roles.contains(roleStr)) {
+        roles.add(roleStr);
+      }
+    }
+    
+    // Check 'activeRole' field
+    if (data['activeRole'] != null) {
+      final roleStr = data['activeRole'].toString();
+      if (!roles.contains(roleStr)) {
+        roles.add(roleStr);
+      }
+    }
+    
+    // Default to customer if no roles found
+    if (roles.isEmpty) {
+      roles.add('customer');
+    }
+    
+    return roles;
+  }
+
+  /// Promote a customer to agent
+  Future<void> _promoteToAgent(String userId, String? userName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Promote to Agent'),
+        content: Text(
+          'Are you sure you want to promote "${userName ?? 'this user'}" to Property Agent?\n\n'
+          'This will allow them to list properties on the platform.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.green),
+            child: const Text('Promote'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // Get current user data
+        final userDoc = await _firestore.collection('users').doc(userId).get();
+        final userData = userDoc.data() ?? {};
+        
+        // Get current roles
+        List<String> currentRoles = _getUserRoles(userData);
+        
+        // Add propertyAgent if not already present
+        if (!currentRoles.contains('propertyAgent')) {
+          currentRoles.add('propertyAgent');
+        }
+        
+        // Update user document
+        await _firestore.collection('users').doc(userId).update({
+          'roles': currentRoles,
+          'role': 'propertyAgent', // Update legacy field
+          'activeRole': 'propertyAgent', // Set as active role
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${userName ?? 'User'} has been promoted to Property Agent'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to promote user: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// Demote an agent to customer only
+  Future<void> _demoteToCustomer(String userId, String? userName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Demote to Customer'),
+        content: Text(
+          'Are you sure you want to demote "${userName ?? 'this user'}" to Customer only?\n\n'
+          'This will remove their ability to list properties. Their existing listings will remain.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            child: const Text('Demote'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // Update user document - remove propertyAgent role
+        await _firestore.collection('users').doc(userId).update({
+          'roles': ['customer'],
+          'role': 'customer',
+          'activeRole': 'customer',
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${userName ?? 'User'} has been demoted to Customer'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to demote user: $e'),
               backgroundColor: AppColors.error,
             ),
           );
