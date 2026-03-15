@@ -283,7 +283,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
 
                         // ── Location ──────────────────────────────────────
                         DropdownButtonFormField<String>(
-                          value: _selectedLocation,
+                          initialValue: _selectedLocation,
                           decoration: const InputDecoration(
                             labelText: 'Location *',
                             border: OutlineInputBorder(),
@@ -316,7 +316,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
 
                         // ── Project Status ────────────────────────────────
                         DropdownButtonFormField<ProjectStatus>(
-                          value: _selectedProjectStatus,
+                          initialValue: _selectedProjectStatus,
                           decoration: const InputDecoration(
                             labelText: 'Project Status *',
                             border: OutlineInputBorder(),
