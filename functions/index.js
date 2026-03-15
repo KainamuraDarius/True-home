@@ -203,6 +203,67 @@ exports.sendVerificationEmailHttp = functions.https.onCall(async (data, context)
   }
 });
 
+// Automatically notify hostel custodians when a new reservation is created.
+exports.onReservationCreatedNotifyCustodian = functions.firestore
+  .document('reservations/{reservationId}')
+  .onCreate(async (snap, context) => {
+    const reservation = snap.data();
+    const reservationId = context.params.reservationId;
+
+    const custodianEmail = reservation.hostelManagerEmail;
+    const fallbackAdminEmail = functions.config().email?.user || process.env.EMAIL_USER;
+    const recipient = custodianEmail || fallbackAdminEmail;
+
+    if (!recipient) {
+      console.log('No custodian/admin recipient email configured for reservation', reservationId);
+      return null;
+    }
+
+    const mailOptions = {
+      from: `True Home <${functions.config().email?.user || 'noreply@truehome.com'}>`,
+      to: recipient,
+      subject: `New Hostel Booking: ${reservation.propertyTitle || 'Hostel Reservation'}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222; max-width: 620px; margin: 0 auto;">
+          <h2 style="margin-bottom: 8px;">New Hostel Booking</h2>
+          <p style="margin-top: 0; color: #666;">Reservation ID: <strong>${reservationId}</strong></p>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+            <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Hostel</strong></td><td style="padding: 8px; border: 1px solid #eee;">${reservation.propertyTitle || ''}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Room Type</strong></td><td style="padding: 8px; border: 1px solid #eee;">${reservation.roomTypeName || ''}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Student Name</strong></td><td style="padding: 8px; border: 1px solid #eee;">${reservation.studentName || ''}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Student Phone</strong></td><td style="padding: 8px; border: 1px solid #eee;">${reservation.studentPhone || ''}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Student Email</strong></td><td style="padding: 8px; border: 1px solid #eee;">${reservation.studentEmail || 'N/A'}</td></tr>
+            <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Payment Status</strong></td><td style="padding: 8px; border: 1px solid #eee;">${reservation.paymentStatus || 'pending'}</td></tr>
+          </table>
+          <p style="margin-top: 16px;">Please follow up with the student for room allocation and records.</p>
+        </div>
+      `,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`Custodian booking notification sent for reservation ${reservationId} to ${recipient}`);
+
+      await admin.firestore().collection('custodian_notifications_log').add({
+        reservationId,
+        recipient,
+        sentAt: new Date().toISOString(),
+        status: 'sent',
+      });
+    } catch (error) {
+      console.error('Error sending custodian reservation email:', error);
+      await admin.firestore().collection('custodian_notifications_log').add({
+        reservationId,
+        recipient,
+        sentAt: new Date().toISOString(),
+        status: 'failed',
+        errorMessage: error.message,
+      });
+    }
+
+    return null;
+  });
+
 // ============================================
 // PUSH NOTIFICATIONS (FCM)
 // ============================================

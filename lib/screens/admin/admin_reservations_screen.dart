@@ -759,13 +759,19 @@ class _AdminReservationsScreenState extends State<AdminReservationsScreen> {
       }
 
       // Update reservation status in Firestore
+      final updateData = <String, dynamic>{
+        'status': newStatus.toString().split('.').last,
+        'updatedAt': Timestamp.now(),
+      };
+      // When admin confirms, also mark payment as received
+      if (newStatus == ReservationStatus.confirmed) {
+        updateData['paymentStatus'] = 'paid';
+        updateData['paymentDate'] = Timestamp.now();
+      }
       await FirebaseFirestore.instance
           .collection('reservations')
           .doc(reservation.id)
-          .update({
-        'status': newStatus.toString().split('.').last,
-        'updatedAt': Timestamp.now(),
-      });
+          .update(updateData);
 
       if (!mounted) return;
       

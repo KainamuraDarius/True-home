@@ -11,6 +11,8 @@ import '../../models/property_model.dart';
 import '../../models/project_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/universities.dart';
+import '../auth/login_screen.dart';
+import '../auth/role_selection_screen.dart';
 import '../common/profile_screen.dart';
 import '../common/notifications_screen.dart';
 import '../property/property_details_screen.dart';
@@ -34,6 +36,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   UserModel? _currentUser;
 
+  bool get _isGuestUser => FirebaseAuth.instance.currentUser == null;
+
   List<Widget> get _screens => [
     HomeTab(
       isWebNav: kIsWeb,
@@ -43,11 +47,23 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       isWebNav: kIsWeb,
       onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
     ),
-    FavoritesTab(
-      isWebNav: kIsWeb,
-      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-    ),
-    const ProfileScreen(showWebFooter: true),
+    _isGuestUser
+        ? GuestAccessScreen(
+            title: 'Login To Save Favorites',
+            description:
+                'Browsing is open, but saved items and account tools require signing in.',
+          )
+        : FavoritesTab(
+            isWebNav: kIsWeb,
+            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+    _isGuestUser
+        ? GuestAccessScreen(
+            title: 'Create An Account',
+            description:
+                'Use your account to manage bookings, profile details, and other protected actions.',
+          )
+        : const ProfileScreen(showWebFooter: true),
   ];
 
   @override
@@ -2444,9 +2460,6 @@ class _HomeTabState extends State<HomeTab> {
                 ), // Close Container for filtered properties section
                 const SizedBox(height: 24),
               ], // Close if (_selectedFilter != null)
-              // Spotlight Properties Section - Shows FIRST when no filter, AFTER filtered properties when filter is active
-              _buildNewProjectsCarousel(),
-              const SizedBox(height: 24),
               // Browse New Projects Section
               _buildBrowseNewProjectsSection(),
               const SizedBox(height: 24),
@@ -3620,9 +3633,16 @@ class _SearchTabState extends State<SearchTab> {
   double _minPrice = 0;
   double _maxPrice = 10000000;
   int? _bedrooms;
+  int? _bathrooms;
   PropertyType? _selectedPropertyType;
+  String? _selectedCategory;
+  bool _featuredOnly = false;
+  bool _withPhotosOnly = false;
+  String _sortBy = 'newest';
   bool _showFilters = false;
   List<PropertyModel> _searchResults = [];
+  List<PropertyModel> _featuredResults = [];
+  List<PropertyModel> _organicResults = [];
   bool _isSearching = false;
   List<String> _searchHistory = [];
   bool _showHistory = false;
@@ -3759,8 +3779,36 @@ class _SearchTabState extends State<SearchTab> {
         }
       }
 
+      if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+        results = results
+            .where((p) => p.category.trim().toLowerCase() == _selectedCategory!.toLowerCase())
+            .toList();
+      }
+
+      if (_bathrooms != null) {
+        results = results.where((p) => p.bathrooms >= _bathrooms!).toList();
+      }
+
+      if (_featuredOnly) {
+        results = results.where((p) => p.hasActivePromotion).toList();
+      }
+
+      if (_withPhotosOnly) {
+        results = results.where((p) => p.imageUrls.isNotEmpty).toList();
+      }
+
+      _sortSearchResults(results);
+
+      final featuredCandidates =
+          results.where((p) => p.hasActivePromotion).toList()..shuffle();
+      final featured = featuredCandidates.take(5).toList();
+      final featuredIds = featured.map((p) => p.id).toSet();
+      final organic = results.where((p) => !featuredIds.contains(p.id)).toList();
+
       setState(() {
         _searchResults = results;
+        _featuredResults = featured;
+        _organicResults = organic;
         _isSearching = false;
       });
     } catch (e) {
@@ -3781,9 +3829,34 @@ class _SearchTabState extends State<SearchTab> {
       _minPrice = 0;
       _maxPrice = 10000000;
       _bedrooms = null;
+      _bathrooms = null;
       _selectedPropertyType = null;
+      _selectedCategory = null;
+      _featuredOnly = false;
+      _withPhotosOnly = false;
+      _sortBy = 'newest';
       _searchResults = [];
+      _featuredResults = [];
+      _organicResults = [];
     });
+  }
+
+  void _sortSearchResults(List<PropertyModel> results) {
+    switch (_sortBy) {
+      case 'price_low_high':
+        results.sort((a, b) => a.price.compareTo(b.price));
+        break;
+      case 'price_high_low':
+        results.sort((a, b) => b.price.compareTo(a.price));
+        break;
+      case 'most_viewed':
+        results.sort((a, b) => b.viewCount.compareTo(a.viewCount));
+        break;
+      case 'newest':
+      default:
+        results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+    }
   }
 
   Future<bool> _isFavoriteProperty(String propertyId) async {
@@ -3793,6 +3866,46 @@ class _SearchTabState extends State<SearchTab> {
   }
 
   Future<void> _toggleFavoriteProperty(String propertyId) async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text(
+            'Create an account or log in to save favorites and manage your shortlist.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RoleSelectionScreen(),
+                  ),
+                );
+              },
+              child: const Text('Create Account'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LoginScreen(),
+                  ),
+                );
+              },
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     List<String> favorites = prefs.getStringList('favorite_properties') ?? [];
 
@@ -4374,6 +4487,109 @@ class _SearchTabState extends State<SearchTab> {
                     ),
                     const SizedBox(height: 16),
 
+                    const Text(
+                      'Bathrooms (minimum)',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [1, 2, 3, 4].map((num) {
+                        return FilterChip(
+                          label: Text('$num+'),
+                          selected: _bathrooms == num,
+                          onSelected: (selected) {
+                            setState(() {
+                              _bathrooms = selected ? num : null;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      'Category',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        'Flat',
+                        'Bungalow',
+                        'Condo',
+                        'Villa',
+                        'Apartment',
+                        'Studio room',
+                        'Commercial',
+                      ].map((category) {
+                        return FilterChip(
+                          label: Text(category),
+                          selected: _selectedCategory == category,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedCategory = selected ? category : null;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Featured only', style: TextStyle(fontSize: 13)),
+                            value: _featuredOnly,
+                            onChanged: (value) {
+                              setState(() {
+                                _featuredOnly = value;
+                              });
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('With photos', style: TextStyle(fontSize: 13)),
+                            value: _withPhotosOnly,
+                            onChanged: (value) {
+                              setState(() {
+                                _withPhotosOnly = value;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    DropdownButtonFormField<String>(
+                      initialValue: _sortBy,
+                      decoration: const InputDecoration(
+                        labelText: 'Sort results by',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'newest', child: Text('Newest first')),
+                        DropdownMenuItem(value: 'price_low_high', child: Text('Price: Low to High')),
+                        DropdownMenuItem(value: 'price_high_low', child: Text('Price: High to Low')),
+                        DropdownMenuItem(value: 'most_viewed', child: Text('Most viewed')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _sortBy = value;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
                     // Apply Filters Button
                     SizedBox(
                       width: double.infinity,
@@ -4431,16 +4647,48 @@ class _SearchTabState extends State<SearchTab> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : ListView(
                     padding: const EdgeInsets.all(16),
-                    itemCount: _searchResults.length,
-                    itemBuilder: (context, index) {
-                      final property = _searchResults[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: _buildPropertyCard(property),
-                      );
-                    },
+                    children: [
+                      if (_featuredResults.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            Icon(Icons.star, color: Colors.amber.shade700),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Featured Listings',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '(up to 5 per search)',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ..._featuredResults.map(
+                          (property) => Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _buildPropertyCard(property, isFeatured: true),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (_organicResults.isNotEmpty) ...[
+                        Text(
+                          'All Listings (${_organicResults.length})',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 10),
+                        ..._organicResults.map(
+                          (property) => Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _buildPropertyCard(property),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
           ),
         ],
@@ -4448,7 +4696,7 @@ class _SearchTabState extends State<SearchTab> {
     );
   }
 
-  Widget _buildPropertyCard(PropertyModel property) {
+  Widget _buildPropertyCard(PropertyModel property, {bool isFeatured = false}) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -4459,43 +4707,52 @@ class _SearchTabState extends State<SearchTab> {
         );
       },
       child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: isFeatured ? 4 : 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: isFeatured
+              ? BorderSide(color: Colors.amber.shade300, width: 1.5)
+              : BorderSide.none,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Property Image with Favorite Button
             SizedBox(
-              height: 200,
+              height: 240,
               child: Stack(
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(12),
+                      top: Radius.circular(14),
                     ),
                     child: Stack(
                       children: [
                         property.imageUrls.isNotEmpty
-                            ? Image.network(
-                                property.imageUrls[0],
+                            ? CachedNetworkImage(
+                                imageUrl: property.imageUrls[0],
                                 width: double.infinity,
-                                height: 200,
+                                height: 240,
                                 fit: BoxFit.cover,
-                                loadingBuilder:
-                                    (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
-                                        height: 200,
-                                        color: Colors.grey[300],
-                                        child: const Center(
-                                          child: CircularProgressIndicator(),
-                                        ),
-                                      );
-                                    },
-                                errorBuilder: (context, error, stackTrace) {
+                                memCacheWidth: 1200,
+                                fadeInDuration: const Duration(milliseconds: 120),
+                                placeholder: (context, url) {
                                   return Container(
-                                    height: 200,
-                                    color: Colors.grey[300],
+                                    height: 240,
+                                    color: Colors.grey.shade200,
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorWidget: (context, error, stackTrace) {
+                                  return Container(
+                                    height: 240,
+                                    color: Colors.grey.shade200,
                                     child: const Icon(
                                       Icons.home,
                                       size: 50,
@@ -4505,14 +4762,28 @@ class _SearchTabState extends State<SearchTab> {
                                 },
                               )
                             : Container(
-                                height: 200,
-                                color: Colors.grey[300],
+                                height: 240,
+                                color: Colors.grey.shade200,
                                 child: const Icon(
                                   Icons.home,
                                   size: 50,
                                   color: Colors.grey,
                                 ),
                               ),
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.32),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                         // SOLD OUT badge
                         if (!property.isActive)
                           Positioned(
@@ -4541,6 +4812,33 @@ class _SearchTabState extends State<SearchTab> {
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
+                              ),
+                            ),
+                          ),
+                        if (isFeatured)
+                          Positioned(
+                            top: 10,
+                            left: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade700,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.workspace_premium, size: 14, color: Colors.white),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'FEATURED',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -4588,7 +4886,7 @@ class _SearchTabState extends State<SearchTab> {
             ),
             // Property Details
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -4596,9 +4894,9 @@ class _SearchTabState extends State<SearchTab> {
                     property.title,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: 16,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
@@ -4614,7 +4912,7 @@ class _SearchTabState extends State<SearchTab> {
                         child: Text(
                           property.location,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             color: Colors.grey[600],
                           ),
                           maxLines: 1,
@@ -4623,7 +4921,49 @@ class _SearchTabState extends State<SearchTab> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          property.type == PropertyType.sale
+                              ? 'For Sale'
+                              : property.type == PropertyType.rent
+                                  ? 'For Rent'
+                                  : 'Hostel',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (property.category.trim().isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            property.category,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Icon(Icons.bed, size: 14, color: Colors.grey[600]),
@@ -4643,11 +4983,11 @@ class _SearchTabState extends State<SearchTab> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${property.currency} ${property.price.toStringAsFixed(0)}',
+                    '${property.currency} ${CurrencyFormatter.format(property.price)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
-                      fontSize: 14,
+                      fontSize: 18,
                     ),
                   ),
                 ],
@@ -5146,8 +5486,11 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
       return;
     }
 
-    // Update selection and load data in single setState to minimize rebuilds
-    _selectedProjectLocation = location;
+    // Update selection and set loading state before querying.
+    setState(() {
+      _selectedProjectLocation = location;
+      _loadingProjects = true;
+    });
     
     final projects = await _projectService.getProjectsByLocation(location);
 
@@ -5174,15 +5517,60 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
       key: const ValueKey('browse_projects_section'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Browse New Projects In Uganda',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.bodyLarge!.color,
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Theme.of(context).colorScheme.primary.withOpacity(0.10),
+                Theme.of(context).cardColor,
+              ],
             ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.domain_add_rounded,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Browse New Projects In Uganda',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge!.color,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Explore residential and commercial developments by area.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).textTheme.bodySmall!.color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -5340,11 +5728,11 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
         );
       },
       child: Container(
-        width: 280,
+        width: 300,
         margin: const EdgeInsets.only(right: 16),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.08),
@@ -5357,27 +5745,64 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Project image
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: project.imageUrls.isNotEmpty
-                  ? Image.network(
-                      project.imageUrls.first,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                  child: project.imageUrls.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: project.imageUrls.first,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 900,
+                          fadeInDuration: const Duration(milliseconds: 120),
+                          placeholder: (context, _) => Container(
+                            height: 180,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, _, __) {
+                            return Container(
+                              height: 180,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.apartment, size: 48),
+                            );
+                          },
+                        )
+                      : Container(
                           height: 180,
                           color: Colors.grey[300],
                           child: const Icon(Icons.apartment, size: 48),
-                        );
-                      },
-                    )
-                  : Container(
-                      height: 180,
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.apartment, size: 48),
+                        ),
+                ),
+                if (project.isFirstPlaceSubscriber)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade700,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'FEATURED',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
+                  ),
+              ],
             ),
             // Project details
             Padding(
@@ -5422,6 +5847,17 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.visibility_outlined, size: 14, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${project.viewCount} views',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -5438,5 +5874,97 @@ class ProfileTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const ProfileScreen(showWebFooter: true);
+  }
+}
+
+class GuestAccessScreen extends StatelessWidget {
+  final String title;
+  final String description;
+
+  const GuestAccessScreen({
+    super.key,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 42,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  description,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Login'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RoleSelectionScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Create Account'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

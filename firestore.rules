@@ -47,11 +47,15 @@ service cloud.firestore {
     
     // Properties collection
     match /properties/{propertyId} {
-      // Anyone authenticated can read approved properties, owners can read their own, admins can read all
-      allow read: if isSignedIn() && (
-        resource.data.status == 'approved' ||
-        resource.data.ownerId == request.auth.uid ||
-        isAdmin()
+      // Public users can browse approved active properties.
+      // Owners can still read their own drafts, and admins can read everything.
+      allow read: if (
+        resource.data.status == 'approved'
+      ) || (
+        isSignedIn() && (
+          resource.data.ownerId == request.auth.uid ||
+          isAdmin()
+        )
       );
       // Only property owner can create
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
@@ -71,8 +75,14 @@ service cloud.firestore {
     
     // Advertised Projects collection (for Browse New Projects section)
     match /advertised_projects/{projectId} {
-      // Anyone authenticated can read approved projects
-      allow read: if isSignedIn();
+      // Public users can browse approved projects.
+      // Owners can still read their own submissions, and admins can read everything.
+      allow read: if resource.data.isApproved == true || (
+        isSignedIn() && (
+          resource.data.developerId == request.auth.uid ||
+          isAdmin()
+        )
+      );
       // Only project owner can write (except view/click counts)
       allow create: if isSignedIn() && request.resource.data.developerId == request.auth.uid;
       // Allow anyone to update view/click counts, but owner can update everything, or admin can update approval
@@ -93,16 +103,31 @@ service cloud.firestore {
     
     // Reservations collection
     match /reservations/{reservationId} {
-      // Users can read their own reservations, admins can read all
-      allow read: if isSignedIn();
-      // Anyone authenticated can create reservations (field is studentUserId, can be null)
-      allow create: if isSignedIn();
+      // Students can read their own reservations, and admins can read all.
+      allow read: if isSignedIn() && (
+        resource.data.studentUserId == request.auth.uid ||
+        isAdmin()
+      );
+      // Reservation records must belong to the authenticated student creating them.
+      allow create: if isSignedIn() &&
+        request.resource.data.studentUserId == request.auth.uid;
       // Only reservation creator or admin can update
       allow update: if isSignedIn() && (
         (resource.data.studentUserId != null && resource.data.studentUserId == request.auth.uid) ||
         isAdmin()
       );
-      allow delete: if isAdmin();
+      // Students can delete their own pending reservations (effectively cancelling); admins can delete any
+      allow delete: if isAdmin() ||
+        (isSignedIn() && resource.data.studentUserId == request.auth.uid && resource.data.status == 'pending');
+    }
+
+    // Custodian booking follow-up records
+    match /custodian_booking_notifications/{notificationId} {
+      // Students can create follow-up records for their own reservations.
+      allow create: if isSignedIn() &&
+        request.resource.data.studentUserId == request.auth.uid;
+      // Admins can review these records for support and reporting.
+      allow read, update, delete: if isAdmin();
     }
     
     // Notifications collection

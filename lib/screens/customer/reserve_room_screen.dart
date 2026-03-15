@@ -6,6 +6,8 @@ import '../../models/property_model.dart';
 import '../../models/reservation_model.dart';
 import '../../services/room_availability_service.dart';
 import '../../utils/app_theme.dart';
+import '../auth/login_screen.dart';
+import '../auth/role_selection_screen.dart';
 import 'reservation_confirmation_screen.dart';
 
 class ReserveRoomScreen extends StatefulWidget {
@@ -69,6 +71,11 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   }
 
   void _showPaymentDialog() {
+    if (FirebaseAuth.instance.currentUser == null) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -229,7 +236,46 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
     );
   }
 
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Login Required'),
+        content: const Text(
+          'You need to log in or create an account before placing a reservation.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                this.context,
+                MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+              );
+            },
+            child: const Text('Create Account'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                this.context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            child: const Text('Login'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitReservation() async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -283,7 +329,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         paymentReference: 'MANUAL_${DateTime.now().millisecondsSinceEpoch}',
         paymentTransactionId: null,
         paymentDate: null,
-        hostelManagerName: widget.property.contactPhone.isNotEmpty
+        hostelManagerName: widget.property.agentName.trim().isNotEmpty
             ? widget.property.agentName
             : 'Hostel Manager',
         hostelManagerPhone: widget.property.contactPhone,
@@ -291,7 +337,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
             ? widget.property.contactEmail
             : null,
         hostelPaymentInstructions: widget.property.paymentInstructions,
-        status: ReservationStatus.confirmed,
+        status: ReservationStatus.pending,
         createdAt: DateTime.now(),
       );
 
@@ -299,6 +345,34 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
       final docRef = await FirebaseFirestore.instance
           .collection('reservations')
           .add(reservation.toMap());
+
+      // Store a custodian-facing booking record for follow-up and reporting.
+      // This should not invalidate the reservation if the reporting write fails.
+      try {
+        await FirebaseFirestore.instance
+          .collection('custodian_booking_notifications')
+          .add({
+          'reservationId': docRef.id,
+          'propertyId': widget.property.id,
+          'propertyTitle': widget.property.title,
+          'roomTypeName': widget.roomType.name,
+          'studentName': _nameController.text.trim(),
+          'studentPhone': _phoneController.text.trim(),
+          'studentEmail': _emailController.text.trim(),
+          'custodianName': widget.property.agentName.trim().isNotEmpty
+            ? widget.property.agentName.trim()
+            : 'Hostel Custodian',
+          'custodianPhone': widget.property.contactPhone.trim(),
+          'custodianEmail': widget.property.contactEmail.trim(),
+          'studentUserId': currentUser!.uid,
+          'status': 'pending_follow_up',
+          'createdAt': Timestamp.fromDate(DateTime.now()),
+          });
+      } catch (notificationError) {
+        debugPrint(
+          'Custodian follow-up record could not be created for reservation ${docRef.id}: $notificationError',
+        );
+      }
 
       if (!mounted) return;
       Navigator.pop(context); // Close processing dialog

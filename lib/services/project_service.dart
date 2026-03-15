@@ -33,11 +33,11 @@ class ProjectService {
   // Get projects for a specific location with rotation logic
   Future<List<Project>> getProjectsByLocation(String location) async {
     try {
-      // Simplified query - filter by location only to avoid composite index
-      // Then filter approved and non-expired in memory
+      // Query approved projects only, then filter the selected location in memory
+      // to avoid exposing pending submissions to guest users.
       final querySnapshot = await _firestore
           .collection('advertised_projects')
-          .where('location', isEqualTo: location)
+          .where('isApproved', isEqualTo: true)
           .get();
 
       // Get current time
@@ -46,7 +46,12 @@ class ProjectService {
       // Filter approved and non-expired projects in memory
       List<Project> projects = querySnapshot.docs
           .map((doc) => Project.fromFirestore(doc))
-          .where((p) => p.isApproved && p.adExpiresAt.isAfter(now))
+          .where(
+          (p) =>
+            p.location == location &&
+            p.isApproved &&
+            p.adExpiresAt.isAfter(now),
+          )
           .toList();
 
       // With flat pricing, all projects are equal

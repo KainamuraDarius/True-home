@@ -5,6 +5,8 @@ import '../screens/customer/customer_home_screen.dart';
 import '../screens/property/add_property_screen.dart';
 import '../screens/owner/agent_main_screen.dart';
 import '../screens/common/submit_project_screen.dart';
+import '../screens/auth/login_screen.dart';
+import '../screens/auth/role_selection_screen.dart';
 import '../models/property_model.dart';
 
 class WebFooter extends StatefulWidget {
@@ -57,6 +59,12 @@ class _WebFooterState extends State<WebFooter> with SingleTickerProviderStateMix
   }
 
   void _navigateToAddProperty(BuildContext context) {
+    if (!_requireAuthentication(context,
+        title: 'Login Required',
+        message: 'Property management tools are available only to signed-in accounts.')) {
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const AddPropertyScreen(),
@@ -72,10 +80,23 @@ class _WebFooterState extends State<WebFooter> with SingleTickerProviderStateMix
           builder: (context) => const AgentMainScreen(),
         ),
       );
+      return;
     }
+
+    _requireAuthentication(
+      context,
+      title: 'Agent Login Required',
+      message: 'Agent tools are available only after logging in.',
+    );
   }
 
   void _navigateToProjects(BuildContext context) {
+    if (!_requireAuthentication(context,
+        title: 'Login Required',
+        message: 'Project submission requires an account so we can review and manage your listing.')) {
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const SubmitProjectScreen(),
@@ -86,6 +107,46 @@ class _WebFooterState extends State<WebFooter> with SingleTickerProviderStateMix
   void _launchUrl(String url) {
     // TODO: Implement URL launching when social media accounts are available
     print('Opening: $url');
+  }
+
+  bool _requireAuthentication(
+    BuildContext outerContext, {
+    required String title,
+    required String message,
+  }) {
+    if (FirebaseAuth.instance.currentUser != null) {
+      return true;
+    }
+
+    showDialog(
+      context: outerContext,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.of(outerContext).push(
+                MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+              );
+            },
+            child: const Text('Create Account'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.of(outerContext).push(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            child: const Text('Login'),
+          ),
+        ],
+      ),
+    );
+
+    return false;
   }
 
   @override

@@ -65,6 +65,13 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
   final Map<String, TextEditingController> _roomPriceControllers = {};
   final Map<String, TextEditingController> _roomCountControllers = {};
   final Map<String, bool> _selectedRoomTypes = {
+    'Self Contained Single Room': false,
+    'Non-self Contained Single Room': false,
+    'Self Contained Double Room': false,
+    'Non-self Contained Double Room': false,
+    'Shared Room (3 in room)': false,
+    'Shared Room (4 in room)': false,
+    'Bed Space': false,
     'Single Room': false,
     'Double Room': false,
     'Triple Room': false,
