@@ -176,6 +176,17 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
   }
 
   Future<void> _submitProject() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to submit a project.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
     if (_selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -205,7 +216,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
       });
       
       // Create project
-      final user = FirebaseAuth.instance.currentUser!;
+      final user = currentUser;
       final project = Project(
         id: '', // Will be set by Firestore
         name: _nameController.text.trim(),

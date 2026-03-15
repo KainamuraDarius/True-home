@@ -297,6 +297,17 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   }
 
   Future<void> _submitProperty() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to submit a property.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -319,7 +330,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser!;
+      final user = currentUser;
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -778,6 +789,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         DropdownMenuItem(value: 'Villa', child: Text('Villa')),
                         DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
                         DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
+                        DropdownMenuItem(value: 'Commercial', child: Text('Commercial')),
                       ],
                       onChanged: (value) {
                         setState(() {

@@ -63,18 +63,39 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
   
   // Hostel room types
   final Map<String, TextEditingController> _roomPriceControllers = {
+    'Self Contained Single Room': TextEditingController(),
+    'Non-self Contained Single Room': TextEditingController(),
+    'Self Contained Double Room': TextEditingController(),
+    'Non-self Contained Double Room': TextEditingController(),
+    'Shared Room (3 in room)': TextEditingController(),
+    'Shared Room (4 in room)': TextEditingController(),
+    'Bed Space': TextEditingController(),
     'Single Room': TextEditingController(),
     'Double Room': TextEditingController(),
     'Triple Room': TextEditingController(),
     'Shared Room': TextEditingController(),
   };
   final Map<String, TextEditingController> _roomCountControllers = {
+    'Self Contained Single Room': TextEditingController(),
+    'Non-self Contained Single Room': TextEditingController(),
+    'Self Contained Double Room': TextEditingController(),
+    'Non-self Contained Double Room': TextEditingController(),
+    'Shared Room (3 in room)': TextEditingController(),
+    'Shared Room (4 in room)': TextEditingController(),
+    'Bed Space': TextEditingController(),
     'Single Room': TextEditingController(),
     'Double Room': TextEditingController(),
     'Triple Room': TextEditingController(),
     'Shared Room': TextEditingController(),
   };
   final Map<String, bool> _selectedRoomTypes = {
+    'Self Contained Single Room': false,
+    'Non-self Contained Single Room': false,
+    'Self Contained Double Room': false,
+    'Non-self Contained Double Room': false,
+    'Shared Room (3 in room)': false,
+    'Shared Room (4 in room)': false,
+    'Bed Space': false,
     'Single Room': false,
     'Double Room': false,
     'Triple Room': false,

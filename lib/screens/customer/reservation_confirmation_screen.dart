@@ -6,6 +6,9 @@ import '../../utils/app_theme.dart';
 
 class ReservationConfirmationScreen extends StatelessWidget {
   final ReservationModel reservation;
+  static const String _adminSupportName = 'TrueHome Support Desk';
+  static const String _adminSupportPhone = '+256702021112';
+  static const String _adminSupportEmail = 'truehome376@gmail.com';
 
   const ReservationConfirmationScreen({
     super.key,
@@ -187,28 +190,12 @@ class ReservationConfirmationScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _buildDetailRow('Admin Phone', '+256702021112'),
+                  _buildDetailRow('Admin Contact', _adminSupportName),
+                  _buildDetailRow('Admin Phone', _adminSupportPhone),
+                  _buildDetailRow('Admin Email', _adminSupportEmail),
                   const SizedBox(height: 12),
                   
-                  // Call Admin Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final uri = Uri(scheme: 'tel', path: '+256702021112');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
-                        }
-                      },
-                      icon: const Icon(Icons.phone),
-                      label: const Text('Contact Admin for Confirmation'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
+                  _buildSupportActions(context),
                   const SizedBox(height: 12),
                   
                   Text(
@@ -218,6 +205,88 @@ class ReservationConfirmationScreen extends StatelessWidget {
                       fontStyle: FontStyle.italic,
                       color: Colors.grey.shade700,
                     ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Custodian Contact Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.apartment_rounded, color: Colors.green.shade700),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Hostel Custodian Contact',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildDetailRow('Custodian', reservation.hostelManagerName),
+                  _buildDetailRow('Phone', reservation.hostelManagerPhone),
+                  if (reservation.hostelManagerEmail != null &&
+                      reservation.hostelManagerEmail!.isNotEmpty)
+                    _buildDetailRow('Email', reservation.hostelManagerEmail!),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Booking instructions: Contact the custodian with your reservation details for room allocation and check-in guidance.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green.shade900,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final uri = Uri(scheme: 'tel', path: reservation.hostelManagerPhone);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri);
+                            }
+                          },
+                          icon: const Icon(Icons.call),
+                          label: const Text('Call Custodian'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final whatsappUrl = _buildWhatsAppUri(
+                              reservation.hostelManagerPhone,
+                              'Hello ${reservation.hostelManagerName}, I completed a reservation for ${reservation.propertyTitle}. My name is ${reservation.studentName}.',
+                            );
+                            if (await canLaunchUrl(whatsappUrl)) {
+                              await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          icon: const Icon(Icons.chat),
+                          label: const Text('WhatsApp'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -284,10 +353,10 @@ class ReservationConfirmationScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _buildNextStep('1', 'Contact the hostel manager using the details above'),
-                  _buildNextStep('2', 'Arrange a visit to view the room'),
-                  _buildNextStep('3', 'Complete any additional payments as instructed'),
-                  _buildNextStep('4', 'Sign the rental agreement'),
+                  _buildNextStep('1', 'Contact support if you need help confirming your booking'),
+                  _buildNextStep('2', 'Contact the hostel custodian using the details above'),
+                  _buildNextStep('3', 'Arrange a room viewing or move-in process'),
+                  _buildNextStep('4', 'Complete any remaining hostel payment instructions'),
                 ],
               ),
             ),
@@ -331,6 +400,57 @@ class ReservationConfirmationScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildSupportActions(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              final uri = Uri(scheme: 'tel', path: _adminSupportPhone);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              }
+            },
+            icon: const Icon(Icons.phone),
+            label: const Text('Call Support'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              final uri = _buildWhatsAppUri(
+                _adminSupportPhone,
+                'Hello TrueHome support, I need help with reservation ${reservation.id}.',
+              );
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            icon: const Icon(Icons.chat),
+            label: const Text('WhatsApp'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Uri _buildWhatsAppUri(String phone, String message) {
+    final cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final normalized = cleaned.startsWith('0') ? '256${cleaned.substring(1)}' : cleaned;
+    return Uri.parse('https://wa.me/$normalized?text=${Uri.encodeComponent(message)}');
   }
 
   Widget _buildDetailRow(String label, String value, {Color? valueColor, bool valueBold = false}) {

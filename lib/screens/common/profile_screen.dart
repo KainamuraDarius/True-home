@@ -4,12 +4,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/currency_formatter.dart';
+import '../../models/reservation_model.dart';
+import '../../services/room_availability_service.dart';
 import '../../models/user_model.dart';
 import '../../services/preferences_service.dart';
 import '../../services/role_service.dart';
 import '../../widgets/web_footer.dart';
 import '../auth/welcome_screen.dart';
+import '../customer/reservation_confirmation_screen.dart';
 import '../customer/become_agent_screen.dart';
 import '../customer/edit_profile_screen.dart';
 import 'legal_policies_screen.dart';
@@ -206,6 +211,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
+                  const SizedBox(height: 16),
+                  _buildReservationsSection(),
                   const SizedBox(height: 24),
 
                   // Account Settings Section
@@ -562,6 +569,386 @@ class _ProfileScreenState extends State<ProfileScreen> {
           color: AppColors.textSecondary,
           letterSpacing: 0.5,
         ),
+      ),
+    );
+  }
+
+  Widget _buildReservationsSection() {
+    if (_currentUser == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.book_online_outlined, color: AppColors.primary),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'My Reservations',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Track hostel bookings, payment progress, and current reservation status.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            StreamBuilder<QuerySnapshot>(
+              stream: _getReservationsStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Could not load reservations right now.',
+                      style: TextStyle(color: Colors.red.shade700),
+                    ),
+                  );
+                }
+
+                final reservations = (snapshot.data?.docs ?? [])
+                    .map(
+                      (doc) => ReservationModel.fromMap(
+                        doc.data() as Map<String, dynamic>,
+                        doc.id,
+                      ),
+                    )
+                    .toList()
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+                if (reservations.isEmpty) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Column(
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 34,
+                          color: AppColors.textSecondary,
+                        ),
+                        SizedBox(height: 10),
+                        Text(
+                          'No reservations yet',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'When you reserve a hostel room, it will appear here with its status.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: reservations
+                      .map((reservation) => _buildReservationCard(reservation))
+                      .toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Stream<QuerySnapshot> _getReservationsStream() {
+    return _firestore
+        .collection('reservations')
+        .where('studentUserId', isEqualTo: _currentUser!.id)
+        .snapshots();
+  }
+
+  Widget _buildReservationCard(ReservationModel reservation) {
+    final createdLabel = DateFormat('dd MMM yyyy, HH:mm').format(reservation.createdAt);
+    final isPaid = reservation.paymentStatus.toLowerCase() == 'paid';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ReservationConfirmationScreen(
+                  reservation: reservation,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            reservation.propertyTitle,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            reservation.roomTypeName,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildReservationStatusBadge(reservation.status),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildMetaChip(
+                      icon: isPaid ? Icons.check_circle : Icons.hourglass_top,
+                      label: isPaid ? 'Payment received' : 'Payment pending',
+                      color: isPaid ? Colors.green : Colors.orange,
+                    ),
+                    _buildMetaChip(
+                      icon: Icons.payments_outlined,
+                      label: 'UGX ${CurrencyFormatter.format(reservation.reservationFee)} fee',
+                      color: AppColors.primary,
+                    ),
+                    if (reservation.university.isNotEmpty)
+                      _buildMetaChip(
+                        icon: Icons.school_outlined,
+                        label: reservation.university,
+                        color: Colors.purple,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.access_time_rounded,
+                      size: 15,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Reserved on $createdLabel',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'View details',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                if (reservation.status == ReservationStatus.pending) ...[  
+                  const SizedBox(height: 10),
+                  const Divider(height: 1),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: () => _cancelReservation(reservation),
+                      icon: const Icon(Icons.cancel_outlined, size: 16),
+                      label: const Text('Cancel Reservation'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        foregroundColor: Colors.red,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _cancelReservation(ReservationModel reservation) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Reservation'),
+        content: const Text(
+          'Are you sure you want to cancel this reservation? The room slot will be released.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No, keep it'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Yes, cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await RoomAvailabilityService().cancelBooking(
+        propertyId: reservation.propertyId,
+        roomTypeName: reservation.roomTypeName,
+      );
+      await _firestore.collection('reservations').doc(reservation.id).delete();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reservation cancelled successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to cancel reservation: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _buildReservationStatusBadge(ReservationStatus status) {
+    late final Color color;
+    late final String label;
+
+    switch (status) {
+      case ReservationStatus.confirmed:
+        color = Colors.green;
+        label = 'Confirmed';
+        break;
+      case ReservationStatus.pending:
+        color = Colors.orange;
+        label = 'Pending';
+        break;
+      case ReservationStatus.cancelled:
+        color = Colors.red;
+        label = 'Cancelled';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetaChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

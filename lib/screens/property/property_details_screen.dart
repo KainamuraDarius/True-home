@@ -8,6 +8,8 @@ import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../auth/login_screen.dart';
+import '../auth/role_selection_screen.dart';
 import '../customer/agent_profile_screen.dart';
 import '../customer/reserve_room_screen.dart';
 
@@ -128,6 +130,13 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
   Future<void> _toggleFavorite() async {
+    if (!_requireAuthentication(
+      title: 'Login Required',
+      message: 'Create an account or log in to save properties to favorites.',
+    )) {
+      return;
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       List<String> favorites = prefs.getStringList(_favoritesKey) ?? [];
@@ -166,6 +175,71 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         ).showSnackBar(SnackBar(content: Text('Error updating favorites: $e')));
       }
     }
+  }
+
+  bool _requireAuthentication({
+    required String title,
+    required String message,
+  }) {
+    if (FirebaseAuth.instance.currentUser != null) {
+      return true;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        this.context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                    },
+                    child: const Text('Login'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        this.context,
+                        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+                      );
+                    },
+                    child: const Text('Create Account'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    return false;
   }
 
   Future<String?> _getAgentProfileImage() async {
@@ -723,16 +797,22 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                         ),
                                       ],
                                     ),
-                                    // Add Reserve button for customers
-                                    if (_currentUserRole == UserRole.customer ||
-                                        _currentUserRoles.contains(
-                                          UserRole.customer,
-                                        )) ...[
+                                    // Guests can see the CTA, but booking itself requires login.
+                                    if (FirebaseAuth.instance.currentUser == null ||
+                                        _currentUserRole == UserRole.customer ||
+                                        _currentUserRoles.contains(UserRole.customer)) ...[
                                       const SizedBox(height: 12),
                                       SizedBox(
                                         width: double.infinity,
                                         child: ElevatedButton.icon(
                                           onPressed: () {
+                                            if (!_requireAuthentication(
+                                              title: 'Login To Book',
+                                              message: 'Bookings require an account so we can connect you with the hostel and keep your reservation records.',
+                                            )) {
+                                              return;
+                                            }
+
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../utils/app_theme.dart';
 import 'login_screen.dart';
 import 'role_selection_screen.dart';
+import 'phone_login_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -46,42 +48,49 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
           ),
           child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Spacer(),
-                // True Home Logo
-                Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(40),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight,
                   ),
-                  child: Image.asset(
-                    'assets/images/app_icon.png',
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppColors.primary,
-                        child: const Icon(
-                          Icons.home_rounded,
-                          size: 100,
-                          color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(height: constraints.maxHeight * 0.05),
+                        // True Home Logo
+                        Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(35),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(
+                            'assets/images/app_icon.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: AppColors.primary,
+                                child: const Icon(
+                                  Icons.home_rounded,
+                                  size: 80,
+                                  color: Colors.white,
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 32),
+                        const SizedBox(height: 24),
                 // Welcome Text
                 Text(
                 'Welcome to True Home',
@@ -117,7 +126,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const Spacer(),
+              const SizedBox(height: 32),
               // Sign Up with Email Button
               SizedBox(
                 width: double.infinity,
@@ -137,6 +146,37 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
               ),
+              // Sign in with Phone (Web only)
+              if (kIsWeb) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PhoneLoginScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.phone_android, color: Colors.white),
+                    label: const Text(
+                      'Sign in with Phone',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               // Already have an account
               Row(
@@ -188,9 +228,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
               const SizedBox(height: 16),
             ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
-      ),
       ),
       ),
     );

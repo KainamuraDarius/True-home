@@ -16,6 +16,7 @@ import 'admin_reservations_screen.dart';
 import 'admin_verification_requests_screen.dart';
 import 'send_notification_screen.dart';
 import 'add_admin_role_screen.dart';
+import 'admin_trash_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -282,6 +283,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
               ),
             ),
             const SizedBox(height: 16),
+            _buildActionCard(
+              context,
+              'Trash',
+              'View and restore deleted items',
+              Icons.delete_outline,
+              Colors.red,
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminTrashScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
             _buildActionCard(
               context,              'Agent Verification Requests',
               'Review and approve agent verification documents',

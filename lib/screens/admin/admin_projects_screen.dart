@@ -119,7 +119,7 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> with SingleTi
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Project'),
-        content: const Text('Are you sure you want to permanently delete this project? This action cannot be undone.'),
+        content: const Text('Are you sure you want to delete this project? It will be moved to trash.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

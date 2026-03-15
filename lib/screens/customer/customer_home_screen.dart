@@ -6,10 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../../utils/responsive_helper.dart';
 import '../../models/property_model.dart';
 import '../../models/project_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/universities.dart';
+import '../auth/login_screen.dart';
+import '../auth/role_selection_screen.dart';
 import '../common/profile_screen.dart';
 import '../common/notifications_screen.dart';
 import '../property/property_details_screen.dart';
@@ -33,6 +36,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   UserModel? _currentUser;
 
+  bool get _isGuestUser => FirebaseAuth.instance.currentUser == null;
+
   List<Widget> get _screens => [
     HomeTab(
       isWebNav: kIsWeb,
@@ -42,11 +47,23 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       isWebNav: kIsWeb,
       onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
     ),
-    FavoritesTab(
-      isWebNav: kIsWeb,
-      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-    ),
-    const ProfileScreen(showWebFooter: true),
+    _isGuestUser
+        ? GuestAccessScreen(
+            title: 'Login To Save Favorites',
+            description:
+                'Browsing is open, but saved items and account tools require signing in.',
+          )
+        : FavoritesTab(
+            isWebNav: kIsWeb,
+            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+    _isGuestUser
+        ? GuestAccessScreen(
+            title: 'Create An Account',
+            description:
+                'Use your account to manage bookings, profile details, and other protected actions.',
+          )
+        : const ProfileScreen(showWebFooter: true),
   ];
 
   @override
@@ -81,10 +98,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = kIsWeb && ResponsiveHelper.isDesktop(context);
+    
     return Scaffold(
       key: _scaffoldKey,
-      drawer: kIsWeb ? _buildDrawer() : null,
-      body: _screens[_currentIndex],
+      drawer: kIsWeb && !isDesktop ? _buildDrawer() : null, // Drawer only for tablet web
+      body: isDesktop 
+          ? _buildDesktopLayout() 
+          : _screens[_currentIndex],
       bottomNavigationBar: kIsWeb
           ? null
           : BottomNavigationBar(
@@ -246,6 +267,253 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         });
         _scaffoldKey.currentState?.closeDrawer();
       },
+    );
+  }
+
+  /// Desktop layout with fixed sidebar navigation
+  Widget _buildDesktopLayout() {
+    return Row(
+      children: [
+        // Fixed Sidebar Navigation
+        _buildDesktopSidebar(),
+        
+        // Main Content Area
+        Expanded(
+          child: _screens[_currentIndex],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopSidebar() {
+    return Container(
+      width: ResponsiveHelper.getSidebarWidth(context),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(2, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Logo Section
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primary,
+                  AppColors.primary.withOpacity(0.85),
+                ],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.home_rounded,
+                    color: AppColors.primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'True Home',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Find your perfect place',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // User Info (if logged in)
+          if (_currentUser != null) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    child: Text(
+                      (_currentUser?.name ?? 'U')[0].toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _currentUser?.name ?? 'User',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          _currentUser?.email ?? '',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey.shade200),
+          ],
+          
+          const SizedBox(height: 8),
+          
+          // Navigation Items
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                _buildSidebarItem(
+                  icon: Icons.home_outlined,
+                  activeIcon: Icons.home_rounded,
+                  title: 'Home',
+                  index: 0,
+                ),
+                _buildSidebarItem(
+                  icon: Icons.search_outlined,
+                  activeIcon: Icons.search_rounded,
+                  title: 'Search',
+                  index: 1,
+                ),
+                _buildSidebarItem(
+                  icon: Icons.favorite_outline,
+                  activeIcon: Icons.favorite_rounded,
+                  title: 'Favorites',
+                  index: 2,
+                ),
+                _buildSidebarItem(
+                  icon: Icons.person_outline,
+                  activeIcon: Icons.person_rounded,
+                  title: 'Profile',
+                  index: 3,
+                ),
+              ],
+            ),
+          ),
+          
+          // Footer
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Divider(height: 1, color: Colors.grey.shade200),
+                const SizedBox(height: 16),
+                Text(
+                  '© 2026 True Home',
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarItem({
+    required IconData icon,
+    required IconData activeIcon,
+    required String title,
+    required int index,
+  }) {
+    final isSelected = _currentIndex == index;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Icon(
+                  isSelected ? activeIcon : icon,
+                  size: 24,
+                  color: isSelected ? AppColors.primary : Colors.grey.shade600,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: isSelected ? AppColors.primary : Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+                if (isSelected)
+                  Container(
+                    width: 4,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2002,25 +2270,53 @@ class _HomeTabState extends State<HomeTab> {
 
                           return Column(
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: ListView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: propertiesToDisplay.length,
-                                  itemBuilder: (context, index) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 16,
-                                      ),
-                                      child: _buildPropertyCard(
-                                        context,
-                                        propertiesToDisplay[index],
-                                      ),
-                                    );
-                                  },
+                              // Responsive property list - grid on desktop, list on mobile
+                              Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: ResponsiveHelper.getMaxContentWidth(context),
+                                  ),
+                                  child: Padding(
+                                    padding: ResponsiveHelper.getContentPadding(context),
+                                    child: ResponsiveHelper.isDesktop(context)
+                                        ? GridView.builder(
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                              crossAxisCount: ResponsiveHelper.getGridCrossAxisCount(
+                                                context,
+                                                mobileCount: 1,
+                                                tabletCount: 2,
+                                                desktopCount: 3,
+                                                largeDesktopCount: 4,
+                                              ),
+                                              childAspectRatio: 0.75,
+                                              crossAxisSpacing: 20,
+                                              mainAxisSpacing: 20,
+                                            ),
+                                            itemCount: propertiesToDisplay.length,
+                                            itemBuilder: (context, index) {
+                                              return _buildPropertyCard(
+                                                context,
+                                                propertiesToDisplay[index],
+                                              );
+                                            },
+                                          )
+                                        : ListView.builder(
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            itemCount: propertiesToDisplay.length,
+                                            itemBuilder: (context, index) {
+                                              return Padding(
+                                                padding: const EdgeInsets.only(bottom: 16),
+                                                child: _buildPropertyCard(
+                                                  context,
+                                                  propertiesToDisplay[index],
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                  ),
                                 ),
                               ),
                               if (hasMore) ...[
@@ -2164,9 +2460,6 @@ class _HomeTabState extends State<HomeTab> {
                 ), // Close Container for filtered properties section
                 const SizedBox(height: 24),
               ], // Close if (_selectedFilter != null)
-              // Spotlight Properties Section - Shows FIRST when no filter, AFTER filtered properties when filter is active
-              _buildNewProjectsCarousel(),
-              const SizedBox(height: 24),
               // Browse New Projects Section
               _buildBrowseNewProjectsSection(),
               const SizedBox(height: 24),
@@ -3111,13 +3404,12 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildPropertyCard(BuildContext context, PropertyModel property) {
-    // Debug: Log image URLs for each property
-    print('🏠 Property: ${property.title}');
-    print('📸 Image URLs count: ${property.imageUrls.length}');
-    print('📸 Image URLs: ${property.imageUrls}');
+    final isDesktopGrid = ResponsiveHelper.isDesktop(context);
+    final imageHeight = isDesktopGrid ? 160.0 : 180.0;
     
     return Card(
       elevation: 2,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
@@ -3128,343 +3420,207 @@ class _HomeTabState extends State<HomeTab> {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: isDesktopGrid ? MainAxisSize.max : MainAxisSize.min,
           children: [
-            // Property Image
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                  child: property.imageUrls.isNotEmpty
-                      ? Image.network(
-                          property.imageUrls.first,
-                          width: double.infinity,
-                          height: 180,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              height: 180,
-                              width: double.infinity,
-                              color: AppColors.surfaceLight,
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Loading image...',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            print('❌ Error loading image for ${property.title}:');
-                            print('   URL: ${property.imageUrls.first}');
-                            print('   Error: $error');
-                            return Container(
-                              height: 180,
-                              width: double.infinity,
-                              color: Colors.red.shade50,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.broken_image,
-                                    size: 40,
-                                    color: Colors.red,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Image failed to load',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.red[700],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        )
-                      : Container(
-                          height: 180,
-                          width: double.infinity,
-                          color: Colors.orange.shade50,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.hide_image,
-                                size: 40,
-                                color: Colors.orange,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No images available',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.orange[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
-                // Sold Out Badge
-                if (!property.isActive)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Text(
-                        'SOLD OUT',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            // Property Image - Use AspectRatio for grid, fixed height for list
+            isDesktopGrid
+                ? Expanded(
+                    flex: 3,
+                    child: _buildPropertyImage(property, null),
+                  )
+                : _buildPropertyImage(property, imageHeight),
             // Property Details
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    property.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (property.companyName.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.business,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'by ${property.companyName}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                              fontStyle: FontStyle.italic,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          property.location,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // University info for hostels
-                  if (property.type == PropertyType.hostel &&
-                      property.university != null) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(Icons.school, size: 16, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            property.university!,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-
-                  if (property.bedrooms > 0 || property.bathrooms > 0) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        if (property.bedrooms > 0) ...[
-                          const Icon(
-                            Icons.bed,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${property.bedrooms}',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          const SizedBox(width: 12),
-                        ],
-                        if (property.bathrooms > 0) ...[
-                          const Icon(
-                            Icons.bathtub,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${property.bathrooms}',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child:
-                            property.type == PropertyType.hostel &&
-                                property.roomTypes.isNotEmpty
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'From ${property.currency} ${CurrencyFormatter.format(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    '${property.roomTypes.length} room type${property.roomTypes.length > 1 ? 's' : ''}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                                    ? "/month"
-                                    : property.type == PropertyType.hostel
-                                    ? "/semester"
-                                    : ""}',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: property.type == PropertyType.hostel
-                              ? Colors.purple.withOpacity(0.1)
-                              : property.type == PropertyType.rent
-                              ? Colors.blue.withOpacity(0.1)
-                              : Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          property.type == PropertyType.hostel
-                              ? 'HOSTEL'
-                              : property.type == PropertyType.rent
-                              ? 'RENT'
-                              : 'SALE',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: property.type == PropertyType.hostel
-                                ? Colors.purple
-                                : property.type == PropertyType.rent
-                                ? Colors.blue
-                                : Colors.green,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            isDesktopGrid
+                ? Expanded(
+                    flex: 2,
+                    child: _buildPropertyDetails(property),
+                  )
+                : _buildPropertyDetails(property),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPropertyImage(PropertyModel property, double? height) {
+    return Stack(
+      fit: height == null ? StackFit.expand : StackFit.loose,
+      children: [
+        ClipRRect(
+          borderRadius: height != null 
+              ? const BorderRadius.vertical(top: Radius.circular(12))
+              : BorderRadius.zero,
+          child: property.imageUrls.isNotEmpty
+              ? Image.network(
+                  property.imageUrls.first,
+                  width: double.infinity,
+                  height: height,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: height ?? double.infinity,
+                      width: double.infinity,
+                      color: AppColors.surfaceLight,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: height ?? double.infinity,
+                      width: double.infinity,
+                      color: Colors.grey.shade200,
+                      child: const Icon(
+                        Icons.broken_image,
+                        size: 40,
+                        color: Colors.grey,
+                      ),
+                    );
+                  },
+                )
+              : Container(
+                  height: height ?? double.infinity,
+                  width: double.infinity,
+                  color: Colors.grey.shade200,
+                  child: const Icon(
+                    Icons.home_outlined,
+                    size: 40,
+                    color: Colors.grey,
+                  ),
+                ),
+        ),
+        // Sold Out Badge
+        if (!property.isActive)
+          Positioned(
+            top: 8,
+            left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'SOLD OUT',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ),
+        // Property Type Badge
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: property.type == PropertyType.hostel
+                  ? Colors.purple
+                  : property.type == PropertyType.rent
+                      ? Colors.blue
+                      : Colors.green,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              property.type == PropertyType.hostel
+                  ? 'HOSTEL'
+                  : property.type == PropertyType.rent
+                      ? 'RENT'
+                      : 'SALE',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPropertyDetails(PropertyModel property) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            property.title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(
+                Icons.location_on_outlined,
+                size: 14,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: Text(
+                  property.location,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          if (property.bedrooms > 0 || property.bathrooms > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                if (property.bedrooms > 0) ...[
+                  const Icon(Icons.bed, size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 2),
+                  Text('${property.bedrooms}', style: const TextStyle(fontSize: 11)),
+                  const SizedBox(width: 8),
+                ],
+                if (property.bathrooms > 0) ...[
+                  const Icon(Icons.bathtub, size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 2),
+                  Text('${property.bathrooms}', style: const TextStyle(fontSize: 11)),
+                ],
+              ],
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            property.type == PropertyType.hostel && property.roomTypes.isNotEmpty
+                ? 'From ${property.currency} ${CurrencyFormatter.format(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}'
+                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? "/month" : property.type == PropertyType.hostel ? "/sem" : ""}',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -3490,9 +3646,16 @@ class _SearchTabState extends State<SearchTab> {
   double _minPrice = 0;
   double _maxPrice = 10000000;
   int? _bedrooms;
+  int? _bathrooms;
   PropertyType? _selectedPropertyType;
+  String? _selectedCategory;
+  bool _featuredOnly = false;
+  bool _withPhotosOnly = false;
+  String _sortBy = 'newest';
   bool _showFilters = false;
   List<PropertyModel> _searchResults = [];
+  List<PropertyModel> _featuredResults = [];
+  List<PropertyModel> _organicResults = [];
   bool _isSearching = false;
   List<String> _searchHistory = [];
   bool _showHistory = false;
@@ -3629,8 +3792,36 @@ class _SearchTabState extends State<SearchTab> {
         }
       }
 
+      if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+        results = results
+            .where((p) => p.category.trim().toLowerCase() == _selectedCategory!.toLowerCase())
+            .toList();
+      }
+
+      if (_bathrooms != null) {
+        results = results.where((p) => p.bathrooms >= _bathrooms!).toList();
+      }
+
+      if (_featuredOnly) {
+        results = results.where((p) => p.hasActivePromotion).toList();
+      }
+
+      if (_withPhotosOnly) {
+        results = results.where((p) => p.imageUrls.isNotEmpty).toList();
+      }
+
+      _sortSearchResults(results);
+
+      final featuredCandidates =
+          results.where((p) => p.hasActivePromotion).toList()..shuffle();
+      final featured = featuredCandidates.take(5).toList();
+      final featuredIds = featured.map((p) => p.id).toSet();
+      final organic = results.where((p) => !featuredIds.contains(p.id)).toList();
+
       setState(() {
         _searchResults = results;
+        _featuredResults = featured;
+        _organicResults = organic;
         _isSearching = false;
       });
     } catch (e) {
@@ -3651,9 +3842,34 @@ class _SearchTabState extends State<SearchTab> {
       _minPrice = 0;
       _maxPrice = 10000000;
       _bedrooms = null;
+      _bathrooms = null;
       _selectedPropertyType = null;
+      _selectedCategory = null;
+      _featuredOnly = false;
+      _withPhotosOnly = false;
+      _sortBy = 'newest';
       _searchResults = [];
+      _featuredResults = [];
+      _organicResults = [];
     });
+  }
+
+  void _sortSearchResults(List<PropertyModel> results) {
+    switch (_sortBy) {
+      case 'price_low_high':
+        results.sort((a, b) => a.price.compareTo(b.price));
+        break;
+      case 'price_high_low':
+        results.sort((a, b) => b.price.compareTo(a.price));
+        break;
+      case 'most_viewed':
+        results.sort((a, b) => b.viewCount.compareTo(a.viewCount));
+        break;
+      case 'newest':
+      default:
+        results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+    }
   }
 
   Future<bool> _isFavoriteProperty(String propertyId) async {
@@ -3663,6 +3879,46 @@ class _SearchTabState extends State<SearchTab> {
   }
 
   Future<void> _toggleFavoriteProperty(String propertyId) async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text(
+            'Create an account or log in to save favorites and manage your shortlist.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RoleSelectionScreen(),
+                  ),
+                );
+              },
+              child: const Text('Create Account'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LoginScreen(),
+                  ),
+                );
+              },
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     List<String> favorites = prefs.getStringList('favorite_properties') ?? [];
 
@@ -4244,6 +4500,109 @@ class _SearchTabState extends State<SearchTab> {
                     ),
                     const SizedBox(height: 16),
 
+                    const Text(
+                      'Bathrooms (minimum)',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [1, 2, 3, 4].map((num) {
+                        return FilterChip(
+                          label: Text('$num+'),
+                          selected: _bathrooms == num,
+                          onSelected: (selected) {
+                            setState(() {
+                              _bathrooms = selected ? num : null;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      'Category',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        'Flat',
+                        'Bungalow',
+                        'Condo',
+                        'Villa',
+                        'Apartment',
+                        'Studio room',
+                        'Commercial',
+                      ].map((category) {
+                        return FilterChip(
+                          label: Text(category),
+                          selected: _selectedCategory == category,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedCategory = selected ? category : null;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Featured only', style: TextStyle(fontSize: 13)),
+                            value: _featuredOnly,
+                            onChanged: (value) {
+                              setState(() {
+                                _featuredOnly = value;
+                              });
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('With photos', style: TextStyle(fontSize: 13)),
+                            value: _withPhotosOnly,
+                            onChanged: (value) {
+                              setState(() {
+                                _withPhotosOnly = value;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    DropdownButtonFormField<String>(
+                      initialValue: _sortBy,
+                      decoration: const InputDecoration(
+                        labelText: 'Sort results by',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'newest', child: Text('Newest first')),
+                        DropdownMenuItem(value: 'price_low_high', child: Text('Price: Low to High')),
+                        DropdownMenuItem(value: 'price_high_low', child: Text('Price: High to Low')),
+                        DropdownMenuItem(value: 'most_viewed', child: Text('Most viewed')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _sortBy = value;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
                     // Apply Filters Button
                     SizedBox(
                       width: double.infinity,
@@ -4301,16 +4660,48 @@ class _SearchTabState extends State<SearchTab> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : ListView(
                     padding: const EdgeInsets.all(16),
-                    itemCount: _searchResults.length,
-                    itemBuilder: (context, index) {
-                      final property = _searchResults[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: _buildPropertyCard(property),
-                      );
-                    },
+                    children: [
+                      if (_featuredResults.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            Icon(Icons.star, color: Colors.amber.shade700),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Featured Listings',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '(up to 5 per search)',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ..._featuredResults.map(
+                          (property) => Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _buildPropertyCard(property, isFeatured: true),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (_organicResults.isNotEmpty) ...[
+                        Text(
+                          'All Listings (${_organicResults.length})',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 10),
+                        ..._organicResults.map(
+                          (property) => Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _buildPropertyCard(property),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
           ),
         ],
@@ -4318,7 +4709,7 @@ class _SearchTabState extends State<SearchTab> {
     );
   }
 
-  Widget _buildPropertyCard(PropertyModel property) {
+  Widget _buildPropertyCard(PropertyModel property, {bool isFeatured = false}) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -4329,43 +4720,52 @@ class _SearchTabState extends State<SearchTab> {
         );
       },
       child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: isFeatured ? 4 : 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: isFeatured
+              ? BorderSide(color: Colors.amber.shade300, width: 1.5)
+              : BorderSide.none,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Property Image with Favorite Button
             SizedBox(
-              height: 200,
+              height: 240,
               child: Stack(
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(12),
+                      top: Radius.circular(14),
                     ),
                     child: Stack(
                       children: [
                         property.imageUrls.isNotEmpty
-                            ? Image.network(
-                                property.imageUrls[0],
+                            ? CachedNetworkImage(
+                                imageUrl: property.imageUrls[0],
                                 width: double.infinity,
-                                height: 200,
+                                height: 240,
                                 fit: BoxFit.cover,
-                                loadingBuilder:
-                                    (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
-                                        height: 200,
-                                        color: Colors.grey[300],
-                                        child: const Center(
-                                          child: CircularProgressIndicator(),
-                                        ),
-                                      );
-                                    },
-                                errorBuilder: (context, error, stackTrace) {
+                                memCacheWidth: 1200,
+                                fadeInDuration: const Duration(milliseconds: 120),
+                                placeholder: (context, url) {
                                   return Container(
-                                    height: 200,
-                                    color: Colors.grey[300],
+                                    height: 240,
+                                    color: Colors.grey.shade200,
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorWidget: (context, error, stackTrace) {
+                                  return Container(
+                                    height: 240,
+                                    color: Colors.grey.shade200,
                                     child: const Icon(
                                       Icons.home,
                                       size: 50,
@@ -4375,14 +4775,28 @@ class _SearchTabState extends State<SearchTab> {
                                 },
                               )
                             : Container(
-                                height: 200,
-                                color: Colors.grey[300],
+                                height: 240,
+                                color: Colors.grey.shade200,
                                 child: const Icon(
                                   Icons.home,
                                   size: 50,
                                   color: Colors.grey,
                                 ),
                               ),
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.32),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                         // SOLD OUT badge
                         if (!property.isActive)
                           Positioned(
@@ -4411,6 +4825,33 @@ class _SearchTabState extends State<SearchTab> {
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
+                              ),
+                            ),
+                          ),
+                        if (isFeatured)
+                          Positioned(
+                            top: 10,
+                            left: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade700,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.workspace_premium, size: 14, color: Colors.white),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'FEATURED',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -4458,7 +4899,7 @@ class _SearchTabState extends State<SearchTab> {
             ),
             // Property Details
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -4466,9 +4907,9 @@ class _SearchTabState extends State<SearchTab> {
                     property.title,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: 16,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
@@ -4484,7 +4925,7 @@ class _SearchTabState extends State<SearchTab> {
                         child: Text(
                           property.location,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             color: Colors.grey[600],
                           ),
                           maxLines: 1,
@@ -4493,7 +4934,49 @@ class _SearchTabState extends State<SearchTab> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          property.type == PropertyType.sale
+                              ? 'For Sale'
+                              : property.type == PropertyType.rent
+                                  ? 'For Rent'
+                                  : 'Hostel',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (property.category.trim().isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            property.category,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Icon(Icons.bed, size: 14, color: Colors.grey[600]),
@@ -4513,11 +4996,11 @@ class _SearchTabState extends State<SearchTab> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${property.currency} ${property.price.toStringAsFixed(0)}',
+                    '${property.currency} ${CurrencyFormatter.format(property.price)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
-                      fontSize: 14,
+                      fontSize: 18,
                     ),
                   ),
                 ],
@@ -4749,22 +5232,28 @@ class _FavoritesTabState extends State<FavoritesTab> {
               child: ListView(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.65,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
+                    padding: ResponsiveHelper.getContentPadding(context),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: ResponsiveHelper.getMaxContentWidth(context),
+                        ),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: ResponsiveHelper.getGridCrossAxisCount(context),
+                            childAspectRatio: ResponsiveHelper.getPropertyCardAspectRatio(context),
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
+                          itemCount: _favoriteProperties.length,
+                          itemBuilder: (context, index) {
+                            final property = _favoriteProperties[index];
+                            return _buildPropertyCard(property);
+                          },
+                        ),
                       ),
-                      itemCount: _favoriteProperties.length,
-                      itemBuilder: (context, index) {
-                        final property = _favoriteProperties[index];
-                        return _buildPropertyCard(property);
-                      },
                     ),
                   ),
                 ],
@@ -5010,8 +5499,11 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
       return;
     }
 
-    // Update selection and load data in single setState to minimize rebuilds
-    _selectedProjectLocation = location;
+    // Update selection and set loading state before querying.
+    setState(() {
+      _selectedProjectLocation = location;
+      _loadingProjects = true;
+    });
     
     final projects = await _projectService.getProjectsByLocation(location);
 
@@ -5038,15 +5530,60 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
       key: const ValueKey('browse_projects_section'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Browse New Projects In Uganda',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.bodyLarge!.color,
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Theme.of(context).colorScheme.primary.withOpacity(0.10),
+                Theme.of(context).cardColor,
+              ],
             ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.domain_add_rounded,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Browse New Projects In Uganda',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge!.color,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Explore residential and commercial developments by area.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).textTheme.bodySmall!.color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -5204,11 +5741,11 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
         );
       },
       child: Container(
-        width: 280,
+        width: 300,
         margin: const EdgeInsets.only(right: 16),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.08),
@@ -5221,27 +5758,64 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Project image
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: project.imageUrls.isNotEmpty
-                  ? Image.network(
-                      project.imageUrls.first,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                  child: project.imageUrls.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: project.imageUrls.first,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 900,
+                          fadeInDuration: const Duration(milliseconds: 120),
+                          placeholder: (context, _) => Container(
+                            height: 180,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, _, __) {
+                            return Container(
+                              height: 180,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.apartment, size: 48),
+                            );
+                          },
+                        )
+                      : Container(
                           height: 180,
                           color: Colors.grey[300],
                           child: const Icon(Icons.apartment, size: 48),
-                        );
-                      },
-                    )
-                  : Container(
-                      height: 180,
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.apartment, size: 48),
+                        ),
+                ),
+                if (project.isFirstPlaceSubscriber)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade700,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'FEATURED',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
+                  ),
+              ],
             ),
             // Project details
             Padding(
@@ -5286,6 +5860,17 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.visibility_outlined, size: 14, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${project.viewCount} views',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -5302,5 +5887,97 @@ class ProfileTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const ProfileScreen(showWebFooter: true);
+  }
+}
+
+class GuestAccessScreen extends StatelessWidget {
+  final String title;
+  final String description;
+
+  const GuestAccessScreen({
+    super.key,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 42,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  description,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Login'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RoleSelectionScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Create Account'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

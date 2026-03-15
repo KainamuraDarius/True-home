@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
 import 'forgot_password_screen.dart';
 import 'role_selection_screen.dart';
+import 'phone_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -298,6 +300,34 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+                // Phone Sign-In Button (Web only)
+                if (kIsWeb) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const PhoneLoginScreen(),
+                                ),
+                              );
+                            },
+                      icon: const Icon(Icons.phone_android, size: 24),
+                      label: const Text(
+                        'Sign in with Phone',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                        foregroundColor: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 32),
                 // Sign Up Link
                 Row(

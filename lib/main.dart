@@ -284,8 +284,8 @@ class AuthenticationWrapper extends StatelessWidget {
           );
         }
 
-        // User not logged in
-        return const WelcomeScreen();
+        // User not logged in: allow guest browsing for customer-facing flows.
+        return const CustomerHomeScreen();
       },
     );
   }
