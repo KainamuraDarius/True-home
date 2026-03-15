@@ -5,7 +5,7 @@
 
 set -e
 
-echo "🎨 True Home - Play Store Assets Preparation"
+echo " True Home - Play Store Assets Preparation"
 echo "============================================"
 
 # Create directories
@@ -17,21 +17,21 @@ mkdir -p "$SCREENSHOTS_DIR"
 mkdir -p "$GRAPHICS_DIR"
 
 echo ""
-echo "📁 Created directories:"
+echo " Created directories:"
 echo "   - $SCREENSHOTS_DIR"
 echo "   - $GRAPHICS_DIR"
 
 # Check if device is connected
 echo ""
-echo "📱 Checking for connected device..."
+echo " Checking for connected device..."
 DEVICE=$(adb devices | grep -w "device" | head -1 | awk '{print $1}')
 
 if [ -z "$DEVICE" ]; then
-    echo "❌ No device connected. Please connect your Android device and enable USB debugging."
+    echo " No device connected. Please connect your Android device and enable USB debugging."
     exit 1
 fi
 
-echo "✅ Device connected: $DEVICE"
+echo " Device connected: $DEVICE"
 
 # Function to capture screenshot
 capture_screenshot() {
@@ -39,7 +39,7 @@ capture_screenshot() {
     local filename="screenshot_$name.png"
     
     echo ""
-    echo "📸 Ready to capture: $name"
+    echo " Ready to capture: $name"
     echo "   Press ENTER when the screen is ready..."
     read
     
@@ -47,11 +47,11 @@ capture_screenshot() {
     adb pull /sdcard/$filename "$SCREENSHOTS_DIR/$filename"
     adb shell rm /sdcard/$filename
     
-    echo "   ✅ Saved: $SCREENSHOTS_DIR/$filename"
+    echo "    Saved: $SCREENSHOTS_DIR/$filename"
 }
 
 echo ""
-echo "📸 Screenshot Capture Guide"
+echo " Screenshot Capture Guide"
 echo "============================"
 echo ""
 echo "You need at least 2 screenshots (recommended 4-8):"
@@ -79,7 +79,7 @@ if [ "$CAPTURE_SCREENSHOTS" = "y" ] || [ "$CAPTURE_SCREENSHOTS" = "Y" ]; then
     fi
     
     echo ""
-    echo "✅ Screenshots captured!"
+    echo " Screenshots captured!"
 fi
 
 # Copy app icon
@@ -88,14 +88,14 @@ echo "🎯 Copying app icon..."
 ICON_PATH="android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
 if [ -f "$ICON_PATH" ]; then
     cp "$ICON_PATH" "$GRAPHICS_DIR/app_icon_512x512.png"
-    echo "✅ App icon copied (you may need to resize to 512x512)"
+    echo " App icon copied (you may need to resize to 512x512)"
 else
-    echo "⚠️  App icon not found at $ICON_PATH"
+    echo "  App icon not found at $ICON_PATH"
 fi
 
 # Create feature graphic template info
 echo ""
-echo "🖼️  Feature Graphic"
+echo "  Feature Graphic"
 echo "=================="
 echo "You need to create a 1024x500 feature graphic."
 echo "This appears at the top of your Play Store listing."
