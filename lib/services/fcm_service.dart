@@ -15,7 +15,7 @@ class FCMService {
   factory FCMService() => _instance;
   FCMService._internal();
 
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  late final FirebaseMessaging _fcm;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
@@ -23,9 +23,17 @@ class FCMService {
 
   bool _initialized = false;
 
+  /// Lazy getter for FCM instance - only initializes when first accessed
+  FirebaseMessaging get _fcmInstance {
+    if (!_initialized) {
+      _fcm = FirebaseMessaging.instance;
+    }
+    return _fcm;
+  }
+
   /// Initialize FCM and local notifications
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized || kIsWeb) return; // Skip on web entirely
 
     try {
       // Request notification permissions
@@ -46,7 +54,7 @@ class FCMService {
       FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
       // Check if app was opened from a notification
-      RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+      RemoteMessage? initialMessage = await _fcmInstance.getInitialMessage();
       if (initialMessage != null) {
         _handleNotificationTap(initialMessage);
       }
@@ -58,7 +66,7 @@ class FCMService {
       await _subscribeToTopicsBasedOnRole();
 
       // Listen for token refresh
-      _fcm.onTokenRefresh.listen(_saveFCMTokenToFirestore);
+      _fcmInstance.onTokenRefresh.listen(_saveFCMTokenToFirestore);
 
       _initialized = true;
       print('✅ FCM Service initialized successfully');
@@ -70,7 +78,7 @@ class FCMService {
   /// Request notification permissions
   Future<void> _requestPermissions() async {
     try {
-      NotificationSettings settings = await _fcm.requestPermission(
+      NotificationSettings settings = await _fcmInstance.requestPermission(
         alert: true,
         announcement: false,
         badge: true,
@@ -230,7 +238,7 @@ class FCMService {
   /// Get and save FCM token
   Future<void> _saveFCMToken() async {
     try {
-      String? token = await _fcm.getToken();
+      String? token = await _fcmInstance.getToken();
       if (token != null) {
         await _saveFCMTokenToFirestore(token);
       }
@@ -258,7 +266,7 @@ class FCMService {
   /// Subscribe to topic (e.g., 'all_users', 'agents', 'customers')
   Future<void> subscribeToTopic(String topic) async {
     try {
-      await _fcm.subscribeToTopic(topic);
+      await _fcmInstance.subscribeToTopic(topic);
       print('✅ Subscribed to topic: $topic');
     } catch (e) {
       print('Error subscribing to topic: $e');
@@ -268,7 +276,7 @@ class FCMService {
   /// Unsubscribe from topic
   Future<void> unsubscribeFromTopic(String topic) async {
     try {
-      await _fcm.unsubscribeFromTopic(topic);
+      await _fcmInstance.unsubscribeFromTopic(topic);
       print('✅ Unsubscribed from topic: $topic');
     } catch (e) {
       print('Error unsubscribing from topic: $e');
@@ -277,7 +285,7 @@ class FCMService {
 
   /// Get current FCM token
   Future<String?> getToken() async {
-    return await _fcm.getToken();
+    return await _fcmInstance.getToken();
   }
 
   /// Auto-subscribe to topics based on user role

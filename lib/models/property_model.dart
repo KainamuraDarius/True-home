@@ -108,6 +108,7 @@ class PropertyModel {
   final String?
   paymentInstructions; // Optional payment instructions for hostels (deposit info, bank account, etc.)
   final GenderPolicy genderPolicy; // For hostels: male only, female only, or mixed
+  final String? roomStructure; // For hostels: 'Self Contained' or 'Not Self Contained'
   final bool isNewProject; // Mark as new project for developers
   final bool hasActivePromotion; // Whether promotion is active
   final DateTime? promotionEndDate; // When promotion ends
@@ -149,6 +150,7 @@ class PropertyModel {
     this.roomTypes = const [],
     this.paymentInstructions,
     this.genderPolicy = GenderPolicy.mixed,
+    this.roomStructure,
     this.isNewProject = false,
     this.hasActivePromotion = false,
     this.promotionEndDate,
@@ -192,6 +194,7 @@ class PropertyModel {
       'roomTypes': roomTypes.map((rt) => rt.toJson()).toList(),
       'paymentInstructions': paymentInstructions,
       'genderPolicy': genderPolicy.name,
+      'roomStructure': roomStructure,
       'isNewProject': isNewProject,
       'hasActivePromotion': hasActivePromotion,
       'promotionEndDate': promotionEndDate != null ? Timestamp.fromDate(promotionEndDate!) : null,
@@ -312,6 +315,7 @@ class PropertyModel {
         (e) => e.name == json['genderPolicy'],
         orElse: () => GenderPolicy.mixed,
       ),
+      roomStructure: json['roomStructure'],
       isNewProject: json['isNewProject'] ?? false,
       hasActivePromotion: json['hasActivePromotion'] ?? false,
       promotionEndDate: _parseDateTime(json['promotionEndDate']),
@@ -355,6 +359,7 @@ class PropertyModel {
     List<RoomType>? roomTypes,
     String? paymentInstructions,
     GenderPolicy? genderPolicy,
+    String? roomStructure,
     bool? isNewProject,
     bool? hasActivePromotion,
     DateTime? promotionEndDate,
@@ -394,6 +399,7 @@ class PropertyModel {
       roomTypes: roomTypes ?? this.roomTypes,
       paymentInstructions: paymentInstructions ?? this.paymentInstructions,
       genderPolicy: genderPolicy ?? this.genderPolicy,
+      roomStructure: roomStructure ?? this.roomStructure,
       isNewProject: isNewProject ?? this.isNewProject,
       hasActivePromotion: hasActivePromotion ?? this.hasActivePromotion,
       promotionEndDate: promotionEndDate ?? this.promotionEndDate,

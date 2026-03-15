@@ -500,13 +500,66 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     const SizedBox(height: 16),
                   ],
 
+                  // Room Structure (for hostels)
+                  if (widget.property.type == PropertyType.hostel &&
+                      widget.property.roomStructure != null) ...[  
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.teal.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            widget.property.roomStructure == 'Self Contained'
+                                ? Icons.bathtub
+                                : Icons.meeting_room,
+                            color: Colors.teal.shade700,
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Room Structure',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.property.roomStructure!,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.teal.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   Row(
                     children: [
                       const Icon(Icons.location_on, color: Colors.grey),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '${widget.property.address}, ${widget.property.location}',
+                          widget.property.location,
                           style: const TextStyle(
                             fontSize: 16,
                             color: Colors.grey,
@@ -810,9 +863,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
                   const Divider(),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Contact Information',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    widget.property.type == PropertyType.hostel
+                        ? 'Contact Support'
+                        : 'Contact Information',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   // Agent Profile Section

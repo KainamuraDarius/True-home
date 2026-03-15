@@ -332,7 +332,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
         currency: _currency,
-        location: _locationController.text.trim(),
+        location: _locationController.text.trim().split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' '),
         address: _addressController.text.trim(),
         bedrooms: _bedroomsController.text.trim().isEmpty ? 0 : int.parse(_bedroomsController.text.trim()),
         bathrooms: _bathroomsController.text.trim().isEmpty ? 0 : int.parse(_bathroomsController.text.trim()),
@@ -570,19 +570,17 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Address
+                    // Full Address (optional)
                     TextFormField(
                       controller: _addressController,
                       decoration: const InputDecoration(
-                        labelText: 'Full Address *',
+                        labelText: 'Full Address (Optional)',
+                        hintText: 'e.g., Plot 25, Acacia Avenue, Kololo',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.home_outlined),
+                        helperText: 'Exact street address — only visible to admin and your agent view',
+                        helperMaxLines: 2,
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter address';
-                        }
-                        return null;
-                      },
                     ),
                     const SizedBox(height: 16),
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../utils/currency_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -73,8 +74,17 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
     final List<String> imageUrls = [];
     final totalImages = _selectedImages.length;
     
-    // Process and upload images in parallel batches of 3 for faster upload
-    const batchSize = 3;
+    // Detect mobile web to prevent memory crashes on iOS Safari
+    final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
+
+    // Use sequential processing on mobile web to avoid memory pressure
+    // Use smaller batches on desktop web for better performance
+    final batchSize = isMobileWeb ? 1 : 3;
+
+    // Use platform-appropriate settings
+    final maxWidth = isMobileWeb ? 1200 : 1920;
+    final maxHeight = isMobileWeb ? 1600 : 2560;
+    final quality = isMobileWeb ? 85 : 92;
     
     for (int batchStart = 0; batchStart < totalImages; batchStart += batchSize) {
       final batchEnd = (batchStart + batchSize).clamp(0, totalImages);
@@ -104,18 +114,18 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
               return null;
             }
             
-            // Aggressive resizing for faster uploads
-            if (decodedImage.width > 600 || decodedImage.height > 900) {
+            // Resize only when needed (preserve detail)
+            if (decodedImage.width > maxWidth || decodedImage.height > maxHeight) {
               if (decodedImage.width > decodedImage.height) {
-                decodedImage = img.copyResize(decodedImage, width: 600);
+                decodedImage = img.copyResize(decodedImage, width: maxWidth);
               } else {
-                decodedImage = img.copyResize(decodedImage, height: 900);
+                decodedImage = img.copyResize(decodedImage, height: maxHeight);
               }
             }
             
-            // Compress with lower quality for smaller file size
+            // Compress with platform-appropriate quality
             final compressedBytes = Uint8List.fromList(
-              img.encodeJpg(decodedImage, quality: 55),
+              img.encodeJpg(decodedImage, quality: quality),
             );
             
             print('Compressed size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB');
