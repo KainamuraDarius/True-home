@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum PropertyType { sale, rent, hostel }
+enum PropertyType { sale, rent, hostel, commercial }
 
 enum PropertyStatus { pending, approved, rejected, removed }
 
@@ -77,7 +77,8 @@ class RoomType {
 class PropertyModel {
   final String id;
   final String title;
-  final String category; // Property category (Flat, Bungalow, Condo, Villa, Apartment, Studio room)
+  final String category; // Property category (Flat, Bungalow, Condo, Villa, Apartment, Studio room / for commercial: Retail, Office, Industrial, Hospitality, Land)
+  final String? subCategory; // Commercial sub-type (e.g., Shops / stores, Warehouses, Hotels)
   final String description;
   final PropertyType type;
   final double price;
@@ -121,6 +122,7 @@ class PropertyModel {
     required this.id,
     required this.title,
     required this.category,
+    this.subCategory,
     required this.description,
     required this.type,
     required this.price,
@@ -165,6 +167,7 @@ class PropertyModel {
       'id': id,
       'title': title,
       'category': category,
+      'subCategory': subCategory,
       'description': description,
       'type': type.name,
       'price': price,
@@ -277,6 +280,7 @@ class PropertyModel {
       id: json['id'] ?? '',
       title: json['title'] ?? '',
       category: json['category'] ?? 'Flat', // Default to Flat for old data
+      subCategory: json['subCategory'],
       description: json['description'] ?? '',
       type: PropertyType.values.firstWhere(
         (e) => e.name == json['type'],
@@ -330,6 +334,7 @@ class PropertyModel {
     String? id,
     String? title,
     String? category,
+    String? subCategory,
     String? description,
     PropertyType? type,
     double? price,
@@ -370,6 +375,7 @@ class PropertyModel {
       id: id ?? this.id,
       title: title ?? this.title,
       category: category ?? this.category,
+      subCategory: subCategory ?? this.subCategory,
       description: description ?? this.description,
       type: type ?? this.type,
       price: price ?? this.price,

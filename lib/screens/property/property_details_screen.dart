@@ -35,6 +35,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     _checkFavoriteStatus();
     _getCurrentUserRole();
     _trackPropertyView(); // Track this view
+    // Preload all gallery images so swiping is instant
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final url in widget.property.imageUrls) {
+        precacheImage(CachedNetworkImageProvider(url), context);
+      }
+    });
   }
 
   // Track property view
@@ -325,28 +331,20 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       },
                       itemBuilder: (context, index) {
                         final imageUrl = widget.property.imageUrls[index];
-                        return Image.network(
-                          imageUrl,
+                        return CachedNetworkImage(
+                          imageUrl: imageUrl,
                           fit: BoxFit.cover,
                           width: double.infinity,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              color: Colors.grey[300],
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                size: 64,
-                              ),
-                            );
-                          },
+                          fadeInDuration: const Duration(milliseconds: 150),
+                          placeholder: (context, url) =>
+                              const _ImageShimmerPlaceholder(),
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 64,
+                            ),
+                          ),
                         );
                       },
                     ),
@@ -362,13 +360,19 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       decoration: BoxDecoration(
                         color: widget.property.type == PropertyType.sale
                             ? Colors.green
-                            : Colors.blue,
+                            : widget.property.type == PropertyType.commercial
+                                ? Colors.orange
+                                : Colors.blue,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         widget.property.type == PropertyType.sale
                             ? 'FOR SALE'
-                            : 'FOR RENT',
+                            : widget.property.type == PropertyType.commercial
+                                ? 'COMMERCIAL'
+                                : widget.property.type == PropertyType.hostel
+                                    ? 'HOSTEL'
+                                    : 'FOR RENT',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -1972,3 +1976,96 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
 }
+
+/// Shimmer skeleton shown while a gallery image is loading
+class _ImageShimmerPlaceholder extends StatefulWidget {
+  const _ImageShimmerPlaceholder();
+
+  @override
+  State<_ImageShimmerPlaceholder> createState() => _ImageShimmerPlaceholderState();
+}
+
+class _ImageShimmerPlaceholderState extends State<_ImageShimmerPlaceholder>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+    _animation = Tween<double>(begin: -1.5, end: 2.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          width: double.infinity,
+          color: Colors.grey[300],
+          child: Stack(
+            children: [
+              // Shimmer sweep
+              ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: const [
+                    Color(0xFFE0E0E0),
+                    Color(0xFFF5F5F5),
+                    Color(0xFFFFFFFF),
+                    Color(0xFFF5F5F5),
+                    Color(0xFFE0E0E0),
+                  ],
+                  stops: [0.0, 0.35, 0.5, 0.65, 1.0],
+                  transform: _SlidingGradientTransform(_animation.value),
+                ).createShader(bounds),
+                child: Container(color: Colors.white),
+              ),
+              // Icon hint so user knows it's an image
+              Positioned(
+                bottom: 16,
+                left: 0,
+                right: 0,
+                child: Column(
+                  children: [
+                    Icon(Icons.photo_library_outlined, size: 32, color: Colors.grey[400]),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Loading image...',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SlidingGradientTransform extends GradientTransform {
+  const _SlidingGradientTransform(this.slidePercent);
+  final double slidePercent;
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * slidePercent, 0, 0);
+  }
+}
+

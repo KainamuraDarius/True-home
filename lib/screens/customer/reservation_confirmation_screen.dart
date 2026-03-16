@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/reservation_model.dart';
 import '../../utils/app_theme.dart';
 
-class ReservationConfirmationScreen extends StatelessWidget {
+class ReservationConfirmationScreen extends StatefulWidget {
   final ReservationModel reservation;
-  static const String _adminSupportName = 'TrueHome Support Desk';
-  static const String _adminSupportPhone = '+256702021112';
-  static const String _adminSupportEmail = 'truehome376@gmail.com';
 
   const ReservationConfirmationScreen({
     super.key,
@@ -16,13 +14,69 @@ class ReservationConfirmationScreen extends StatelessWidget {
   });
 
   @override
+  State<ReservationConfirmationScreen> createState() =>
+      _ReservationConfirmationScreenState();
+}
+
+class _ReservationConfirmationScreenState
+    extends State<ReservationConfirmationScreen> {
+  static const String _adminSupportName = 'TrueHome Support Desk';
+  static const String _adminSupportPhone = '+256702021112';
+  static const String _adminSupportEmail = 'truehome376@gmail.com';
+
+  @override
   Widget build(BuildContext context) {
-    final bool isPaid = reservation.paymentStatus == 'paid';
-    
+    // Live-listen to the Firestore reservation doc so payment status
+    // updates automatically when PandoraPayments fires the webhook.
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('reservations')
+          .doc(widget.reservation.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        // Merge live data with the initial reservation model
+        ReservationModel liveReservation = widget.reservation;
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          liveReservation = ReservationModel.fromMap(
+            data,
+            widget.reservation.id,
+          );
+        }
+        return _buildContent(context, liveReservation);
+      },
+    );
+  }
+
+  Widget _buildContent(BuildContext context, ReservationModel reservation) {
+    final String paymentStatus = reservation.paymentStatus;
+    final bool isPaid = paymentStatus == 'paid';
+    final bool isProcessing = paymentStatus == 'processing';
+    final bool isFailed =
+        paymentStatus == 'failed' ||
+        paymentStatus == 'cancelled' ||
+        paymentStatus == 'expired';
+
+    Color statusColor = isPaid
+        ? Colors.green
+        : isProcessing
+        ? Colors.blue
+        : isFailed
+        ? Colors.red
+        : Colors.orange;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(isPaid ? 'Reservation Confirmed' : 'Reservation Pending'),
-        backgroundColor: isPaid ? Colors.green : Colors.orange,
+        title: Text(
+          isPaid
+              ? 'Reservation Confirmed'
+              : isProcessing
+                  ? 'Awaiting Payment'
+                  : isFailed
+                      ? 'Payment ${paymentStatus[0].toUpperCase()}${paymentStatus.substring(1)}'
+                      : 'Reservation Pending',
+        ),
+        backgroundColor: statusColor,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
       ),
@@ -31,38 +85,97 @@ class ReservationConfirmationScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Success Icon
+            // Processing banner
+            if (isProcessing) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Waiting for payment confirmation',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            'Check your phone for a mobile money prompt and approve the payment.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            // Status Icon
             Container(
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: isPaid ? Colors.green.shade50 : Colors.orange.shade50,
+                color: statusColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                isPaid ? Icons.check_circle : Icons.pending,
+                isPaid
+                    ? Icons.check_circle
+                    : isFailed
+                        ? Icons.cancel
+                        : isProcessing
+                            ? Icons.hourglass_top
+                            : Icons.pending,
                 size: 60,
-                color: isPaid ? Colors.green.shade600 : Colors.orange.shade600,
+                color: statusColor,
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             Text(
-              isPaid ? 'Reservation Successful!' : 'Reservation Created!',
+              isPaid
+                  ? 'Reservation Successful!'
+                  : isFailed
+                      ? 'Payment ${paymentStatus[0].toUpperCase()}${paymentStatus.substring(1)}'
+                      : 'Reservation Created!',
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             Text(
-              isPaid 
+              isPaid
                   ? 'Your room has been successfully reserved'
-                  : 'Complete your payment to confirm the reservation',
+                  : isFailed
+                      ? 'Your payment could not be completed. Please try again.'
+                      : isProcessing
+                          ? 'Waiting for mobile money confirmation...'
+                          : 'Complete your payment to confirm the reservation',
               style: const TextStyle(
                 fontSize: 16,
                 color: Colors.grey,
@@ -114,12 +227,14 @@ class ReservationConfirmationScreen extends StatelessWidget {
                   ),
                   _buildDetailRow(
                     'Payment Status',
-                    reservation.paymentStatus == 'paid' 
-                        ? 'PAYMENT RECEIVED' 
-                        : 'PENDING PAYMENT',
-                    valueColor: reservation.paymentStatus == 'paid' 
-                        ? Colors.green 
-                        : Colors.red,
+                    isPaid
+                        ? 'PAYMENT RECEIVED'
+                        : isProcessing
+                            ? 'PROCESSING...'
+                            : isFailed
+                                ? paymentStatus.toUpperCase()
+                                : 'PENDING PAYMENT',
+                    valueColor: statusColor,
                     valueBold: true,
                   ),
                   _buildDetailRow(
@@ -428,7 +543,7 @@ class ReservationConfirmationScreen extends StatelessWidget {
             onPressed: () async {
               final uri = _buildWhatsAppUri(
                 _adminSupportPhone,
-                'Hello TrueHome support, I need help with reservation ${reservation.id}.',
+                'Hello TrueHome support, I need help with reservation ${widget.reservation.id}.',
               );
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);

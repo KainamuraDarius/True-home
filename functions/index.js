@@ -550,7 +550,111 @@ exports.onNewHostelApproved = functions.firestore
     return null;
   });
 
-// Process scheduled notifications - runs every minute
+// ============================================
+// PANDORAPAYMENTS WEBHOOK
+// ============================================
+// Called by PandoraPayments when a mobile money transaction status changes.
+// URL: https://us-central1-truehome-9a244.cloudfunctions.net/pandoraPaymentWebhook
+//
+// To deploy: firebase deploy --only functions:pandoraPaymentWebhook
+
+exports.pandoraPaymentWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  const {
+    transaction_reference,
+    status,
+    amount,
+    completed_on,
+  } = req.body;
+
+  if (!transaction_reference || !status) {
+    console.warn('Pandora webhook: missing required fields', req.body);
+    return res.status(400).json({ error: 'Missing transaction_reference or status' });
+  }
+
+  console.log(`Pandora webhook received: ref=${transaction_reference} status=${status}`);
+
+  try {
+    // Find the reservation by paymentTransactionId (which we set to the Pandora transaction_reference)
+    const reservationsRef = admin.firestore().collection('reservations');
+    const snapshot = await reservationsRef
+      .where('paymentTransactionId', '==', transaction_reference)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      // Also try matching by the doc ID used as transaction_ref
+      const byRef = await reservationsRef
+        .where('paymentReference', '==', `PANDORA_${transaction_reference}`)
+        .limit(1)
+        .get();
+
+      if (byRef.empty) {
+        console.warn(`Pandora webhook: no reservation found for ref=${transaction_reference}`);
+        // Return 200 so Pandora doesn't keep retrying
+        return res.status(200).json({ received: true, note: 'reservation not found' });
+      }
+
+      const doc = byRef.docs[0];
+      await _applyPaymentStatus(doc.ref, status, amount, completed_on);
+    } else {
+      const doc = snapshot.docs[0];
+      await _applyPaymentStatus(doc.ref, status, amount, completed_on);
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('Pandora webhook error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+async function _applyPaymentStatus(docRef, status, amount, completed_on) {
+  const updates = { paymentNetwork: undefined };
+
+  if (status === 'completed') {
+    updates.paymentStatus = 'paid';
+    updates.paymentDate = completed_on || new Date().toISOString();
+    console.log(`Payment confirmed for reservation ${docRef.id}`);
+
+    // Send FCM push notification to student
+    const snapshot = await docRef.get();
+    const reservation = snapshot.data();
+    if (reservation && reservation.studentUserId) {
+      const userDoc = await admin.firestore()
+        .collection('users')
+        .doc(reservation.studentUserId)
+        .get();
+      const fcmToken = userDoc.data()?.fcmToken;
+      if (fcmToken) {
+        await admin.messaging().send({
+          notification: {
+            title: 'Payment Confirmed!',
+            body: `Your reservation for ${reservation.propertyTitle} has been confirmed.`,
+          },
+          data: {
+            type: 'reservation_paid',
+            reservationId: docRef.id,
+          },
+          token: fcmToken,
+        }).catch(e => console.warn('FCM send failed:', e.message));
+      }
+    }
+  } else if (['failed', 'cancelled', 'expired'].includes(status)) {
+    updates.paymentStatus = status;
+    console.log(`Payment ${status} for reservation ${docRef.id}`);
+  } else {
+    // Still processing — no change needed
+    return;
+  }
+
+  delete updates.paymentNetwork; // cleanup temp field
+  await docRef.update(updates);
+}
+
 exports.processScheduledNotifications = functions.pubsub
   .schedule('every 1 minutes')
   .onRun(async (context) => {

@@ -1152,18 +1152,25 @@ class _HomeTabState extends State<HomeTab> {
                           PropertyType.sale,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: _buildPropertyTypeButton(
                           'Rent',
                           PropertyType.rent,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: _buildPropertyTypeButton(
                           'Student Hostels',
                           PropertyType.hostel,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _buildPropertyTypeButton(
+                          'Commercial',
+                          PropertyType.commercial,
                         ),
                       ),
                     ],
@@ -1868,6 +1875,9 @@ class _HomeTabState extends State<HomeTab> {
                           case PropertyType.hostel:
                             label = 'Hostel';
                             break;
+                          case PropertyType.commercial:
+                            label = 'Commercial';
+                            break;
                         }
                         return FilterChip(
                           label: Text(label),
@@ -1944,6 +1954,8 @@ class _HomeTabState extends State<HomeTab> {
                                     ? 'Properties for Rent'
                                     : _selectedFilter == PropertyType.sale
                                     ? 'Properties for Sale'
+                                    : _selectedFilter == PropertyType.commercial
+                                    ? 'Commercial Properties'
                                     : 'Student Hostels',
                                 style: TextStyle(
                                   fontSize: 20,
@@ -2249,9 +2261,11 @@ class _HomeTabState extends State<HomeTab> {
                                           ? 'No properties available yet'
                                           : _selectedFilter == PropertyType.hostel
                                               ? 'We are currently onboarding listings in this area. Please check back shortly!'
-                                              : 'No ${_selectedFilter == PropertyType.rent
-                                                    ? "rental"
-                                                    : "sale"} properties available',
+                                              : _selectedFilter == PropertyType.commercial
+                                                  ? 'No commercial properties available'
+                                                  : 'No ${_selectedFilter == PropertyType.rent
+                                                        ? "rental"
+                                                        : "sale"} properties available',
                                       style: TextStyle(color: Colors.grey[600]),
                                     ),
                                   ],
@@ -2637,7 +2651,7 @@ class _HomeTabState extends State<HomeTab> {
             ? Theme.of(context).colorScheme.onPrimary
             : Theme.of(context).textTheme.bodyLarge!.color,
         elevation: isSelected ? 4 : 1,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
           side: BorderSide(
@@ -2650,8 +2664,9 @@ class _HomeTabState extends State<HomeTab> {
       ),
       child: Text(
         label,
+        textAlign: TextAlign.center,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: 11,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
         ),
       ),
@@ -3248,19 +3263,30 @@ class _HomeTabState extends State<HomeTab> {
                 left: Radius.circular(12),
               ),
               child: property.imageUrls.isNotEmpty
-                  ? Image.network(
-                      property.imageUrls.first,
+                  ? CachedNetworkImage(
+                      imageUrl: property.imageUrls.first,
                       width: 140,
                       height: 140,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 140,
-                          height: 140,
-                          color: Theme.of(context).cardColor,
-                          child: const Icon(Icons.image_not_supported),
-                        );
-                      },
+                      fadeInDuration: const Duration(milliseconds: 100),
+                      placeholder: (context, url) => Container(
+                        width: 140,
+                        height: 140,
+                        color: Theme.of(context).cardColor,
+                        child: const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: 140,
+                        height: 140,
+                        color: Theme.of(context).cardColor,
+                        child: const Icon(Icons.image_not_supported),
+                      ),
                     )
                   : Container(
                       width: 140,
@@ -3453,38 +3479,34 @@ class _HomeTabState extends State<HomeTab> {
               ? const BorderRadius.vertical(top: Radius.circular(12))
               : BorderRadius.zero,
           child: property.imageUrls.isNotEmpty
-              ? Image.network(
-                  property.imageUrls.first,
+              ? CachedNetworkImage(
+                  imageUrl: property.imageUrls.first,
                   width: double.infinity,
                   height: height,
                   fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      height: height ?? double.infinity,
-                      width: double.infinity,
-                      color: AppColors.surfaceLight,
-                      child: const Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
+                  fadeInDuration: const Duration(milliseconds: 100),
+                  placeholder: (context, url) => Container(
+                    height: height ?? double.infinity,
+                    width: double.infinity,
+                    color: AppColors.surfaceLight,
+                    child: const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: height ?? double.infinity,
-                      width: double.infinity,
-                      color: Colors.grey.shade200,
-                      child: const Icon(
-                        Icons.broken_image,
-                        size: 40,
-                        color: Colors.grey,
-                      ),
-                    );
-                  },
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    height: height ?? double.infinity,
+                    width: double.infinity,
+                    color: Colors.grey.shade200,
+                    child: const Icon(
+                      Icons.broken_image,
+                      size: 40,
+                      color: Colors.grey,
+                    ),
+                  ),
                 )
               : Container(
                   height: height ?? double.infinity,
@@ -4207,6 +4229,9 @@ class _SearchTabState extends State<SearchTab> {
                             break;
                           case PropertyType.hostel:
                             label = 'Hostel';
+                            break;
+                          case PropertyType.commercial:
+                            label = 'Commercial';
                             break;
                         }
                         return FilterChip(
@@ -4950,7 +4975,9 @@ class _SearchTabState extends State<SearchTab> {
                               ? 'For Sale'
                               : property.type == PropertyType.rent
                                   ? 'For Rent'
-                                  : 'Hostel',
+                                  : property.type == PropertyType.commercial
+                                      ? 'Commercial'
+                                      : 'Hostel',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.blue.shade700,
@@ -5287,32 +5314,30 @@ class _FavoritesTabState extends State<FavoritesTab> {
                       top: Radius.circular(12),
                     ),
                     child: property.imageUrls.isNotEmpty
-                        ? Image.network(
-                            property.imageUrls[0],
+                        ? CachedNetworkImage(
+                            imageUrl: property.imageUrls[0],
                             width: double.infinity,
                             height: double.infinity,
                             fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.home,
-                                  size: 50,
-                                  color: Colors.grey,
+                            fadeInDuration: const Duration(milliseconds: 100),
+                            placeholder: (context, url) => Container(
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.home,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ),
-                              );
-                            },
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.home,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            ),
                           )
                         : Container(
                             color: Colors.grey[300],

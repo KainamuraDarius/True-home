@@ -438,6 +438,16 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                         ),
                       ],
                     ),
+                    RadioListTile<PropertyType>(
+                      title: const Text('Commercial'),
+                      value: PropertyType.commercial,
+                      groupValue: _selectedType,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedType = value!;
+                        });
+                      },
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -507,9 +517,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                           child: TextFormField(
                             controller: _priceController,
                             decoration: InputDecoration(
-                              labelText: _selectedType == PropertyType.sale
-                                  ? 'Price *'
-                                  : 'Monthly Rent *',
+                              labelText: _selectedType == PropertyType.rent
+                                  ? 'Monthly Rent *'
+                                  : 'Price *',
                               border: const OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,

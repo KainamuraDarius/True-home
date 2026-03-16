@@ -36,6 +36,41 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final _agentNameController = TextEditingController();
 
   PropertyType _selectedType = PropertyType.sale;
+  String? _selectedCommercialMainType;
+  String? _selectedCommercialSubType;
+
+  static const Map<String, List<String>> _commercialSubTypes = {
+    'Retail': [
+      'Shops / Stores',
+      'Shopping Malls / Plazas',
+      'Supermarkets',
+      'Showrooms',
+      'Kiosks',
+    ],
+    'Office': [
+      'Office Buildings / Floors',
+      'Serviced Offices',
+      'Co-working Spaces',
+      'Business Parks',
+    ],
+    'Industrial': [
+      'Warehouses',
+      'Factories / Manufacturing Plants',
+      'Storage Facilities / Depots',
+      'Cold Storage',
+    ],
+    'Hospitality': [
+      'Hotels',
+      'Lodges / Guesthouses',
+      'Restaurants / Cafes / Bars',
+      'Event Venues / Conference Centers',
+    ],
+    'Land (Commercial)': [
+      'Commercial Plots',
+      'Mixed-use Land',
+    ],
+  };
+
   final List<XFile> _selectedImages = [];
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
@@ -379,7 +414,12 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
       final property = PropertyModel(
         id: propertyRef.id,
         title: _titleController.text,
-        category: _selectedCategory,
+        category: _selectedType == PropertyType.commercial
+            ? (_selectedCommercialMainType ?? 'Commercial')
+            : _selectedCategory,
+        subCategory: _selectedType == PropertyType.commercial
+            ? _selectedCommercialSubType
+            : null,
         description: _descriptionController.text.trim(),
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
@@ -726,6 +766,18 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         ),
                       ],
                     ),
+                    RadioListTile<PropertyType>(
+                      title: const Text('Commercial'),
+                      value: PropertyType.commercial,
+                      groupValue: _selectedType,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedType = value!;
+                          _selectedCommercialMainType = null;
+                          _selectedCommercialSubType = null;
+                        });
+                      },
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -775,33 +827,85 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     const SizedBox(height: 16),
 
                     // Category
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedCategory,
-                      decoration: const InputDecoration(
-                        labelText: 'Property Category *',
-                        border: OutlineInputBorder(),
+                    if (_selectedType != PropertyType.commercial) ...[
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedCategory,
+                        decoration: const InputDecoration(
+                          labelText: 'Property Category *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Flat', child: Text('Flat')),
+                          DropdownMenuItem(value: 'Bungalow', child: Text('Bungalow')),
+                          DropdownMenuItem(value: 'Condo', child: Text('Condo')),
+                          DropdownMenuItem(value: 'Villa', child: Text('Villa')),
+                          DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
+                          DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCategory = value!;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select a category';
+                          }
+                          return null;
+                        },
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'Flat', child: Text('Flat')),
-                        DropdownMenuItem(value: 'Bungalow', child: Text('Bungalow')),
-                        DropdownMenuItem(value: 'Condo', child: Text('Condo')),
-                        DropdownMenuItem(value: 'Villa', child: Text('Villa')),
-                        DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
-                        DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
-                        DropdownMenuItem(value: 'Commercial', child: Text('Commercial')),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCategory = value!;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select a category';
-                        }
-                        return null;
-                      },
-                    ),
+                    ] else ...[
+                      // Commercial main type
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedCommercialMainType,
+                        decoration: const InputDecoration(
+                          labelText: 'Commercial Type *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _commercialSubTypes.keys
+                            .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCommercialMainType = value;
+                            _selectedCommercialSubType = null;
+                          });
+                        },
+                        validator: (value) {
+                          if (_selectedType == PropertyType.commercial &&
+                              (value == null || value.isEmpty)) {
+                            return 'Please select a commercial type';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // Commercial sub-type
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedCommercialSubType,
+                        decoration: const InputDecoration(
+                          labelText: 'Commercial Sub-type *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _selectedCommercialMainType != null
+                            ? (_commercialSubTypes[_selectedCommercialMainType!] ?? [])
+                                .map((sub) => DropdownMenuItem(value: sub, child: Text(sub)))
+                                .toList()
+                            : [],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCommercialSubType = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (_selectedType == PropertyType.commercial &&
+                              (value == null || value.isEmpty)) {
+                            return 'Please select a sub-type';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     // Description
@@ -829,9 +933,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           child: TextFormField(
                             controller: _priceController,
                             decoration: InputDecoration(
-                              labelText: _selectedType == PropertyType.sale
-                                  ? 'Price *'
-                                  : 'Monthly Rent *',
+                              labelText: _selectedType == PropertyType.rent
+                                  ? 'Monthly Rent *'
+                                  : 'Price *',
                               border: const OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
