@@ -2856,6 +2856,14 @@ class _HomeTabState extends State<HomeTab> {
     });
   }
 
+  // Normalize a location string to Title Case (e.g. 'kololo' → 'Kololo', 'NEW kampala' → 'New Kampala')
+  String _toTitleCase(String text) {
+    return text.trim().split(' ').map((word) {
+      if (word.isEmpty) return '';
+      return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+    }).join(' ');
+  }
+
   // Load available project locations
   Future<void> _loadProjectLocations() async {
     final locations = await _projectService.getAvailableLocations();
@@ -2889,14 +2897,19 @@ class _HomeTabState extends State<HomeTab> {
 
       final querySnapshot = await query.get();
 
-      Set<String> locations = {};
+      // Use a map keyed on the normalised (lower-cased) name so that
+      // 'kololo' and 'Kololo' are treated as the same location.
+      final Map<String, String> locationMap = {};
       for (var doc in querySnapshot.docs) {
         final data = doc.data();
         if (data['location'] != null &&
             data['location'].toString().isNotEmpty) {
-          locations.add(data['location'] as String);
+          final raw = data['location'] as String;
+          final normalised = _toTitleCase(raw);
+          locationMap.putIfAbsent(normalised.toLowerCase(), () => normalised);
         }
       }
+      final Set<String> locations = locationMap.values.toSet();
 
       if (mounted) {
         setState(() {

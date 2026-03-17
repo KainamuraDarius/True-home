@@ -26,6 +26,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
   final _locationController = TextEditingController();
+  final _fullAddressController = TextEditingController();
   final _bedroomsController = TextEditingController();
   final _bathroomsController = TextEditingController();
   final _areaSqftController = TextEditingController();
@@ -72,6 +73,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     _descriptionController.dispose();
     _priceController.dispose();
     _locationController.dispose();
+    _fullAddressController.dispose();
     _bedroomsController.dispose();
     _bathroomsController.dispose();
     _areaSqftController.dispose();
@@ -382,8 +384,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         description: _descriptionController.text.trim(),
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
-        location: _locationController.text.trim(),
-        address: _locationController.text.trim(),
+        location: _locationController.text.trim().split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' '),
+        address: _fullAddressController.text.trim().isNotEmpty
+            ? _fullAddressController.text.trim()
+            : _locationController.text.trim().split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' '),
         bedrooms: _bedroomsController.text.trim().isEmpty
             ? 0
             : int.parse(_bedroomsController.text.trim()),
@@ -886,6 +890,20 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         }
                         return null;
                       },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Full Address (optional)
+                    TextFormField(
+                      controller: _fullAddressController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Address (Optional)',
+                        hintText: 'e.g., Plot 25, Acacia Avenue, Kololo',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.home_outlined),
+                        helperText: 'Exact street address — only visible to admin and your agent view',
+                        helperMaxLines: 2,
+                      ),
                     ),
                     const SizedBox(height: 16),
 

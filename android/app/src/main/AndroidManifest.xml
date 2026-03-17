@@ -8,8 +8,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    
     
     <application
         android:label="True Home"
@@ -79,64 +77,7 @@
         <!-- For sending emails -->
         <intent>
             <action android:name="android.intent.action.SENDTO"/>
-            <data android:scheme="mailto"/>Hi Developers at Tech pioneers,
-When reviewing your app, Truehome (com.truehome.app), we found that it doesn’t comply with one or more of our Google Play policies, which has affected your app’s status.
-
-Publishing Status	
-App Status: Rejected
-Changes to your app weren’t published because of the policy issue(s) listed below. If you have an older version of your app, it will still be available on Google Play.
-
-You can learn more about this issue and how to fix it on Play Console.
-
-Go to Play Console
-	
-Issue found: Permission use is not directly related to your app’s core purpose.
-We found that your app is not compliant with how USE_EXACT_ALARM permission is allowed to be used. Specifically, the use of the permission is not directly related to the core purpose of the app.
-
-Issue details
-
-We found an issue in the following area(s):
-
-Version code 25
-To resolve this issue, follow these steps:
-
-Remove the use of USE_EXACT_ALARM permission from all version codes within the submission. This includes both production and testing tracks.
-Consider using the SCHEDULE_EXACT_ALARM permission as an alternative option if you have a use case for exact alarm functionality.
-To make APK/App bundle-level updates, follow these steps:
-
-Go to App bundle explorer and search for the noncompliant version codes. Click into the details page to navigate to the track(s) with the policy issue (Closed / Open testing / Production). Click Manage track > Create new release.
-If the release with the violating app bundles/APKs are in a draft state, discard the release.
-Otherwise, add the policy-compliant version of app bundles/APKs.
-Make sure that the noncompliant version is under the "Not included" section of this release.
-Enter a release name and click Save. Once saved, click Review release, and then proceed to roll out the release to 100% and completely deactivate the noncompliant APK.
-If the noncompliant versions are released to multiple tracks, repeat step 1 in each track.
-You can check the App bundle explorer page again and the noncompliant version code should show as “Inactive” and show “0 releases” in the details page.
-About the Exact Alarm Permission policy
-USE_EXACT_ALARM is a restricted permission. Your app must only declare this permission if your app’s core, user-facing functionality requires precisely-timed actions. Apps that request this restricted permission are subject to review, and those that do not meet the acceptable use case criteria will be disallowed from publishing on Google Play.
-
-Acceptable use cases for using the Exact Alarm Permission:
-
-The app is an alarm or timer app.
-The app is a calendar app that shows event notifications.
-If you have a use case for exact alarm functionality that’s not covered above, you should evaluate if using SCHEDULE_EXACT_ALARM as an alternative is an option.
-
-For more information on exact alarm functionality, please see this developer guidance.
-
-Submit an Appeal
-If you believe that our decision is incorrect, you can submit an appeal. It may take up to 7 days to receive a response, but it occasionally takes longer.
-
-Submit an appeal
-
-If you’ve fixed this issue, send changes to your app for review on the Publishing overview page in Play Console.
-
-Learn More
-To learn more about the enforcement process, visit the Help Center. For the latest updates on Google Play’s policies, watch Android Developers’ #PolicyBytes. Choose your preferred language by changing the audio track in the settings.
-
-Thanks for your continued support in helping to make Google Play a positive experience for both developers and consumers.
-
-Help us improve the Google Play experience by completing our two question survey.
-
-The Google Play Team
+            <data android:scheme="mailto"/>
         </intent>
         <!-- For opening web links (WhatsApp) -->
         <intent>

@@ -32,6 +32,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
   String? _selectedUniversity;
   PricingPeriod _pricingPeriod = PricingPeriod.month;
   GenderPolicy _selectedGenderPolicy = GenderPolicy.mixed;
+  String? _selectedRoomStructure;
   final List<XFile> _selectedImages = [];
   final Map<String, Uint8List> _imageBytes = {}; // Cache bytes for web preview
   bool _isLoading = false;
@@ -380,7 +381,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
         description: _descriptionController.text.trim(),
         type: PropertyType.hostel,
         price: 0, // Hostels use room pricing
-        location: _locationController.text.trim(),
+        location: _locationController.text.trim().split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' '),
         address: _addressController.text.trim(),
         bedrooms: 0,
         bathrooms: 0,
@@ -402,6 +403,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
         university: _selectedUniversity,
         roomTypes: roomTypes,
         genderPolicy: _selectedGenderPolicy,
+        roomStructure: _selectedRoomStructure,
         paymentInstructions: _paymentInstructionsController.text.trim().isEmpty
             ? null
             : _paymentInstructionsController.text.trim(),
@@ -552,6 +554,37 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Room Structure
+                  DropdownButtonFormField<String>(
+                    value: _selectedRoomStructure,
+                    decoration: const InputDecoration(
+                      labelText: 'Room Structure *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.meeting_room),
+                      hintText: 'Select room structure',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Self Contained',
+                        child: Text('Self Contained'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Not Self Contained',
+                        child: Text('Not Self Contained'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() => _selectedRoomStructure = value);
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please select room structure';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
 
