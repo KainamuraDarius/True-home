@@ -2,9 +2,39 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/project_model.dart';
 
+class ProjectServiceException implements Exception {
+  final String message;
+  final bool isNetworkError;
+
+  const ProjectServiceException._(this.message, {this.isNetworkError = false});
+
+  factory ProjectServiceException.network() {
+    return const ProjectServiceException._(
+      'No internet connection. Please check your network and try again.',
+      isNetworkError: true,
+    );
+  }
+
+  @override
+  String toString() => message;
+}
+
 class ProjectService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _random = Random();
+
+  bool _isNetworkFirestoreError(Object error) {
+    if (error is FirebaseException) {
+      return error.code == 'unavailable' ||
+          error.code == 'network-request-failed' ||
+          error.code == 'deadline-exceeded';
+    }
+    final text = error.toString().toLowerCase();
+    return text.contains('unknownhostexception') ||
+        text.contains('unable to resolve host') ||
+        text.contains('dns') ||
+        text.contains('eai_nodata');
+  }
 
   // Default locations for project advertisements
   List<String> get defaultLocations => [
@@ -60,6 +90,9 @@ class ProjectService {
       
       return projects;
     } catch (e) {
+      if (_isNetworkFirestoreError(e)) {
+        throw ProjectServiceException.network();
+      }
       print('Error fetching projects: $e');
       return [];
     }
@@ -101,6 +134,9 @@ class ProjectService {
       
       return sortedLocations;
     } catch (e) {
+      if (_isNetworkFirestoreError(e)) {
+        throw ProjectServiceException.network();
+      }
       print('Error fetching locations: $e');
       return [];
     }
@@ -161,6 +197,9 @@ class ProjectService {
       
       return projects;
     } catch (e) {
+      if (_isNetworkFirestoreError(e)) {
+        throw ProjectServiceException.network();
+      }
       print('Error fetching all projects: $e');
       return [];
     }

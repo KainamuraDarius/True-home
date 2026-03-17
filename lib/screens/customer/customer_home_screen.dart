@@ -612,6 +612,34 @@ class _HomeTabState extends State<HomeTab> {
     viewportFraction: 0.9,
   );
   final ValueNotifier<int> _currentNewProjectIndex = ValueNotifier<int>(0);
+  bool _hasShownOfflineMessage = false;
+
+  bool _isLikelyOfflineError(Object error) {
+    if (error is ProjectServiceException) {
+      return error.isNetworkError;
+    }
+    if (error is FirebaseException) {
+      return error.code == 'unavailable' ||
+          error.code == 'network-request-failed' ||
+          error.code == 'deadline-exceeded';
+    }
+    final text = error.toString().toLowerCase();
+    return text.contains('unknownhostexception') ||
+        text.contains('unable to resolve host') ||
+        text.contains('dns') ||
+        text.contains('eai_nodata');
+  }
+
+  void _showOfflineMessageOnce() {
+    if (!mounted || _hasShownOfflineMessage) return;
+    _hasShownOfflineMessage = true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No internet connection. Some content may not load.'),
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -2793,11 +2821,17 @@ class _HomeTabState extends State<HomeTab> {
 
   // Load available project locations
   Future<void> _loadProjectLocations() async {
-    final locations = await _projectService.getAvailableLocations();
-    if (mounted) {
-      setState(() {
-        _projectLocations = locations;
-      });
+    try {
+      final locations = await _projectService.getAvailableLocations();
+      if (mounted) {
+        setState(() {
+          _projectLocations = locations;
+        });
+      }
+    } catch (e) {
+      if (_isLikelyOfflineError(e)) {
+        _showOfflineMessageOnce();
+      }
     }
   }
 
@@ -2846,6 +2880,9 @@ class _HomeTabState extends State<HomeTab> {
       }
     } catch (e) {
       print('Error loading property locations: $e');
+      if (_isLikelyOfflineError(e)) {
+        _showOfflineMessageOnce();
+      }
       if (mounted) {
         setState(() {
           _loadingPropertyLocations = false;
@@ -2908,6 +2945,9 @@ class _HomeTabState extends State<HomeTab> {
       }
     } catch (e) {
       print('Error loading new projects: $e');
+      if (_isLikelyOfflineError(e)) {
+        _showOfflineMessageOnce();
+      }
       if (mounted) {
         setState(() {
           _loadingNewProjects = false;
@@ -5461,6 +5501,22 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
   List<Project> _locationProjects = [];
   bool _loadingProjects = false;
 
+  bool _isLikelyOfflineError(Object error) {
+    if (error is ProjectServiceException) {
+      return error.isNetworkError;
+    }
+    if (error is FirebaseException) {
+      return error.code == 'unavailable' ||
+          error.code == 'network-request-failed' ||
+          error.code == 'deadline-exceeded';
+    }
+    final text = error.toString().toLowerCase();
+    return text.contains('unknownhostexception') ||
+        text.contains('unable to resolve host') ||
+        text.contains('dns') ||
+        text.contains('eai_nodata');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -5487,19 +5543,35 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
       _loadingProjects = true;
     });
     
-    final projects = location == 'All'
-        ? await _projectService.getAllApprovedProjects() // Get all projects
-        : await _projectService.getProjectsByLocation(location); // Get projects for specific location
+    try {
+      final projects = location == 'All'
+          ? await _projectService.getAllApprovedProjects() // Get all projects
+          : await _projectService.getProjectsByLocation(location); // Get projects for specific location
 
-    if (mounted) {
-      setState(() {
-        _locationProjects = projects;
-        _loadingProjects = false;
-      });
+      if (mounted) {
+        setState(() {
+          _locationProjects = projects;
+          _loadingProjects = false;
+        });
 
-      // Increment view counts for displayed projects
-      for (var project in projects.take(5)) {
-        _projectService.incrementViewCount(project.id);
+        // Increment view counts for displayed projects
+        for (var project in projects.take(5)) {
+          _projectService.incrementViewCount(project.id);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingProjects = false;
+        });
+      }
+      if (_isLikelyOfflineError(e) && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No internet connection. Unable to load projects.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
       }
     }
   }
