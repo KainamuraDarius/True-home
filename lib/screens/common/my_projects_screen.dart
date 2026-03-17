@@ -52,28 +52,49 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildProjectsList(status: 'pending'),
-          _buildProjectsList(status: 'approved'),
-          _buildProjectsList(status: 'all'),
+          // Show tabs in body when in tab view mode
+          if (widget.isTabView)
+            TabBar(
+              controller: _tabController,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: AppColors.primary,
+              tabs: const [
+                Tab(text: 'Pending'),
+                Tab(text: 'Approved'),
+                Tab(text: 'All'),
+              ],
+            ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildProjectsList(status: 'pending'),
+                _buildProjectsList(status: 'approved'),
+                _buildProjectsList(status: 'all'),
+              ],
+            ),
+          ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const SubmitProjectScreen(),
+      floatingActionButton: widget.isTabView
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SubmitProjectScreen(),
+                  ),
+                ).then((_) => setState(() {}));
+              },
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('New Project'),
             ),
-          ).then((_) => setState(() {}));
-        },
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('New Project'),
-      ),
     );
   }
 

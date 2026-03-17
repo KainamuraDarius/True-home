@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
@@ -37,6 +36,17 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final _agentNameController = TextEditingController();
 
   PropertyType _selectedType = PropertyType.sale;
+  String? _selectedCommercialCategory;
+  final _customCategoryController = TextEditingController();
+
+  static const List<String> _commercialCategories = [
+    'Office',
+    'Shop',
+    'Showroom',
+    'Warehouse',
+    'Others',
+  ];
+
   final List<XFile> _selectedImages = [];
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
@@ -380,7 +390,11 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
       final property = PropertyModel(
         id: propertyRef.id,
         title: _titleController.text,
-        category: _selectedCategory,
+        category: _selectedType == PropertyType.commercial
+            ? (_selectedCommercialCategory == 'Others'
+                ? _customCategoryController.text
+                : _selectedCommercialCategory ?? 'Commercial')
+            : _selectedCategory,
         description: _descriptionController.text.trim(),
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
@@ -727,6 +741,18 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         ),
                       ],
                     ),
+                    RadioListTile<PropertyType>(
+                      title: const Text('Commercial'),
+                      value: PropertyType.commercial,
+                      groupValue: _selectedType,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedType = value!;
+                          _selectedCommercialCategory = null;
+                          _customCategoryController.clear();
+                        });
+                      },
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -776,33 +802,82 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     const SizedBox(height: 16),
 
                     // Category
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedCategory,
-                      decoration: const InputDecoration(
-                        labelText: 'Property Category *',
-                        border: OutlineInputBorder(),
+                    if (_selectedType != PropertyType.commercial) ...[
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedCategory,
+                        decoration: const InputDecoration(
+                          labelText: 'Property Category *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Flat', child: Text('Flat')),
+                          DropdownMenuItem(value: 'Bungalow', child: Text('Bungalow')),
+                          DropdownMenuItem(value: 'Condo', child: Text('Condo')),
+                          DropdownMenuItem(value: 'Villa', child: Text('Villa')),
+                          DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
+                          DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCategory = value!;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select a category';
+                          }
+                          return null;
+                        },
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'Flat', child: Text('Flat')),
-                        DropdownMenuItem(value: 'Bungalow', child: Text('Bungalow')),
-                        DropdownMenuItem(value: 'Condo', child: Text('Condo')),
-                        DropdownMenuItem(value: 'Villa', child: Text('Villa')),
-                        DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
-                        DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
-                        DropdownMenuItem(value: 'Commercial', child: Text('Commercial')),
+                    ] else ...[
+                      // Commercial category
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedCommercialCategory,
+                        decoration: const InputDecoration(
+                          labelText: 'Property Category *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _commercialCategories
+                            .map((category) => DropdownMenuItem(value: category, child: Text(category)))
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCommercialCategory = value;
+                            // Clear custom category when selection changes
+                            if (value != 'Others') {
+                              _customCategoryController.clear();
+                            }
+                          });
+                        },
+                        validator: (value) {
+                          if (_selectedType == PropertyType.commercial &&
+                              (value == null || value.isEmpty)) {
+                            return 'Please select a category';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // Custom category text field (only shown when "Others" is selected)
+                      if (_selectedCommercialCategory == 'Others') ...[
+                        TextFormField(
+                          controller: _customCategoryController,
+                          decoration: const InputDecoration(
+                            labelText: 'Enter Custom Category *',
+                            border: OutlineInputBorder(),
+                            hintText: 'e.g., Restaurant, Clinic, Gym',
+                          ),
+                          validator: (value) {
+                            if (_selectedCommercialCategory == 'Others' &&
+                                (value == null || value.isEmpty)) {
+                              return 'Please enter a custom category';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
                       ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCategory = value!;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select a category';
-                        }
-                        return null;
-                      },
-                    ),
+                    ],
                     const SizedBox(height: 16),
 
                     // Description
@@ -830,9 +905,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           child: TextFormField(
                             controller: _priceController,
                             decoration: InputDecoration(
-                              labelText: _selectedType == PropertyType.sale
-                                  ? 'Price *'
-                                  : 'Monthly Rent *',
+                              labelText: _selectedType == PropertyType.rent
+                                  ? 'Monthly Rent *'
+                                  : 'Price *',
                               border: const OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
