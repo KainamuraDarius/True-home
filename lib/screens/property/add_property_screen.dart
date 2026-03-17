@@ -36,16 +36,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final _agentNameController = TextEditingController();
 
   PropertyType _selectedType = PropertyType.sale;
-  String? _selectedCommercialCategory;
-  final _customCategoryController = TextEditingController();
-
-  static const List<String> _commercialCategories = [
-    'Office',
-    'Shop',
-    'Showroom',
-    'Warehouse',
-    'Others',
-  ];
 
   final List<XFile> _selectedImages = [];
   bool _isLoading = false;
