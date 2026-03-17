@@ -19,6 +19,27 @@ service cloud.firestore {
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeRole == 'admin');
     }
+
+    // Allow only safe public +1 counter increments on advertised projects
+    function isSafeProjectCounterIncrement() {
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+
+      let viewCountValid = (
+        (!('viewCount' in resource.data) && request.resource.data.viewCount == 1) ||
+        (('viewCount' in resource.data) && request.resource.data.viewCount == resource.data.viewCount + 1)
+      );
+
+      let clickCountValid = (
+        (!('clickCount' in resource.data) && request.resource.data.clickCount == 1) ||
+        (('clickCount' in resource.data) && request.resource.data.clickCount == resource.data.clickCount + 1)
+      );
+
+      return resource.data.isApproved == true && (
+        (changedKeys.hasOnly(['viewCount']) && viewCountValid) ||
+        (changedKeys.hasOnly(['clickCount']) && clickCountValid) ||
+        (changedKeys.hasOnly(['viewCount', 'clickCount']) && viewCountValid && clickCountValid)
+      );
+    }
     
     // Users collection
     match /users/{userId} {
@@ -85,11 +106,11 @@ service cloud.firestore {
       );
       // Only project owner can write (except view/click counts)
       allow create: if isSignedIn() && request.resource.data.developerId == request.auth.uid;
-      // Allow anyone to update view/click counts, but owner can update everything, or admin can update approval
-      allow update: if isSignedIn() && (
-        resource.data.developerId == request.auth.uid ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'clickCount'])) ||
-        isAdmin()
+      // Owner/admin can update full docs. Public can only increment counters safely by +1.
+      allow update: if (
+        (isSignedIn() && resource.data.developerId == request.auth.uid) ||
+        isAdmin() ||
+        isSafeProjectCounterIncrement()
       );
       // Owner can delete their own projects, admins can delete any project
       allow delete: if isSignedIn() && (resource.data.developerId == request.auth.uid || isAdmin());

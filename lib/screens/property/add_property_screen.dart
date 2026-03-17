@@ -390,11 +390,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
       final property = PropertyModel(
         id: propertyRef.id,
         title: _titleController.text,
-        category: _selectedType == PropertyType.commercial
-            ? (_selectedCommercialCategory == 'Others'
-                ? _customCategoryController.text
-                : _selectedCommercialCategory ?? 'Commercial')
-            : _selectedCategory,
+        category: _selectedCategory,
         description: _descriptionController.text.trim(),
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
@@ -741,18 +737,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         ),
                       ],
                     ),
-                    RadioListTile<PropertyType>(
-                      title: const Text('Commercial'),
-                      value: PropertyType.commercial,
-                      groupValue: _selectedType,
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedType = value!;
-                          _selectedCommercialCategory = null;
-                          _customCategoryController.clear();
-                        });
-                      },
-                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -802,7 +786,32 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     const SizedBox(height: 16),
 
                     // Category
-                    if (_selectedType != PropertyType.commercial) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Property Category *',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'Flat', child: Text('Flat')),
+                        DropdownMenuItem(value: 'Bungalow', child: Text('Bungalow')),
+                        DropdownMenuItem(value: 'Condo', child: Text('Condo')),
+                        DropdownMenuItem(value: 'Villa', child: Text('Villa')),
+                        DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
+                        DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCategory = value!;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a category';
+                        }
+                        return null;
+                      },
+                    ),
                       DropdownButtonFormField<String>(
                         initialValue: _selectedCategory,
                         decoration: const InputDecoration(
@@ -850,7 +859,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           });
                         },
                         validator: (value) {
-                          if (_selectedType == PropertyType.commercial &&
+                          if (_selectedType == PropertyType.condo &&
                               (value == null || value.isEmpty)) {
                             return 'Please select a category';
                           }

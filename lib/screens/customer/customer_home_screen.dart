@@ -1168,10 +1168,7 @@ class _HomeTabState extends State<HomeTab> {
                       ),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: _buildPropertyTypeButton(
-                          'Commercial',
-                          PropertyType.commercial,
-                        ),
+                        child: SizedBox.shrink(),
                       ),
                     ],
                   ),
@@ -1875,9 +1872,6 @@ class _HomeTabState extends State<HomeTab> {
                           case PropertyType.hostel:
                             label = 'Hostel';
                             break;
-                          case PropertyType.commercial:
-                            label = 'Commercial';
-                            break;
                         }
                         return FilterChip(
                           label: Text(label),
@@ -1954,8 +1948,6 @@ class _HomeTabState extends State<HomeTab> {
                                     ? 'Properties for Rent'
                                     : _selectedFilter == PropertyType.sale
                                     ? 'Properties for Sale'
-                                    : _selectedFilter == PropertyType.commercial
-                                    ? 'Commercial Properties'
                                     : 'Student Hostels',
                                 style: TextStyle(
                                   fontSize: 20,
@@ -4975,9 +4967,7 @@ class _SearchTabState extends State<SearchTab> {
                               ? 'For Sale'
                               : property.type == PropertyType.rent
                                   ? 'For Rent'
-                                  : property.type == PropertyType.commercial
-                                      ? 'Commercial'
-                                      : 'Hostel',
+                                  : 'Hostel',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.blue.shade700,
