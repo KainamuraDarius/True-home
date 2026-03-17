@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'property_model.dart';
 
 enum AdTier {
   basic,
