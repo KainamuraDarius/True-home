@@ -43,13 +43,14 @@ class ProjectService {
       // Get current time
       final now = DateTime.now();
 
-      // Filter approved and non-expired projects in memory
+      // Filter approved, non-expired, and non-deleted projects in memory
       List<Project> projects = querySnapshot.docs
           .map((doc) => Project.fromFirestore(doc))
           .where(
           (p) =>
             p.location == location &&
             p.isApproved &&
+            !p.isDeleted &&
             p.adExpiresAt.isAfter(now),
           )
           .toList();
@@ -61,6 +62,38 @@ class ProjectService {
       return projects;
     } catch (e) {
       print('Error fetching projects: $e');
+      return [];
+    }
+  }
+
+  // Get all approved projects from all locations
+  Future<List<Project>> getAllApprovedProjects() async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('advertised_projects')
+          .where('isApproved', isEqualTo: true)
+          .get();
+
+      // Get current time
+      final now = DateTime.now();
+
+      // Filter approved, non-expired, and non-deleted projects in memory
+      List<Project> projects = querySnapshot.docs
+          .map((doc) => Project.fromFirestore(doc))
+          .where(
+            (p) =>
+              p.isApproved &&
+              !p.isDeleted &&
+              p.adExpiresAt.isAfter(now),
+          )
+          .toList();
+
+      // Shuffle to give everyone fair visibility (rotational effect)
+      projects.shuffle(_random);
+      
+      return projects;
+    } catch (e) {
+      print('Error fetching all projects: $e');
       return [];
     }
   }
@@ -81,7 +114,10 @@ class ProjectService {
       
       for (var doc in querySnapshot.docs) {
         final data = doc.data();
-        
+
+        // Skip deleted projects
+        if (data['isDeleted'] == true) continue;
+
         // Filter by expiry date in memory
         if (data['location'] != null && data['adExpiresAt'] != null) {
           final expiresAt = (data['adExpiresAt'] as Timestamp).toDate();

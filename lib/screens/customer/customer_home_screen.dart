@@ -5492,28 +5492,20 @@ class BrowseNewProjectsSection extends StatefulWidget {
 
 class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
   final ProjectService _projectService = ProjectService();
-  String _selectedProjectLocation = '';
+  String _selectedProjectLocation = 'All';
   List<Project> _locationProjects = [];
   bool _loadingProjects = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.projectLocations.isNotEmpty) {
-      _selectedProjectLocation = widget.projectLocations.first;
-      _loadProjectsForLocation(_selectedProjectLocation);
-    }
+    _loadProjectsForLocation('All'); // Start with All projects
   }
 
   @override
   void didUpdateWidget(BrowseNewProjectsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If locations changed and current selection is not in new list
-    if (widget.projectLocations.isNotEmpty &&
-        !widget.projectLocations.contains(_selectedProjectLocation)) {
-      _selectedProjectLocation = widget.projectLocations.first;
-      _loadProjectsForLocation(_selectedProjectLocation);
-    }
+    // Keep showing all projects by default
   }
 
   Future<void> _loadProjectsForLocation(String location) async {
@@ -5530,7 +5522,9 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
       _loadingProjects = true;
     });
     
-    final projects = await _projectService.getProjectsByLocation(location);
+    final projects = location == 'All'
+        ? await _projectService.getAllApprovedProjects() // Get all projects
+        : await _projectService.getProjectsByLocation(location); // Get projects for specific location
 
     if (mounted) {
       setState(() {
@@ -5618,41 +5612,77 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
           child: Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: widget.projectLocations.map((location) {
-              final isSelected = location == _selectedProjectLocation;
-              return InkWell(
+            children: [
+              // All projects button
+              InkWell(
                 onTap: () {
-                  if (location != _selectedProjectLocation) {
-                    _loadProjectsForLocation(location);
+                  if ('All' != _selectedProjectLocation) {
+                    _loadProjectsForLocation('All');
                   }
                 },
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isSelected
+                    color: 'All' == _selectedProjectLocation
                         ? Theme.of(context).colorScheme.primary
                         : Theme.of(context).chipTheme.backgroundColor,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isSelected
+                      color: 'All' == _selectedProjectLocation
                           ? Theme.of(context).colorScheme.primary
                           : Colors.grey.shade300,
                       width: 1,
                     ),
                   ),
                   child: Text(
-                    location,
+                    'All Areas',
                     style: TextStyle(
-                      color: isSelected
+                      color: 'All' == _selectedProjectLocation
                           ? Theme.of(context).colorScheme.onPrimary
                           : Theme.of(context).textTheme.bodyLarge!.color,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: 'All' == _selectedProjectLocation ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
-              );
-            }).toList(),
+              ),
+              // Location specific buttons
+              ...widget.projectLocations.map((location) {
+                final isSelected = location == _selectedProjectLocation;
+                return InkWell(
+                  onTap: () {
+                    if (location != _selectedProjectLocation) {
+                      _loadProjectsForLocation(location);
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).chipTheme.backgroundColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey.shade300,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      location,
+                      style: TextStyle(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.onPrimary
+                            : Theme.of(context).textTheme.bodyLarge!.color,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -5670,7 +5700,9 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'No projects in $_selectedProjectLocation yet',
+                    _selectedProjectLocation == 'All' 
+                        ? 'No projects yet'
+                        : 'No projects in $_selectedProjectLocation yet',
                     style: TextStyle(
                       color: Theme.of(context).textTheme.bodySmall!.color,
                       fontSize: 14,

@@ -25,6 +25,12 @@ service firebase.storage {
       allow write: if request.auth != null;
     }
     
+    // Company icons - public read with CORS support
+    match /company_icons/{fileName} {
+      allow read: if true;  // Public read
+      allow write: if request.auth != null;
+    }
+    
     // General images folder - authenticated users only
     match /images/{fileName} {
       allow read: if request.auth != null;

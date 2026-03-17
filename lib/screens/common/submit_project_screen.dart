@@ -30,10 +30,19 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _websiteController = TextEditingController();
+  final _startingPriceController = TextEditingController();
+  final _priceDescriptorController = TextEditingController();
+  final _bookingDepositController = TextEditingController();
+  final _bookingDepositDescriptionController = TextEditingController();
+  final _developerTaglineController = TextEditingController();
+  final _operationalAreasController = TextEditingController();
+  final _companyAboutController = TextEditingController();
   
   String? _selectedLocation;
   ProjectStatus _selectedProjectStatus = ProjectStatus.underConstruction;
   List<XFile> _selectedImages = [];
+  XFile? _companyIcon; // Company icon image
+  Currency _selectedCurrency = Currency.UGX;
   bool _isSubmitting = false;
   String? _developerName;
   double _uploadProgress = 0.0;
@@ -171,6 +180,35 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
     return imageUrls;
   }
 
+  Future<String?> _uploadSingleImage(XFile image) async {
+    try {
+      final bytes = await image.readAsBytes();
+      
+      img.Image? decodedImage = img.decodeImage(bytes);
+      if (decodedImage == null) return null;
+      
+      // Resize for icon (make it square and smaller)
+      final size = 256;
+      decodedImage = img.copyResize(decodedImage, width: size, height: size);
+      
+      // Compress
+      final compressedBytes = Uint8List.fromList(
+        img.encodeJpg(decodedImage, quality: 90),
+      );
+      
+      // Upload to Firebase Storage
+      final imageUrl = await StorageService.uploadImage(
+        compressedBytes,
+        folder: 'profiles',
+      );
+      
+      return imageUrl;
+    } catch (e) {
+      print('Error uploading company icon: $e');
+      return null;
+    }
+  }
+
   double _calculateTotalCost() {
     return _flatPrice; // Flat rate of UGX 20,000
   }
@@ -211,12 +249,30 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
       // Upload images
       final imageUrls = await _uploadImages();
       
+      // Upload company icon if selected
+      String? companyIconUrl;
+      if (_companyIcon != null) {
+        setState(() => _uploadStatus = 'Uploading company icon...');
+        companyIconUrl = await _uploadSingleImage(_companyIcon!);
+      }
+      
       setState(() {
         _uploadStatus = 'Saving project...';
       });
       
       // Create project
       final user = currentUser;
+      
+      // Parse operational areas from comma-separated input
+      List<String> operationalAreas = [];
+      if (_operationalAreasController.text.trim().isNotEmpty) {
+        operationalAreas = _operationalAreasController.text
+            .split(',')
+            .map((area) => area.trim())
+            .where((area) => area.isNotEmpty)
+            .toList();
+      }
+      
       final project = Project(
         id: '', // Will be set by Firestore
         name: _nameController.text.trim(),
@@ -241,6 +297,27 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
             ? _websiteController.text.trim() 
             : null,
         projectStatus: _selectedProjectStatus,
+        startingPrice: _startingPriceController.text.trim().isNotEmpty
+            ? _startingPriceController.text.trim()
+            : null,
+        priceDescriptor: _priceDescriptorController.text.trim().isNotEmpty
+            ? _priceDescriptorController.text.trim()
+            : null,
+        currency: _selectedCurrency,
+        bookingDeposit: _bookingDepositController.text.trim().isNotEmpty
+            ? double.tryParse(_bookingDepositController.text.trim())
+            : null,
+        bookingDepositDescription: _bookingDepositDescriptionController.text.trim().isNotEmpty
+            ? _bookingDepositDescriptionController.text.trim()
+            : null,
+        developerTagline: _developerTaglineController.text.trim().isNotEmpty
+            ? _developerTaglineController.text.trim()
+            : null,
+        operationalAreas: operationalAreas,
+        companyIconUrl: companyIconUrl,
+        companyAbout: _companyAboutController.text.trim().isNotEmpty
+            ? _companyAboutController.text.trim()
+            : null,
       );
 
       await _projectService.createProject(project);
@@ -489,7 +566,179 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
                         setState(() => _selectedProjectStatus = value!);
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
+
+                    // Pricing Information Section
+                    const Text(
+                      'Pricing Information',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _startingPriceController,
+                      decoration: const InputDecoration(
+                        labelText: 'Starting Price (Optional)',
+                        hintText: 'e.g., 136K, UGX 500M',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.local_offer),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _priceDescriptorController,
+                      decoration: const InputDecoration(
+                        labelText: 'Unit Type/Price Range (Optional)',
+                        hintText: 'e.g., 1-4 bedroom units',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.apartment),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Currency Selection Dropdown
+                    DropdownButtonFormField<Currency>(
+                      value: _selectedCurrency,
+                      decoration: const InputDecoration(
+                        labelText: 'Currency',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.currency_exchange),
+                      ),
+                      items: Currency.values.map((currency) {
+                        return DropdownMenuItem(
+                          value: currency,
+                          child: Text(currency.toString().split('.').last),
+                        );
+                      }).toList(),
+                      onChanged: (Currency? value) {
+                        if (value != null) {
+                          setState(() => _selectedCurrency = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _bookingDepositController,
+                      decoration: const InputDecoration(
+                        labelText: 'Booking Deposit (Optional)',
+                        hintText: 'e.g., 1500 (in currency units)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.payment),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _bookingDepositDescriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Booking Deposit Terms (Optional)',
+                        hintText: 'e.g., 1% monthly til handover',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.info),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Developer Information Section
+                    const Text(
+                      'Developer Information',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _developerTaglineController,
+                      decoration: const InputDecoration(
+                        labelText: 'Company Tagline (Optional)',
+                        hintText: 'e.g., Building Legacies Since 2014',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.badge),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _operationalAreasController,
+                      decoration: const InputDecoration(
+                        labelText: 'Operational Areas (Optional)',
+                        hintText: 'e.g., UAE, Africa, Europe (comma-separated)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.public),
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Developer Photo Picker
+                    const Text(
+                      'Developer Photo (Company Logo) (Optional)',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        final image = await _imagePicker.pickImage(source: ImageSource.gallery);
+                        if (image != null) {
+                          setState(() => _companyIcon = image);
+                        }
+                      },
+                      child: Container(
+                        height: 120,
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(60),
+                          border: Border.all(
+                            color: AppColors.primary.withOpacity(0.5),
+                            width: 2,
+                          ),
+                        ),
+                        child: _companyIcon != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(60),
+                                child: Image.file(
+                                  File(_companyIcon!.path),
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.image, size: 40, color: Colors.grey.shade600),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Tap to upload',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _companyAboutController,
+                      decoration: const InputDecoration(
+                        labelText: 'About the Company (Optional)',
+                        hintText: 'Tell customers about your company...',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.info),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 24),
 
                     // Contact Information Section
                     const Text(
@@ -754,6 +1003,13 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _websiteController.dispose();
+    _startingPriceController.dispose();
+    _priceDescriptorController.dispose();
+    _bookingDepositController.dispose();
+    _bookingDepositDescriptionController.dispose();
+    _developerTaglineController.dispose();
+    _operationalAreasController.dispose();
+    _companyAboutController.dispose();
     super.dispose();
   }
 }
