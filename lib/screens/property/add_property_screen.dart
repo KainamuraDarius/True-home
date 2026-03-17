@@ -838,55 +838,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           return null;
                         },
                       ),
-                    ] else ...[
-                      // Commercial category
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedCommercialCategory,
-                        decoration: const InputDecoration(
-                          labelText: 'Property Category *',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _commercialCategories
-                            .map((category) => DropdownMenuItem(value: category, child: Text(category)))
-                            .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCommercialCategory = value;
-                            // Clear custom category when selection changes
-                            if (value != 'Others') {
-                              _customCategoryController.clear();
-                            }
-                          });
-                        },
-                        validator: (value) {
-                          if (_selectedType == PropertyType.condo &&
-                              (value == null || value.isEmpty)) {
-                            return 'Please select a category';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      // Custom category text field (only shown when "Others" is selected)
-                      if (_selectedCommercialCategory == 'Others') ...[
-                        TextFormField(
-                          controller: _customCategoryController,
-                          decoration: const InputDecoration(
-                            labelText: 'Enter Custom Category *',
-                            border: OutlineInputBorder(),
-                            hintText: 'e.g., Restaurant, Clinic, Gym',
-                          ),
-                          validator: (value) {
-                            if (_selectedCommercialCategory == 'Others' &&
-                                (value == null || value.isEmpty)) {
-                              return 'Please enter a custom category';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ],
                     const SizedBox(height: 16),
 
                     // Description

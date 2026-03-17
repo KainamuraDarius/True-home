@@ -2253,9 +2253,7 @@ class _HomeTabState extends State<HomeTab> {
                                           ? 'No properties available yet'
                                           : _selectedFilter == PropertyType.hostel
                                               ? 'We are currently onboarding listings in this area. Please check back shortly!'
-                                              : _selectedFilter == PropertyType.commercial
-                                                  ? 'No commercial properties available'
-                                                  : 'No ${_selectedFilter == PropertyType.rent
+                                              : 'No ${_selectedFilter == PropertyType.rent
                                                         ? "rental"
                                                         : "sale"} properties available',
                                       style: TextStyle(color: Colors.grey[600]),
@@ -4221,9 +4219,6 @@ class _SearchTabState extends State<SearchTab> {
                             break;
                           case PropertyType.hostel:
                             label = 'Hostel';
-                            break;
-                          case PropertyType.commercial:
-                            label = 'Commercial';
                             break;
                         }
                         return FilterChip(
