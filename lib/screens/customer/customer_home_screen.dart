@@ -893,6 +893,8 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   void _clearSearch() {
+    final shouldReloadLocations = _selectedFilter != PropertyType.sale;
+
     setState(() {
       _searchController.clear();
       _isSearchActive = false;
@@ -901,7 +903,7 @@ class _HomeTabState extends State<HomeTab> {
       _showFilters = false;
       _showSuggestions = false;
       _inlineAutocompleteSuggestion = '';
-      _selectedFilter = null;
+      _selectedFilter = PropertyType.sale;
       _minPrice = 0;
       _maxPrice = 10000000;
       _minPriceController.clear();
@@ -911,6 +913,10 @@ class _HomeTabState extends State<HomeTab> {
       _selectedPropertyLocation = null;
       _displayedPropertiesCount = 3; // Reset to show 3 properties initially
     });
+
+    if (shouldReloadLocations) {
+      _loadPropertyLocations();
+    }
   }
 
   // Check if suggestion is a typo correction
@@ -2015,11 +2021,12 @@ class _HomeTabState extends State<HomeTab> {
                             TextButton(
                               onPressed: () {
                                 setState(() {
-                                  _selectedFilter = null;
+                                  _selectedFilter = PropertyType.sale;
                                   _selectedPropertyLocation = null;
                                   _displayedPropertiesCount =
                                       3; // Reset pagination to 3
                                 });
+                                _loadPropertyLocations();
                               },
                               child: const Text('Clear Filter'),
                             ),
@@ -2176,10 +2183,7 @@ class _HomeTabState extends State<HomeTab> {
                           var allProperties = snapshot.data!.docs.map((doc) {
                             final data = doc.data() as Map<String, dynamic>;
                             data['id'] = doc.id;
-                            
-                            // Debug: Log imageUrls from Firestore
-                            print('🔥 Firestore doc ${doc.id}: imageUrls = ${data['imageUrls']}');
-                            
+
                             return PropertyModel.fromJson(data);
                           }).toList();
 
@@ -2648,7 +2652,7 @@ class _HomeTabState extends State<HomeTab> {
     return ElevatedButton(
       onPressed: () {
         setState(() {
-          _selectedFilter = isSelected ? null : type;
+          _selectedFilter = type;
           _displayedPropertiesCount =
               3; // Reset pagination to 3 when filter changes
           _selectedPropertyLocation = null; // Reset location filter
@@ -3480,7 +3484,7 @@ class _HomeTabState extends State<HomeTab> {
                       color: AppColors.primary,
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -6067,3 +6071,4 @@ class GuestAccessScreen extends StatelessWidget {
     );
   }
 }
+
