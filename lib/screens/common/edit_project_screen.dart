@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 import '../../models/project_model.dart';
+import '../../models/property_model.dart';
 import '../../services/project_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
@@ -69,11 +70,11 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     _bookingDepositController = TextEditingController(text: p.bookingDeposit != null ? p.bookingDeposit.toString() : '');
     _bookingDepositDescriptionController = TextEditingController(text: p.bookingDepositDescription ?? '');
     _developerTaglineController = TextEditingController(text: p.developerTagline ?? '');
-    _operationalAreasController = TextEditingController(text: p.operationalAreas.join(', '));
+    _operationalAreasController = TextEditingController(text: p.operationalAreas?.join(', ') ?? '');
     _companyAboutController = TextEditingController(text: p.companyAbout ?? '');
     _selectedLocation = p.location;
     _selectedProjectStatus = p.projectStatus;
-    _selectedCurrency = p.currency;
+    _selectedCurrency = p.currency ?? Currency.UGX;
     _existingImageUrls = List<String>.from(p.imageUrls);
     _existingCompanyIconUrl = p.companyIconUrl;
   }

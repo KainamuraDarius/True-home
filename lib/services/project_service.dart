@@ -166,6 +166,11 @@ class ProjectService {
     }
   }
 
+  // Get all approved projects
+  Future<List<Project>> getAllApprovedProjects() async {
+    return getAllProjects(isApproved: true);
+  }
+
   // Admin: Approve/reject project
   Future<void> updateProjectApproval(String projectId, bool isApproved) async {
     try {

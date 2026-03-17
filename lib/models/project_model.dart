@@ -31,6 +31,15 @@ class Project {
   final ProjectStatus projectStatus;
   final int viewCount;
   final int clickCount;
+  final String? startingPrice;
+  final String? priceDescriptor;
+  final Currency? currency;
+  final double? bookingDeposit;
+  final String? bookingDepositDescription;
+  final String? developerTagline;
+  final List<String>? operationalAreas;
+  final String? companyIconUrl;
+  final String? companyAbout;
 
   Project({
     required this.id,
@@ -52,6 +61,15 @@ class Project {
     this.projectStatus = ProjectStatus.underConstruction,
     this.viewCount = 0,
     this.clickCount = 0,
+    this.startingPrice,
+    this.priceDescriptor,
+    this.currency,
+    this.bookingDeposit,
+    this.bookingDepositDescription,
+    this.developerTagline,
+    this.operationalAreas,
+    this.companyIconUrl,
+    this.companyAbout,
   });
 
   factory Project.fromFirestore(DocumentSnapshot doc) {
@@ -82,6 +100,24 @@ class Project {
       ),
       viewCount: data['viewCount'] ?? 0,
       clickCount: data['clickCount'] ?? 0,
+      startingPrice: data['startingPrice'],
+      priceDescriptor: data['priceDescriptor'],
+      currency: data['currency'] != null
+          ? Currency.values.firstWhere(
+              (e) => e.toString() == 'Currency.${data['currency']}',
+              orElse: () => Currency.UGX,
+            )
+          : null,
+      bookingDeposit: data['bookingDeposit'] != null
+          ? (data['bookingDeposit'] as num).toDouble()
+          : null,
+      bookingDepositDescription: data['bookingDepositDescription'],
+      developerTagline: data['developerTagline'],
+      operationalAreas: data['operationalAreas'] != null
+          ? List<String>.from(data['operationalAreas'])
+          : null,
+      companyIconUrl: data['companyIconUrl'],
+      companyAbout: data['companyAbout'],
     );
   }
 
@@ -105,6 +141,15 @@ class Project {
       'projectStatus': projectStatus.toString().split('.').last,
       'viewCount': viewCount,
       'clickCount': clickCount,
+      'startingPrice': startingPrice,
+      'priceDescriptor': priceDescriptor,
+      'currency': currency?.toString().split('.').last,
+      'bookingDeposit': bookingDeposit,
+      'bookingDepositDescription': bookingDepositDescription,
+      'developerTagline': developerTagline,
+      'operationalAreas': operationalAreas,
+      'companyIconUrl': companyIconUrl,
+      'companyAbout': companyAbout,
     };
   }
 

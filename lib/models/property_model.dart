@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum PropertyType { sale, rent, hostel }
+enum PropertyType { sale, rent, hostel, commercial }
 
 enum PropertyStatus { pending, approved, rejected, removed }
+
+enum Currency { UGX, USD }
 
 enum PricingPeriod { month, semester }
 

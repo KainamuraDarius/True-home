@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import '../../models/project_model.dart';
+import '../../models/property_model.dart';
 import '../../services/project_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
@@ -477,8 +478,6 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final totalCost = _calculateTotalCost();
-    
     return Stack(
       children: [
         Scaffold(
@@ -975,24 +974,6 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
             ),
           ),
       ],
-    );
-  }
-
-  Widget _buildFeatureItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(Icons.check_circle, color: AppColors.primary, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
