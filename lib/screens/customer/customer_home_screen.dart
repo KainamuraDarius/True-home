@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -575,6 +576,9 @@ class _HomeTabState extends State<HomeTab> {
   bool _showSuggestions = false;
   final FocusNode _searchFocusNode = FocusNode();
   String _inlineAutocompleteSuggestion = '';
+  Timer? _suggestionDebounce;
+  bool _loadingDynamicSuggestions = false;
+  List<String> _dynamicSearchTerms = [];
 
   // Common search terms for suggestions
   static const List<String> _commonLocations = [
@@ -656,6 +660,7 @@ class _HomeTabState extends State<HomeTab> {
             _loadProjectLocations();
             _loadPropertyLocations();
             _loadNewProjects();
+            _loadDynamicSearchTerms();
           }
         });
       }
@@ -664,6 +669,7 @@ class _HomeTabState extends State<HomeTab> {
 
   @override
   void dispose() {
+    _suggestionDebounce?.cancel();
     _searchController.dispose();
     _minPriceController.dispose();
     _maxPriceController.dispose();
@@ -975,6 +981,7 @@ class _HomeTabState extends State<HomeTab> {
       ..._commonLocations,
       ..._propertyTypes,
       ..._searchHistory,
+      ..._dynamicSearchTerms,
     ];
 
     // Score each term based on similarity
@@ -1030,6 +1037,57 @@ class _HomeTabState extends State<HomeTab> {
       _showSuggestions = suggestions.isNotEmpty;
       _inlineAutocompleteSuggestion = inlineSuggestion;
     });
+  }
+
+  void _scheduleSuggestionsUpdate(String value) {
+    _suggestionDebounce?.cancel();
+    _suggestionDebounce = Timer(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      _updateSearchSuggestions(value);
+    });
+  }
+
+  Future<void> _loadDynamicSearchTerms() async {
+    if (_loadingDynamicSuggestions) return;
+
+    _loadingDynamicSuggestions = true;
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('properties')
+          .where('status', isEqualTo: 'approved')
+          .where('isActive', isEqualTo: true)
+          .limit(120)
+          .get();
+
+      final terms = <String>{};
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+
+        void addTerm(dynamic value) {
+          if (value == null) return;
+          final text = value.toString().trim();
+          if (text.length >= 2) {
+            terms.add(text);
+          }
+        }
+
+        addTerm(data['title']);
+        addTerm(data['location']);
+        addTerm(data['address']);
+        addTerm(data['companyName']);
+        addTerm(data['university']);
+      }
+
+      if (mounted) {
+        setState(() {
+          _dynamicSearchTerms = terms.toList(growable: false);
+        });
+      }
+    } catch (e) {
+      print('Error loading dynamic search terms: $e');
+    } finally {
+      _loadingDynamicSuggestions = false;
+    }
   }
 
   @override
@@ -1293,7 +1351,7 @@ class _HomeTabState extends State<HomeTab> {
                                       }
                                     },
                                     onChanged: (value) {
-                                      _updateSearchSuggestions(value);
+                                      _scheduleSuggestionsUpdate(value);
                                       setState(() {
                                         _showHistory =
                                             false; // Hide history when typing
@@ -3213,9 +3271,13 @@ class _HomeTabState extends State<HomeTab> {
 
   // Search result card with horizontal layout - no overflow issues
   Widget _buildSearchResultCard(BuildContext context, PropertyModel property) {
+    final isDesktop = ResponsiveHelper.isDesktop(context);
+    final cardImageHeight = isDesktop ? 250.0 : 210.0;
+
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 3,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -3225,162 +3287,186 @@ class _HomeTabState extends State<HomeTab> {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12),
-        child: Row(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Property Image (fixed width, flexible height)
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(12),
-              ),
-              child: property.imageUrls.isNotEmpty
-                  ? Image.network(
-                      property.imageUrls.first,
-                      width: 140,
-                      height: 140,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 140,
-                          height: 140,
-                          color: Theme.of(context).cardColor,
-                          child: const Icon(Icons.image_not_supported),
-                        );
-                      },
-                    )
-                  : Container(
-                      width: 140,
-                      height: 140,
-                      color: Colors.grey[300],
-                      child: const Icon(
-                        Icons.home,
-                        size: 50,
-                        color: Colors.grey,
-                      ),
+            Stack(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  height: cardImageHeight,
+                  child: property.imageUrls.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: property.imageUrls.first,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: Theme.of(context).cardColor,
+                            child: const Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: Theme.of(context).cardColor,
+                            child: const Center(
+                              child: Icon(Icons.image_not_supported, size: 48),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey[300],
+                          child: const Center(
+                            child: Icon(Icons.home, size: 52, color: Colors.grey),
+                          ),
+                        ),
+                ),
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
                     ),
-            ),
-            // Property Details
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Property Name
-                    Text(
-                      property.title,
+                    decoration: BoxDecoration(
+                      color: property.type == PropertyType.sale
+                          ? Colors.green
+                          : property.type == PropertyType.rent
+                          ? Colors.blue
+                          : Colors.orange,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      property.type == PropertyType.sale
+                          ? 'FOR SALE'
+                          : property.type == PropertyType.rent
+                          ? 'FOR RENT'
+                          : 'HOSTEL',
                       style: const TextStyle(
-                        fontSize: 16,
+                        color: Colors.white,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    // Location
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    property.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Colors.grey[700],
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          property.location,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (property.companyName.isNotEmpty) ...[
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Icon(
-                          Icons.location_on,
-                          size: 14,
-                          color: Colors.grey[600],
+                          Icons.business,
+                          size: 16,
+                          color: Colors.grey[700],
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            property.location,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[700],
-                            ),
+                            property.companyName,
+                            style: const TextStyle(fontSize: 13),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    // Company Name (if available)
-                    if (property.companyName.isNotEmpty) ...[
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.business,
-                            size: 14,
-                            color: Colors.grey[600],
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              property.companyName,
-                              style: const TextStyle(fontSize: 12),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                    // Property Type & Bedrooms/Bathrooms
-                    Row(
-                      children: [
-                        if (property.type == PropertyType.hostel) ...[
-                          if (property.university != null &&
-                              property.university!.isNotEmpty) ...[
-                            Icon(
-                              Icons.school,
-                              size: 14,
-                              color: Colors.grey[600],
-                            ),
+                  ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      if (property.type == PropertyType.hostel &&
+                          property.university != null &&
+                          property.university!.isNotEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.school, size: 16, color: Colors.grey),
                             const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                property.university!,
-                                style: const TextStyle(fontSize: 12),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ] else ...[
-                          if (property.bedrooms > 0) ...[
-                            const Icon(Icons.bed, size: 14, color: Colors.grey),
-                            const SizedBox(width: 2),
                             Text(
-                              '${property.bedrooms}',
+                              property.university!,
                               style: const TextStyle(fontSize: 12),
                             ),
-                            const SizedBox(width: 8),
                           ],
-                          if (property.bathrooms > 0) ...[
+                        ),
+                      if (property.type != PropertyType.hostel &&
+                          property.bedrooms > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.bed, size: 16, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text('${property.bedrooms} beds'),
+                          ],
+                        ),
+                      if (property.type != PropertyType.hostel &&
+                          property.bathrooms > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             const Icon(
                               Icons.bathtub,
-                              size: 14,
+                              size: 16,
                               color: Colors.grey,
                             ),
-                            const SizedBox(width: 2),
-                            Text(
-                              '${property.bathrooms}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
+                            const SizedBox(width: 4),
+                            Text('${property.bathrooms} baths'),
                           ],
-                        ],
-                      ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${property.currency} ${CurrencyFormatter.format(property.price)}',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
                     ),
-                    const SizedBox(height: 8),
-                    // Price
-                    Text(
-                      '${property.currency} ${CurrencyFormatter.format(property.price)}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
