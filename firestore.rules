@@ -98,11 +98,10 @@ service cloud.firestore {
     match /advertised_projects/{projectId} {
       // Public users can browse approved projects.
       // Owners can still read their own submissions, and admins can read everything.
-      allow read: if resource.data.isApproved == true || (
-        isSignedIn() && (
-          resource.data.developerId == request.auth.uid ||
-          isAdmin()
-        )
+      allow read: if (
+        (resource.data.isApproved == true) ||
+        (isSignedIn() && resource.data.developerId == request.auth.uid) ||
+        (isAdmin())
       );
       // Only project owner can write (except view/click counts)
       allow create: if isSignedIn() && request.resource.data.developerId == request.auth.uid;

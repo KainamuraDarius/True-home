@@ -43,10 +43,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       isWebNav: kIsWeb,
       onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
     ),
-    SearchTab(
-      isWebNav: kIsWeb,
-      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-    ),
     _isGuestUser
         ? GuestAccessScreen(
             title: 'Login To Save Favorites',
@@ -128,11 +124,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.search_outlined),
-            activeIcon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.favorite_outline),
             activeIcon: Icon(Icons.favorite),
             label: 'Favorites',
@@ -201,19 +192,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     index: 0,
                   ),
                   _buildDrawerItem(
-                    icon: Icons.search,
-                    title: 'Search',
-                    index: 1,
-                  ),
-                  _buildDrawerItem(
                     icon: Icons.favorite,
                     title: 'Favorites',
-                    index: 2,
+                    index: 1,
                   ),
                   _buildDrawerItem(
                     icon: Icons.person,
                     title: 'Profile',
-                    index: 3,
+                    index: 2,
                   ),
                 ],
              ),
@@ -418,22 +404,16 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   index: 0,
                 ),
                 _buildSidebarItem(
-                  icon: Icons.search_outlined,
-                  activeIcon: Icons.search_rounded,
-                  title: 'Search',
-                  index: 1,
-                ),
-                _buildSidebarItem(
                   icon: Icons.favorite_outline,
                   activeIcon: Icons.favorite_rounded,
                   title: 'Favorites',
-                  index: 2,
+                  index: 1,
                 ),
                 _buildSidebarItem(
                   icon: Icons.person_outline,
                   activeIcon: Icons.person_rounded,
                   title: 'Profile',
-                  index: 3,
+                  index: 2,
                 ),
               ],
             ),
