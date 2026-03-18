@@ -46,6 +46,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
+  @override
+  void deactivate() {
+    // Close any open dialogs when switching away from this tab on web
+    if (kIsWeb && Navigator.of(context).canPop()) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+    super.deactivate();
+  }
+
   Future<void> _loadUserData() async {
     try {
       final user = _auth.currentUser;
@@ -111,356 +120,363 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return Scaffold(
-      appBar: widget.embedded ? null : AppBar(title: const Text('Profile'), centerTitle: true),
-      body: _currentUser == null
-          ? const Center(child: Text('No user data found'))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  // Profile Avatar
-                  _currentUser!.profileImageUrl != null &&
-                          _currentUser!.profileImageUrl!.isNotEmpty &&
-                          _currentUser!.profileImageUrl!.startsWith('http')
-                      ? CircleAvatar(
-                          radius: 60,
-                          backgroundImage: NetworkImage(
-                            _currentUser!.profileImageUrl!,
-                          ),
-                          onBackgroundImageError: (exception, stackTrace) {
-                            print('Error loading profile image: $exception');
-                          },
-                        )
-                      : CircleAvatar(
-                          radius: 60,
-                          backgroundColor: AppColors.primary.withOpacity(0.1),
-                          child: Text(
-                            _currentUser!.name.isNotEmpty
-                                ? _currentUser!.name[0].toUpperCase()
-                                : 'U',
-                            style: const TextStyle(
-                              fontSize: 48,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
+    final content = _currentUser == null
+        ? const Center(child: Text('No user data found'))
+        : SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                // Profile Avatar
+                _currentUser!.profileImageUrl != null &&
+                        _currentUser!.profileImageUrl!.isNotEmpty &&
+                        _currentUser!.profileImageUrl!.startsWith('http')
+                    ? CircleAvatar(
+                        radius: 60,
+                        backgroundImage: NetworkImage(
+                          _currentUser!.profileImageUrl!,
+                        ),
+                        onBackgroundImageError: (exception, stackTrace) {
+                          print('Error loading profile image: $exception');
+                        },
+                      )
+                    : CircleAvatar(
+                        radius: 60,
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: Text(
+                          _currentUser!.name.isNotEmpty
+                              ? _currentUser!.name[0].toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
                           ),
                         ),
-                  const SizedBox(height: 20),
-                  // User Name
-                  Text(
-                    _currentUser!.name,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // User Role
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _getRoleDisplayName(_currentUser!.activeRole),
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
                       ),
+                const SizedBox(height: 20),
+                // User Name
+                Text(
+                  _currentUser!.name,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // User Role
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _getRoleDisplayName(_currentUser!.activeRole),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  // User Information Card
+                ),
+                const SizedBox(height: 32),
+                // User Information Card
+                _buildInfoCard(
+                  title: 'Contact Information',
+                  items: [
+                    _buildInfoRow(Icons.email, 'Email', _currentUser!.email),
+                    if (_currentUser!.phoneNumber.isNotEmpty)
+                      _buildInfoRow(
+                        Icons.phone,
+                        'Phone',
+                        _currentUser!.phoneNumber,
+                      ),
+                    if (_currentUser!.whatsappNumber != null &&
+                        _currentUser!.whatsappNumber!.isNotEmpty)
+                      _buildInfoRow(
+                        Icons.chat,
+                        'WhatsApp',
+                        _currentUser!.whatsappNumber!,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Company Information (for agents)
+                if (_currentUser!.roles.contains(UserRole.propertyAgent) &&
+                    _currentUser!.companyName != null)
                   _buildInfoCard(
-                    title: 'Contact Information',
+                    title: 'Company Information',
                     items: [
-                      _buildInfoRow(Icons.email, 'Email', _currentUser!.email),
-                      if (_currentUser!.phoneNumber.isNotEmpty)
-                        _buildInfoRow(
-                          Icons.phone,
-                          'Phone',
-                          _currentUser!.phoneNumber,
-                        ),
-                      if (_currentUser!.whatsappNumber != null &&
-                          _currentUser!.whatsappNumber!.isNotEmpty)
-                        _buildInfoRow(
-                          Icons.chat,
-                          'WhatsApp',
-                          _currentUser!.whatsappNumber!,
-                        ),
+                      _buildInfoRow(
+                        Icons.business,
+                        'Company',
+                        _currentUser!.companyName!,
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  // Company Information (for agents)
-                  if (_currentUser!.roles.contains(UserRole.propertyAgent) &&
-                      _currentUser!.companyName != null)
-                    _buildInfoCard(
-                      title: 'Company Information',
-                      items: [
-                        _buildInfoRow(
-                          Icons.business,
-                          'Company',
-                          _currentUser!.companyName!,
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 16),
-                  _buildReservationsSection(),
-                  const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                _buildReservationsSection(),
+                const SizedBox(height: 24),
 
-                  // Account Settings Section
-                  _buildSectionHeader('Account Settings'),
-                  _buildSettingsTile(
-                    icon: Icons.edit,
-                    title: 'Edit Profile',
-                    onTap: () async {
-                      if (_currentUser != null) {
+                // Account Settings Section
+                _buildSectionHeader('Account Settings'),
+                _buildSettingsTile(
+                  icon: Icons.edit,
+                  title: 'Edit Profile',
+                  onTap: () async {
+                    if (_currentUser != null) {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              EditProfileScreen(user: _currentUser!),
+                        ),
+                      );
+                      if (result == true) {
+                        _loadUserData();
+                      }
+                    }
+                  },
+                ),
+                _buildSettingsTile(
+                  icon: Icons.lock,
+                  title: 'Change Password',
+                  onTap: () async {
+                    if (_currentUser != null) {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              EditProfileScreen(user: _currentUser!),
+                        ),
+                      );
+                    }
+                  },
+                ),
+                // Show "Become an Agent" only for customers who are not agents
+                // Show "Switch to Customer Mode" for agents
+                if (_currentUser != null &&
+                    !_currentUser!.roles.contains(UserRole.admin))
+                  if (!_currentUser!.roles.contains(UserRole.propertyAgent))
+                    _buildSettingsTile(
+                      icon: Icons.business_center,
+                      title: 'Become an Agent',
+                      subtitle: 'Start listing and managing properties',
+                      onTap: () async {
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                EditProfileScreen(user: _currentUser!),
+                            builder: (context) => const BecomeAgentScreen(),
                           ),
                         );
                         if (result == true) {
-                          _loadUserData();
+                          _loadUserData(); // Reload to get updated roles
                         }
-                      }
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.lock,
-                    title: 'Change Password',
-                    onTap: () async {
-                      if (_currentUser != null) {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                EditProfileScreen(user: _currentUser!),
+                      },
+                    )
+                  else
+                    _buildSettingsTile(
+                      icon: Icons.person_outline,
+                      title: 'Switch to Customer Mode',
+                      subtitle: 'Browse properties as a customer',
+                      onTap: () async {
+                        // Show loading
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => const Center(
+                            child: CircularProgressIndicator(),
                           ),
                         );
-                      }
-                    },
-                  ),
-                  // Show "Become an Agent" only for customers who are not agents
-                  // Show "Switch to Customer Mode" for agents
-                  if (_currentUser != null &&
-                      !_currentUser!.roles.contains(UserRole.admin))
-                    if (!_currentUser!.roles.contains(UserRole.propertyAgent))
-                      _buildSettingsTile(
-                        icon: Icons.business_center,
-                        title: 'Become an Agent',
-                        subtitle: 'Start listing and managing properties',
-                        onTap: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const BecomeAgentScreen(),
-                            ),
-                          );
-                          if (result == true) {
-                            _loadUserData(); // Reload to get updated roles
-                          }
-                        },
-                      )
-                    else
-                      _buildSettingsTile(
-                        icon: Icons.person_outline,
-                        title: 'Switch to Customer Mode',
-                        subtitle: 'Browse properties as a customer',
-                        onTap: () async {
-                          // Show loading
-                          showDialog(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (context) => const Center(
-                              child: CircularProgressIndicator(),
-                            ),
+
+                        try {
+                          await RoleService().switchActiveRole(
+                            UserRole.customer,
                           );
 
-                          try {
-                            await RoleService().switchActiveRole(
-                              UserRole.customer,
+                          if (mounted) {
+                            Navigator.of(context).pop(); // Close loading
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Switched to Customer mode'),
+                                backgroundColor: Colors.green,
+                              ),
                             );
 
-                            if (mounted) {
-                              Navigator.of(context).pop(); // Close loading
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Switched to Customer mode'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-
-                              // Force app restart to reload UI
-                              Navigator.of(
-                                context,
-                              ).pushNamedAndRemoveUntil('/', (route) => false);
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              Navigator.of(context).pop(); // Close loading
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error switching role: $e'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
+                            // Force app restart to reload UI
+                            Navigator.of(
+                              context,
+                            ).pushNamedAndRemoveUntil('/', (route) => false);
                           }
-                        },
+                        } catch (e) {
+                          if (mounted) {
+                            Navigator.of(context).pop(); // Close loading
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error switching role: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                _buildSettingsTile(
+                  icon: Icons.verified_user,
+                  title: 'Account Verification',
+                  subtitle: _currentUser!.isVerified
+                      ? 'Verified'
+                      : 'Not Verified',
+                  onTap: () {
+                    _showVerificationDialog();
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Notification Settings Section
+                _buildSectionHeader('Notifications'),
+                _buildSettingsTile(
+                  icon: Icons.notifications,
+                  title: 'Push Notifications',
+                  subtitle: 'Manage notification preferences',
+                  onTap: () {
+                    _showNotificationSettings();
+                  },
+                ),
+                _buildSettingsTile(
+                  icon: Icons.email_outlined,
+                  title: 'Email Notifications',
+                  subtitle: 'Receive updates via email',
+                  onTap: () {
+                    _showEmailNotificationDialog();
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Privacy & Security Section
+                _buildSectionHeader('Privacy & Security'),
+                _buildSettingsTile(
+                  icon: Icons.security,
+                  title: 'Security',
+                  subtitle: 'Two-factor authentication',
+                  onTap: () {
+                    _showSecurityDialog();
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // App Preferences Section
+                _buildSectionHeader('App Preferences'),
+                _buildSettingsTile(
+                  icon: Icons.dark_mode,
+                  title: 'Theme',
+                  subtitle: 'Light Mode',
+                  onTap: () {
+                    _showThemeDialog();
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Help & Support Section
+                _buildSectionHeader('Help & Support'),
+                _buildSettingsTile(
+                  icon: Icons.help_outline,
+                  title: 'Help Center',
+                  subtitle: 'FAQs and support',
+                  onTap: () {
+                    _showHelpCenter();
+                  },
+                ),
+                _buildSettingsTile(
+                  icon: Icons.contact_support,
+                  title: 'Contact Us',
+                  subtitle: 'Get in touch',
+                  onTap: () {
+                    _showContactDialog();
+                  },
+                ),
+                _buildSettingsTile(
+                  icon: Icons.feedback,
+                  title: 'Send Feedback',
+                  subtitle: 'Share your thoughts',
+                  onTap: () {
+                    _showFeedbackDialog();
+                  },
+                ),
+                _buildSettingsTile(
+                  icon: Icons.star_rate,
+                  title: 'Rate App',
+                  subtitle: 'Rate us on Play Store',
+                  onTap: () {
+                    _showRateDialog();
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // About Section
+                _buildSectionHeader('About'),
+                _buildSettingsTile(
+                  icon: Icons.info_outline,
+                  title: 'About True Home',
+                  subtitle: 'Version 1.0.0',
+                  onTap: () {
+                    _showAboutDialog();
+                  },
+                ),
+                _buildSettingsTile(
+                  icon: Icons.gavel,
+                  title: 'Legal & Policies',
+                  subtitle: 'Terms, privacy, and agreements',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LegalPoliciesScreen(),
                       ),
-                  _buildSettingsTile(
-                    icon: Icons.verified_user,
-                    title: 'Account Verification',
-                    subtitle: _currentUser!.isVerified
-                        ? 'Verified'
-                        : 'Not Verified',
-                    onTap: () {
-                      _showVerificationDialog();
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
 
-                  // Notification Settings Section
-                  _buildSectionHeader('Notifications'),
-                  _buildSettingsTile(
-                    icon: Icons.notifications,
-                    title: 'Push Notifications',
-                    subtitle: 'Manage notification preferences',
-                    onTap: () {
-                      _showNotificationSettings();
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.email_outlined,
-                    title: 'Email Notifications',
-                    subtitle: 'Receive updates via email',
-                    onTap: () {
-                      _showEmailNotificationDialog();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Privacy & Security Section
-                  _buildSectionHeader('Privacy & Security'),
-                  _buildSettingsTile(
-                    icon: Icons.security,
-                    title: 'Security',
-                    subtitle: 'Two-factor authentication',
-                    onTap: () {
-                      _showSecurityDialog();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // App Preferences Section
-                  _buildSectionHeader('App Preferences'),
-                  _buildSettingsTile(
-                    icon: Icons.dark_mode,
-                    title: 'Theme',
-                    subtitle: 'Light Mode',
-                    onTap: () {
-                      _showThemeDialog();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Help & Support Section
-                  _buildSectionHeader('Help & Support'),
-                  _buildSettingsTile(
-                    icon: Icons.help_outline,
-                    title: 'Help Center',
-                    subtitle: 'FAQs and support',
-                    onTap: () {
-                      _showHelpCenter();
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.contact_support,
-                    title: 'Contact Us',
-                    subtitle: 'Get in touch',
-                    onTap: () {
-                      _showContactDialog();
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.feedback,
-                    title: 'Send Feedback',
-                    subtitle: 'Share your thoughts',
-                    onTap: () {
-                      _showFeedbackDialog();
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.star_rate,
-                    title: 'Rate App',
-                    subtitle: 'Rate us on Play Store',
-                    onTap: () {
-                      _showRateDialog();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // About Section
-                  _buildSectionHeader('About'),
-                  _buildSettingsTile(
-                    icon: Icons.info_outline,
-                    title: 'About True Home',
-                    subtitle: 'Version 1.0.0',
-                    onTap: () {
-                      _showAboutDialog();
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.gavel,
-                    title: 'Legal & Policies',
-                    subtitle: 'Terms, privacy, and agreements',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LegalPoliciesScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Danger Zone Section
-                  _buildSectionHeader('Danger Zone'),
-                  _buildSettingsTile(
-                    icon: Icons.logout,
-                    title: 'Logout',
-                    onTap: _logout,
-                    textColor: Colors.orange,
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.delete_forever,
-                    title: 'Delete Account',
-                    subtitle: 'Permanently delete your account',
-                    onTap: () {
-                      _showDeleteAccountDialog();
-                    },
-                    textColor: Colors.red,
-                  ),
-                  if (kIsWeb && widget.showWebFooter) ...[
-                    const SizedBox(height: 24),
-                    const WebFooter(),
-                  ],
-                  const SizedBox(height: 32),
+                // Danger Zone Section
+                _buildSectionHeader('Danger Zone'),
+                _buildSettingsTile(
+                  icon: Icons.logout,
+                  title: 'Logout',
+                  onTap: _logout,
+                  textColor: Colors.orange,
+                ),
+                _buildSettingsTile(
+                  icon: Icons.delete_forever,
+                  title: 'Delete Account',
+                  subtitle: 'Permanently delete your account',
+                  onTap: () {
+                    _showDeleteAccountDialog();
+                  },
+                  textColor: Colors.red,
+                ),
+                if (kIsWeb && widget.showWebFooter) ...[
+                  const SizedBox(height: 24),
+                  const WebFooter(),
                 ],
-              ),
+                const SizedBox(height: 32),
+              ],
             ),
+          );
+
+    // Return embedded version for web (no Scaffold) or full Scaffold for mobile
+    if (widget.embedded) {
+      return content;
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Profile'), centerTitle: true),
+      body: content,
     );
   }
 

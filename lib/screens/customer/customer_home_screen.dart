@@ -59,7 +59,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             description:
                 'Use your account to manage bookings, profile details, and other protected actions.',
           )
-        : const ProfileScreen(showWebFooter: true),
+        : ProfileScreen(showWebFooter: true, embedded: kIsWeb),
   ];
 
   @override
@@ -801,131 +801,127 @@ class _HomeTabState extends State<HomeTab> {
     }
 
     try {
-      List<dynamic> results = []; // Can hold both Project and PropertyModel
+      List<dynamic> results = [];
+      final searchTerm = _searchController.text.toLowerCase().trim();
 
-      // Sync text controllers with actual filter values
-      final actualMinPrice = _minPriceController.text.isEmpty
-          ? 0.0
-          : (double.tryParse(_minPriceController.text) ?? 0.0);
-      final actualMaxPrice = _maxPriceController.text.isEmpty
-          ? 10000000.0
-          : (double.tryParse(_maxPriceController.text) ?? 10000000.0);
-
-      _minPrice = actualMinPrice;
-      _maxPrice = actualMaxPrice;
-
-      print('🔍 Comprehensive Search:');
-      print('   Search Term: ${_searchController.text}');
-      print('   Filter: ${_selectedFilter?.name ?? "All"}');
+      print('🔍 COMPREHENSIVE SEARCH:');
+      print('   Search Term: "$searchTerm"');
 
       // ============================================
-      // PART 1: Search Advertised Projects (All developers' projects)
+      // PART 1: Search Advertised Projects
       // ============================================
       try {
-        Query projectQuery = FirebaseFirestore.instance
+        final projectSnapshot = await FirebaseFirestore.instance
             .collection('advertised_projects')
-            .where('isApproved', isEqualTo: true);
-
-        final projectSnapshot = await projectQuery.get();
-        print('   📦 Advertised projects found: ${projectSnapshot.docs.length}');
+            .get();
+        
+        print('   📦 Total projects in DB: ${projectSnapshot.docs.length}');
 
         for (var doc in projectSnapshot.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          data['id'] = doc.id;
-          final project = Project.fromFirestore(doc);
+          try {
+            final project = Project.fromFirestore(doc);
 
-          bool matchesSearch = true;
-          if (_searchController.text.isNotEmpty) {
-            final searchTerm = _searchController.text.toLowerCase();
-            matchesSearch =
-                project.name.toLowerCase().contains(searchTerm) ||
-                project.description.toLowerCase().contains(searchTerm) ||
-                project.location.toLowerCase().contains(searchTerm) ||
-                project.developerName.toLowerCase().contains(searchTerm);
-          }
+            // Check approval - be lenient, default to true if not set
+            bool isApproved = doc.get('isApproved') as bool? ?? true;
 
-          if (matchesSearch) {
-            results.add(project);
+            if (!isApproved) {
+              continue; // Skip unapproved projects
+            }
+
+            // Match search term
+            bool matchesSearch = true;
+            if (searchTerm.isNotEmpty) {
+              matchesSearch =
+                  project.name.toLowerCase().contains(searchTerm) ||
+                  project.description.toLowerCase().contains(searchTerm) ||
+                  project.location.toLowerCase().contains(searchTerm) ||
+                  project.developerName.toLowerCase().contains(searchTerm);
+            }
+
+            if (matchesSearch) {
+              print('   ✅ Project matched: "${project.name}" @ ${project.location}');
+              results.add(project);
+            }
+          } catch (e) {
+            print('   ⚠️ Error parsing project: $e');
           }
         }
 
-        print('   ✅ Advertised projects matching: ${results.length}');
+        print('   Projects found: ${results.length}');
       } catch (e) {
-        print('   ⚠️ Error searching advertised projects: $e');
+        print('   ⚠️ Error searching projects: $e');
       }
 
       // ============================================
-      // PART 2: Search Properties by Type (Buyers' listings)
+      // PART 2: Search Properties
       // ============================================
       try {
-        // Determine which property types to search
-        List<PropertyType> typesToSearch = [];
-        if (_selectedFilter != null) {
-          typesToSearch = [_selectedFilter!];
-        } else {
-          // Search all types if no filter selected
-          typesToSearch = [
-            PropertyType.sale,
-            PropertyType.rent,
-            PropertyType.hostel,
-            PropertyType.commercial,
-          ];
-        }
+        final propertySnapshot = await FirebaseFirestore.instance
+            .collection('properties')
+            .get();
+        
+        print('   🏠 Total properties in DB: ${propertySnapshot.docs.length}');
 
-        for (var propertyType in typesToSearch) {
-          Query propertyQuery = FirebaseFirestore.instance
-              .collection('properties')
-              .where('type', isEqualTo: propertyType.name)
-              .where('status', isEqualTo: 'approved')
-              .where('isActive', isEqualTo: true);
-
-          final propertySnapshot = await propertyQuery.get();
-          print(
-              '   🏠 ${propertyType.name} properties found: ${propertySnapshot.docs.length}');
-
-          for (var doc in propertySnapshot.docs) {
+        for (var doc in propertySnapshot.docs) {
+          try {
             final data = doc.data() as Map<String, dynamic>;
             data['id'] = doc.id;
+            
+            // Check if property should be shown - be lenient with defaults
+            bool isApproved = (data['status'] as String? ?? '').toLowerCase() == 'approved';
+            bool isActive = data['isActive'] as bool? ?? true;
+
+            // Show property if approved OR if we have no status info at all (default to showing)
+            if (!isApproved && (data['status'] != null)) {
+              print('   ⏭️ Property not approved (status: ${data['status']})');
+              continue;
+            }
+            
+            if (!isActive) {
+              print('   ⏭️ Property not active');
+              continue;
+            }
+
             final property = PropertyModel.fromJson(data);
 
+            // Match search term
             bool matchesSearch = true;
-            if (_searchController.text.isNotEmpty) {
-              final searchTerm = _searchController.text.toLowerCase();
+            if (searchTerm.isNotEmpty) {
               matchesSearch =
                   property.title.toLowerCase().contains(searchTerm) ||
                   property.description.toLowerCase().contains(searchTerm) ||
                   property.location.toLowerCase().contains(searchTerm) ||
-                  property.address.toLowerCase().contains(searchTerm);
+                  (property.address != null && 
+                   property.address.toLowerCase().contains(searchTerm));
             }
 
-            bool matchesPrice =
-                property.price >= _minPrice && property.price <= _maxPrice;
-            bool matchesBedrooms =
-                _bedrooms == null || property.bedrooms >= _bedrooms!;
-
-            if (matchesSearch && matchesPrice && matchesBedrooms) {
+            // Match filters if any
+            if (matchesSearch) {
+              print('   ✅ Property matched: "${property.title}" @ ${property.location}');
               results.add(property);
             }
+          } catch (e) {
+            print('   ⚠️ Error parsing property: $e');
           }
         }
 
-        print('   ✅ Properties matching: ${results.length}');
+        print('   Properties found: ${results.length}');
       } catch (e) {
         print('   ⚠️ Error searching properties: $e');
       }
 
-      print('   📊 Total results combined: ${results.length}');
+      print('   📊 TOTAL RESULTS: ${results.length}');
 
       setState(() {
         _searchResults = results;
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error searching: $e')));
-        print('❌ Search error: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error searching: $e')),
+        );
       }
+      print('❌ Search error: $e');
     }
   }
 
@@ -1941,10 +1937,10 @@ class _HomeTabState extends State<HomeTab> {
                                           : _selectedFilter == PropertyType.hostel
                                               ? 'We are currently onboarding listings in this area. Please check back shortly!'
                                               : _selectedFilter == PropertyType.commercial
-                                                  ? 'No commercial properties available'
-                                                  : 'No ${_selectedFilter == PropertyType.rent
-                                                        ? "rental"
-                                                        : "sale"} properties available',
+                                              ? 'No commercial properties available'
+                                              : 'No ${_selectedFilter == PropertyType.rent
+                                                    ? "rental"
+                                                    : "sale"} properties available',
                                       style: TextStyle(color: Colors.grey[600]),
                                     ),
                                   ],
@@ -5159,8 +5155,8 @@ class _SearchTabState extends State<SearchTab> {
                               : property.type == PropertyType.rent
                                   ? 'For Rent'
                                   : property.type == PropertyType.commercial
-                                      ? 'Commercial'
-                                      : 'Hostel',
+                                  ? 'Commercial'
+                                  : 'Hostel',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.blue.shade700,
