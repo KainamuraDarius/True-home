@@ -12,6 +12,15 @@ enum ProjectStatus {
   offPlan,
 }
 
+enum Currency {
+  UGX,
+  USD,
+  EUR,
+  GBP,
+  ZAR,
+  KES,
+}
+
 class Project {
   final String id;
   final String name;
@@ -19,7 +28,7 @@ class Project {
   final List<String> imageUrls;
   final String developerId;
   final String developerName;
-  final String location; // Kololo, Naalya, etc.
+  final String location;
   final AdTier adTier;
   final bool isFirstPlaceSubscriber;
   final double paymentAmount;
@@ -34,11 +43,11 @@ class Project {
   final int clickCount;
   final String? startingPrice;
   final String? priceDescriptor;
-  final Currency? currency;
+  final Currency currency;
   final double? bookingDeposit;
   final String? bookingDepositDescription;
   final String? developerTagline;
-  final List<String>? operationalAreas;
+  final List<String> operationalAreas;
   final String? companyIconUrl;
   final String? companyAbout;
 
@@ -64,11 +73,11 @@ class Project {
     this.clickCount = 0,
     this.startingPrice,
     this.priceDescriptor,
-    this.currency,
+    this.currency = Currency.UGX,
     this.bookingDeposit,
     this.bookingDepositDescription,
     this.developerTagline,
-    this.operationalAreas,
+    this.operationalAreas = const [],
     this.companyIconUrl,
     this.companyAbout,
   });
@@ -103,20 +112,14 @@ class Project {
       clickCount: data['clickCount'] ?? 0,
       startingPrice: data['startingPrice'],
       priceDescriptor: data['priceDescriptor'],
-      currency: data['currency'] != null
-          ? Currency.values.firstWhere(
-              (e) => e.toString() == 'Currency.${data['currency']}',
-              orElse: () => Currency.UGX,
-            )
-          : null,
-      bookingDeposit: data['bookingDeposit'] != null
-          ? (data['bookingDeposit'] as num).toDouble()
-          : null,
+      currency: Currency.values.firstWhere(
+        (e) => e.toString() == 'Currency.${data['currency']}',
+        orElse: () => Currency.UGX,
+      ),
+      bookingDeposit: (data['bookingDeposit'] as num?)?.toDouble(),
       bookingDepositDescription: data['bookingDepositDescription'],
       developerTagline: data['developerTagline'],
-      operationalAreas: data['operationalAreas'] != null
-          ? List<String>.from(data['operationalAreas'])
-          : null,
+      operationalAreas: List<String>.from(data['operationalAreas'] ?? []),
       companyIconUrl: data['companyIconUrl'],
       companyAbout: data['companyAbout'],
     );
@@ -144,7 +147,7 @@ class Project {
       'clickCount': clickCount,
       'startingPrice': startingPrice,
       'priceDescriptor': priceDescriptor,
-      'currency': currency?.toString().split('.').last,
+      'currency': currency.toString().split('.').last,
       'bookingDeposit': bookingDeposit,
       'bookingDepositDescription': bookingDepositDescription,
       'developerTagline': developerTagline,
@@ -174,6 +177,15 @@ class Project {
     ProjectStatus? projectStatus,
     int? viewCount,
     int? clickCount,
+    String? startingPrice,
+    String? priceDescriptor,
+    Currency? currency,
+    double? bookingDeposit,
+    String? bookingDepositDescription,
+    String? developerTagline,
+    List<String>? operationalAreas,
+    String? companyIconUrl,
+    String? companyAbout,
   }) {
     return Project(
       id: id ?? this.id,
@@ -195,6 +207,15 @@ class Project {
       projectStatus: projectStatus ?? this.projectStatus,
       viewCount: viewCount ?? this.viewCount,
       clickCount: clickCount ?? this.clickCount,
+      startingPrice: startingPrice ?? this.startingPrice,
+      priceDescriptor: priceDescriptor ?? this.priceDescriptor,
+      currency: currency ?? this.currency,
+      bookingDeposit: bookingDeposit ?? this.bookingDeposit,
+      bookingDepositDescription: bookingDepositDescription ?? this.bookingDepositDescription,
+      developerTagline: developerTagline ?? this.developerTagline,
+      operationalAreas: operationalAreas ?? this.operationalAreas,
+      companyIconUrl: companyIconUrl ?? this.companyIconUrl,
+      companyAbout: companyAbout ?? this.companyAbout,
     );
   }
 }

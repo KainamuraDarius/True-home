@@ -7,7 +7,6 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 import '../../models/project_model.dart';
-import '../../models/property_model.dart';
 import '../../services/project_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
@@ -70,11 +69,11 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     _bookingDepositController = TextEditingController(text: p.bookingDeposit != null ? p.bookingDeposit.toString() : '');
     _bookingDepositDescriptionController = TextEditingController(text: p.bookingDepositDescription ?? '');
     _developerTaglineController = TextEditingController(text: p.developerTagline ?? '');
-    _operationalAreasController = TextEditingController(text: p.operationalAreas?.join(', ') ?? '');
+    _operationalAreasController = TextEditingController(text: p.operationalAreas.join(', '));
     _companyAboutController = TextEditingController(text: p.companyAbout ?? '');
     _selectedLocation = p.location;
     _selectedProjectStatus = p.projectStatus;
-    _selectedCurrency = p.currency ?? Currency.UGX;
+    _selectedCurrency = p.currency;
     _existingImageUrls = List<String>.from(p.imageUrls);
     _existingCompanyIconUrl = p.companyIconUrl;
   }
@@ -167,7 +166,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
 
             return await StorageService.uploadImage(compressed, folder: 'projects');
           } catch (e) {
-            debugPrint('Image upload error: $e');
+            debugPrint('Error uploading/compressing image: $e');
             return null;
           }
         }),
@@ -210,7 +209,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       
       return imageUrl;
     } catch (e) {
-      debugPrint('Error uploading company icon: $e');
+      debugPrint('Error compressing/uploading company icon: $e');
       return null;
     }
   }
@@ -322,13 +321,30 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
         Navigator.pop(context, true); // signal refresh
       }
     } catch (e) {
-      debugPrint('Save error: $e');
+      debugPrint('Error saving project: $e');
       if (mounted) {
         setState(() => _isSaving = false);
+        
+        String errorMessage = 'Error saving project';
+        final errorStr = e.toString().toLowerCase();
+        
+        if (errorStr.contains('permission') || errorStr.contains('denied')) {
+          errorMessage = 'Permission denied. Please check your account permissions.';
+        } else if (errorStr.contains('network') || errorStr.contains('timeout')) {
+          errorMessage = 'Network connection error. Please check your internet and try again.';
+        } else if (errorStr.contains('firestore')) {
+          errorMessage = 'Database error. Please try again later.';
+        } else if (errorStr.contains('storage')) {
+          errorMessage = 'Image storage error. Please try again later.';
+        } else {
+          errorMessage = 'An unexpected error occurred. Please try again.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving: $e'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }

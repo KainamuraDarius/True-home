@@ -8,7 +8,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import '../../models/project_model.dart';
-import '../../models/property_model.dart';
 import '../../services/project_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
@@ -154,7 +153,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
               return null;
             }
           } catch (e) {
-            print('❌ Error with image ${index + 1}: $e');
+            debugPrint('Error compressing/uploading image ${index + 1}: $e');
             return null;
           }
         }),
@@ -174,7 +173,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
     }
     
     if (imageUrls.isEmpty) {
-      throw Exception('Failed to upload any images');
+      throw Exception('Image upload failed: no images were successfully uploaded');
     }
     
     print('✅ Upload complete: ${imageUrls.length}/$totalImages images');
@@ -205,7 +204,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
       
       return imageUrl;
     } catch (e) {
-      print('Error uploading company icon: $e');
+      debugPrint('Error uploading company icon: $e');
       return null;
     }
   }
@@ -444,18 +443,25 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen> {
         
         String errorMessage = 'Error submitting project';
         
-        // Provide specific error messages
-        if (e.toString().contains('Failed to upload') || e.toString().contains('upload any images')) {
+        // Provide specific error messages based on error type
+        final errorStr = e.toString().toLowerCase();
+        if (errorStr.contains('failed to upload') || errorStr.contains('upload any images')) {
           errorMessage = 'Image upload failed. Please check your internet connection and try again.';
-        } else if (e.toString().contains('SocketException') ||
-            e.toString().contains('NetworkException') ||
-            e.toString().contains('timeout')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (e.toString().contains('Firebase')) {
-          errorMessage = 'Upload error. Please try again later.';
+        } else if (errorStr.contains('sockexception') ||
+            errorStr.contains('networkexception') ||
+            errorStr.contains('timeout')) {
+          errorMessage = 'Network connection error. Please check your internet and try again.';
+        } else if (errorStr.contains('permission') || errorStr.contains('denied')) {
+          errorMessage = 'Permission denied. Please check your account permissions.';
+        } else if (errorStr.contains('firestore')) {
+          errorMessage = 'Database error. Please try again later.';
+        } else if (errorStr.contains('storage')) {
+          errorMessage = 'Image storage error. Please try again later.';
         } else {
-          errorMessage = 'Error: ${e.toString()}';
+          errorMessage = 'An unexpected error occurred. Please try again.';
         }
+        
+        debugPrint('Submission error: $e');
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
