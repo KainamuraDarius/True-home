@@ -23,11 +23,13 @@ import '../../main.dart';
 class ProfileScreen extends StatefulWidget {
   final bool showWebFooter;
   final bool embedded;
+  final VoidCallback? onMenuTap;
 
   const ProfileScreen({
     super.key,
     this.showWebFooter = false,
     this.embedded = false,
+    this.onMenuTap,
   });
 
   @override
@@ -40,19 +42,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserModel? _currentUser;
   bool _isLoading = true;
 
+  bool get _isCustomerMode =>
+      _currentUser != null && _currentUser!.activeRole == UserRole.customer;
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
-  }
-
-  @override
-  void deactivate() {
-    // Close any open dialogs when switching away from this tab on web
-    if (kIsWeb && Navigator.of(context).canPop()) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
-    super.deactivate();
   }
 
   Future<void> _loadUserData() async {
@@ -120,12 +116,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final content = _currentUser == null
+    final profileContent = _currentUser == null
         ? const Center(child: Text('No user data found'))
         : SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                children: [
                 const SizedBox(height: 20),
                 // Profile Avatar
                 _currentUser!.profileImageUrl != null &&
@@ -218,9 +216,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-                const SizedBox(height: 16),
-                _buildReservationsSection(),
-                const SizedBox(height: 24),
+                if (_isCustomerMode) ...[
+                  const SizedBox(height: 16),
+                  _buildReservationsSection(),
+                  const SizedBox(height: 24),
+                ],
 
                 // Account Settings Section
                 _buildSectionHeader('Account Settings'),
@@ -288,9 +288,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         showDialog(
                           context: context,
                           barrierDismissible: false,
-                          builder: (context) => const Center(
-                            child: CircularProgressIndicator(),
-                          ),
+                          builder: (context) =>
+                              const Center(child: CircularProgressIndicator()),
                         );
 
                         try {
@@ -465,9 +464,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const WebFooter(),
                 ],
                 const SizedBox(height: 32),
-              ],
+                ],
+              ),
             ),
           );
+
+    final showEmbeddedMenu =
+        widget.embedded && kIsWeb && widget.onMenuTap != null;
+    final content = showEmbeddedMenu
+        ? Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    bottom: BorderSide(color: Colors.grey.shade200),
+                  ),
+                ),
+                child: SafeArea(
+                  bottom: false,
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.menu),
+                        onPressed: widget.onMenuTap,
+                        tooltip: 'Open menu',
+                      ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'Profile',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(child: profileContent),
+            ],
+          )
+        : profileContent;
 
     // Return embedded version for web (no Scaffold) or full Scaffold for mobile
     if (widget.embedded) {
@@ -590,122 +629,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildReservationsSection() {
-    if (_currentUser == null) {
+    if (_currentUser == null || !_isCustomerMode) {
       return const SizedBox.shrink();
     }
 
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.book_online_outlined, color: AppColors.primary),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'My Reservations',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: _getReservationsStream(),
+      builder: (context, snapshot) {
+        final reservations =
+            (snapshot.data?.docs ?? [])
+                .map(
+                  (doc) => ReservationModel.fromMap(
+                    doc.data() as Map<String, dynamic>,
+                    doc.id,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Track hostel bookings, payment progress, and current reservation status.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            StreamBuilder<QuerySnapshot>(
-              stream: _getReservationsStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
+                )
+                .toList()
+              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-                if (snapshot.hasError) {
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Could not load reservations right now.',
-                      style: TextStyle(color: Colors.red.shade700),
-                    ),
-                  );
-                }
-
-                final reservations = (snapshot.data?.docs ?? [])
-                    .map(
-                      (doc) => ReservationModel.fromMap(
-                        doc.data() as Map<String, dynamic>,
-                        doc.id,
+        return Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            leading: const Icon(
+              Icons.book_online_outlined,
+              color: AppColors.primary,
+            ),
+            title: const Text(
+              'My Reservations',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              reservations.isEmpty
+                  ? 'Tap to view reservations'
+                  : '${reservations.length} reservation${reservations.length == 1 ? '' : 's'} • newest first',
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            children: [
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (snapshot.hasError)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Could not load reservations right now.',
+                    style: TextStyle(color: Colors.red.shade700),
+                  ),
+                )
+              else if (reservations.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 34,
+                        color: AppColors.textSecondary,
                       ),
-                    )
-                    .toList()
-                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-                if (reservations.isEmpty) {
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Column(
-                      children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 34,
+                      SizedBox(height: 10),
+                      Text(
+                        'No reservations yet',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'When you reserve a hostel room, it will appear here with its status.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
                           color: AppColors.textSecondary,
                         ),
-                        SizedBox(height: 10),
-                        Text(
-                          'No reservations yet',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'When you reserve a hostel room, it will appear here with its status.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return Column(
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Column(
                   children: reservations
                       .map((reservation) => _buildReservationCard(reservation))
                       .toList(),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -717,7 +746,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildReservationCard(ReservationModel reservation) {
-    final createdLabel = DateFormat('dd MMM yyyy, HH:mm').format(reservation.createdAt);
+    final createdLabel = DateFormat(
+      'dd MMM yyyy, HH:mm',
+    ).format(reservation.createdAt);
     final isPaid = reservation.paymentStatus.toLowerCase() == 'paid';
 
     return Container(
@@ -734,9 +765,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => ReservationConfirmationScreen(
-                  reservation: reservation,
-                ),
+                builder: (context) =>
+                    ReservationConfirmationScreen(reservation: reservation),
               ),
             );
           },
@@ -787,7 +817,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _buildMetaChip(
                       icon: Icons.payments_outlined,
-                      label: 'UGX ${CurrencyFormatter.format(reservation.reservationFee)} fee',
+                      label:
+                          'UGX ${CurrencyFormatter.format(reservation.reservationFee)} fee',
                       color: AppColors.primary,
                     ),
                     if (reservation.university.isNotEmpty)
@@ -826,7 +857,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-                if (reservation.status == ReservationStatus.pending) ...[  
+                if (reservation.status == ReservationStatus.pending) ...[
                   const SizedBox(height: 10),
                   const Divider(height: 1),
                   const SizedBox(height: 4),

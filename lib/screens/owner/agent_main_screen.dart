@@ -67,7 +67,7 @@ class _AgentMainScreenState extends State<AgentMainScreen> {
         const OwnerDashboardScreen(isTabView: true),
         const MyPropertiesScreen(isTabView: true),
         const MyProjectsScreen(isTabView: true),
-        const ProfileScreen(showWebFooter: true),
+        const ProfileScreen(showWebFooter: false),
       ];
 
   @override
@@ -273,20 +273,23 @@ class _AgentMainScreenState extends State<AgentMainScreen> {
              ),
           ),
 
-          // Footer
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'True Home Agent',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                 fontSize: 13,
-                 fontWeight: FontWeight.w500,
+          // Show footer on non-dashboard tabs only
+          if (_currentIndex != 0) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'True Home Agent',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
-          ),
+          ],
+
         ],
       ),
     );

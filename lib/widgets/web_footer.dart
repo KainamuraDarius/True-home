@@ -154,7 +154,7 @@ class _WebFooterState extends State<WebFooter> with SingleTickerProviderStateMix
     // Only show on web
     if (!kIsWeb) return const SizedBox.shrink();
 
-    return AnimatedContainer(
+    final footerContent = AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       width: double.infinity,
       color: const Color(0xFF1a1d2e),
@@ -168,6 +168,26 @@ class _WebFooterState extends State<WebFooter> with SingleTickerProviderStateMix
           if (_isExpanded) _buildExpandedContent(context),
         ],
       ),
+    );
+
+    // Force footer to span the full viewport width even when parent
+    // is centered/padded (common on web pages).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportWidth = MediaQuery.of(context).size.width;
+        final parentWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : viewportWidth;
+        final horizontalBleed = ((viewportWidth - parentWidth) / 2).clamp(
+          0.0,
+          double.infinity,
+        );
+
+        return Transform.translate(
+          offset: Offset(-horizontalBleed, 0),
+          child: SizedBox(width: viewportWidth, child: footerContent),
+        );
+      },
     );
   }
 

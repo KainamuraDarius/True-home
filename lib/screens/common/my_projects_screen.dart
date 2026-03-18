@@ -160,20 +160,21 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
   }
 
   Stream<List<Project>> _getProjectsStream(String userId, String status) {
-    // Simplified query - only filter by developerId
-    // Sort in memory to avoid composite index requirement
     return FirebaseFirestore.instance
         .collection('advertised_projects')
         .where('developerId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-      // Convert to Project objects
-      final projects = snapshot.docs
-          .map((doc) => Project.fromFirestore(doc))
-          .toList();
-      
-      // Sort by creation date manually (newest first)
-      projects.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final sortedDocs = [...snapshot.docs]
+        ..sort((a, b) {
+          final aData = a.data();
+          final bData = b.data();
+          final aDate = _resolveProjectSortDate(aData, status);
+          final bDate = _resolveProjectSortDate(bData, status);
+          return bDate.compareTo(aDate);
+        });
+
+      final projects = sortedDocs.map((doc) => Project.fromFirestore(doc)).toList();
       
       // Filter by status
       if (status == 'pending') {
@@ -184,6 +185,39 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
       
       return projects;
     });
+  }
+
+  DateTime _resolveProjectSortDate(Map<String, dynamic> data, String status) {
+    if (status == 'approved') {
+      final approvedDate = _parseFirestoreDate(data['approvedAt']);
+      if (approvedDate != null) return approvedDate;
+
+      final updatedDate = _parseFirestoreDate(data['updatedAt']);
+      if (updatedDate != null) return updatedDate;
+    }
+
+    return _parseFirestoreDate(data['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  DateTime? _parseFirestoreDate(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is int) {
+      try {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 
   Widget _buildProjectCard(Project project) {

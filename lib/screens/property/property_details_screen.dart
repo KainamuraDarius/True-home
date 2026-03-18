@@ -12,6 +12,8 @@ import '../auth/login_screen.dart';
 import '../auth/role_selection_screen.dart';
 import '../customer/agent_profile_screen.dart';
 import '../customer/reserve_room_screen.dart';
+import '../../widgets/fullscreen_image_viewer.dart';
+import '../../services/view_tracking_service.dart';
 
 class PropertyDetailsScreen extends StatefulWidget {
   final PropertyModel property;
@@ -28,6 +30,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   static const String _favoritesKey = 'favorite_properties';
   UserRole? _currentUserRole;
   List<UserRole> _currentUserRoles = [];
+  final ViewTrackingService _viewTrackingService = ViewTrackingService();
 
   @override
   void initState() {
@@ -35,30 +38,72 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     _checkFavoriteStatus();
     _getCurrentUserRole();
     _trackPropertyView(); // Track this view
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefetchGalleryImages();
+    });
+  }
+
+  Future<void> _prefetchGalleryImages() async {
+    if (!mounted || widget.property.imageUrls.isEmpty) {
+      return;
+    }
+
+    final galleryImages = widget.property.imageUrls.take(6);
+    for (final imageUrl in galleryImages) {
+      try {
+        await precacheImage(CachedNetworkImageProvider(imageUrl), context);
+      } catch (_) {
+        // Ignore prefetch errors and keep UI responsive.
+      }
+    }
+  }
+
+  Future<void> _prefetchImageAtIndex(int index) async {
+    if (!mounted || widget.property.imageUrls.isEmpty) {
+      return;
+    }
+
+    final indexes = {
+      index - 1,
+      index,
+      index + 1,
+    }.where((i) => i >= 0 && i < widget.property.imageUrls.length);
+
+    for (final i in indexes) {
+      try {
+        await precacheImage(
+          CachedNetworkImageProvider(widget.property.imageUrls[i]),
+          context,
+        );
+      } catch (_) {
+        // Ignore prefetch errors.
+      }
+    }
+  }
+
+  void _openGalleryZoom(int initialIndex) {
+    if (widget.property.imageUrls.isEmpty) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullscreenImageViewer(
+          imageUrls: widget.property.imageUrls,
+          initialIndex: initialIndex,
+          title: widget.property.title,
+        ),
+      ),
+    );
   }
 
   // Track property view
   Future<void> _trackPropertyView() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    
-    // Don't count if user is viewing their own property
-    if (currentUser != null && currentUser.uid == widget.property.ownerId) {
-      return;
-    }
-
     try {
-      final propertyRef = FirebaseFirestore.instance
-          .collection('properties')
-          .doc(widget.property.id);
-
-      // Use set with merge to ensure viewCount exists
-      await propertyRef.set({
-        'viewCount': FieldValue.increment(1),
-      }, SetOptions(merge: true));
-      
-      debugPrint('✅ View tracked for property: ${widget.property.title}');
+      await _viewTrackingService.trackPropertyView(
+        propertyId: widget.property.id,
+        ownerId: widget.property.ownerId,
+      );
     } catch (e) {
-      // Log error for debugging
       debugPrint('❌ Error tracking view: $e');
     }
   }
@@ -197,7 +242,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -226,7 +274,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       Navigator.pop(context);
                       Navigator.push(
                         this.context,
-                        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const RoleSelectionScreen(),
+                        ),
                       );
                     },
                     child: const Text('Create Account'),
@@ -322,31 +372,35 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                         setState(() {
                           _currentImageIndex = index;
                         });
+                        _prefetchImageAtIndex(index);
                       },
                       itemBuilder: (context, index) {
                         final imageUrl = widget.property.imageUrls[index];
-                        return Image.network(
-                          imageUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
+                        return GestureDetector(
+                          onTap: () => _openGalleryZoom(index),
+                          child: CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            memCacheWidth: 1600,
+                            maxWidthDiskCache: 1600,
+                            fadeInDuration: Duration.zero,
+                            placeholder: (context, url) => Container(
                               color: Colors.grey[300],
                               child: const Center(
                                 child: CircularProgressIndicator(),
                               ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                size: 64,
-                              ),
-                            );
-                          },
+                            ),
+                            errorWidget: (context, url, error) {
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.image_not_supported,
+                                  size: 64,
+                                ),
+                              );
+                            },
+                          ),
                         );
                       },
                     ),
@@ -527,20 +581,26 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            _getGenderPolicyColor(widget.property.genderPolicy).withOpacity(0.1),
+                            _getGenderPolicyColor(
+                              widget.property.genderPolicy,
+                            ).withOpacity(0.1),
                             Colors.white,
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: _getGenderPolicyColor(widget.property.genderPolicy).withOpacity(0.3),
+                          color: _getGenderPolicyColor(
+                            widget.property.genderPolicy,
+                          ).withOpacity(0.3),
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             _getGenderPolicyIcon(widget.property.genderPolicy),
-                            color: _getGenderPolicyColor(widget.property.genderPolicy),
+                            color: _getGenderPolicyColor(
+                              widget.property.genderPolicy,
+                            ),
                             size: 28,
                           ),
                           const SizedBox(width: 12),
@@ -558,11 +618,15 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  _getGenderPolicyLabel(widget.property.genderPolicy),
+                                  _getGenderPolicyLabel(
+                                    widget.property.genderPolicy,
+                                  ),
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: _getGenderPolicyColor(widget.property.genderPolicy),
+                                    color: _getGenderPolicyColor(
+                                      widget.property.genderPolicy,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -576,7 +640,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
                   // Room Structure (for hostels)
                   if (widget.property.type == PropertyType.hostel &&
-                      widget.property.roomStructure != null) ...[  
+                      widget.property.roomStructure != null) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -798,9 +862,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                       ],
                                     ),
                                     // Guests can see the CTA, but booking itself requires login.
-                                    if (FirebaseAuth.instance.currentUser == null ||
+                                    if (FirebaseAuth.instance.currentUser ==
+                                            null ||
                                         _currentUserRole == UserRole.customer ||
-                                        _currentUserRoles.contains(UserRole.customer)) ...[
+                                        _currentUserRoles.contains(
+                                          UserRole.customer,
+                                        )) ...[
                                       const SizedBox(height: 12),
                                       SizedBox(
                                         width: double.infinity,
@@ -808,7 +875,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           onPressed: () {
                                             if (!_requireAuthentication(
                                               title: 'Login To Book',
-                                              message: 'Bookings require an account so we can connect you with the hostel and keep your reservation records.',
+                                              message:
+                                                  'Bookings require an account so we can connect you with the hostel and keep your reservation records.',
                                             )) {
                                               return;
                                             }
@@ -947,7 +1015,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     widget.property.type == PropertyType.hostel
                         ? 'Contact Support'
                         : 'Contact Information',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   // Agent Profile Section
@@ -1970,5 +2041,4 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     }
     return Icons.hotel;
   }
-
 }

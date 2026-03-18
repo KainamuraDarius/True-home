@@ -60,7 +60,12 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
       setState(() {
         agentProperties = propertiesQuery.docs
             .map((doc) => PropertyModel.fromJson({...doc.data(), 'id': doc.id}))
-            .toList();
+            .toList()
+          ..sort((a, b) {
+            final updatedCompare = b.updatedAt.compareTo(a.updatedAt);
+            if (updatedCompare != 0) return updatedCompare;
+            return b.createdAt.compareTo(a.createdAt);
+          });
         isLoading = false;
       });
     } catch (e) {

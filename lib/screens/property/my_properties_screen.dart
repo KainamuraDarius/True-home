@@ -107,7 +107,26 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
 
-                final properties = snapshot.data?.docs ?? [];
+                final propertyDocs = snapshot.data?.docs ?? [];
+                final properties = propertyDocs
+                    .map((doc) {
+                      final propertyData = doc.data() as Map<String, dynamic>;
+                      return PropertyModel.fromJson({
+                        ...propertyData,
+                        'id': doc.id,
+                      });
+                    })
+                    .toList();
+
+                // Always keep newest at the top.
+                // For approved items, sort by last update (approval/edit) first.
+                properties.sort((a, b) {
+                  if (_selectedFilter == PropertyStatus.approved) {
+                    final updatedCompare = b.updatedAt.compareTo(a.updatedAt);
+                    if (updatedCompare != 0) return updatedCompare;
+                  }
+                  return b.createdAt.compareTo(a.createdAt);
+                });
 
                 if (properties.isEmpty) {
                   return SingleChildScrollView(
@@ -149,9 +168,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                       );
                     }
 
-                    final propertyData = properties[index].data() as Map<String, dynamic>;
-                    propertyData['id'] = properties[index].id;
-                    final property = PropertyModel.fromJson(propertyData);
+                    final property = properties[index];
 
                     return Dismissible(
                       key: Key(property.id),

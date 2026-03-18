@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/project_model.dart';
 import '../../utils/app_theme.dart';
+import '../../widgets/fullscreen_image_viewer.dart';
+import '../../services/view_tracking_service.dart';
 
 class ProjectDetailsScreen extends StatefulWidget {
   final Project project;
@@ -14,14 +17,84 @@ class ProjectDetailsScreen extends StatefulWidget {
 
 class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
   int _currentImageIndex = 0;
+  final ViewTrackingService _viewTrackingService = ViewTrackingService();
+
+  @override
+  void initState() {
+    super.initState();
+    _trackProjectView();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefetchProjectImages();
+    });
+  }
+
+  Future<void> _trackProjectView() async {
+    try {
+      await _viewTrackingService.trackProjectView(
+        projectId: widget.project.id,
+        developerId: widget.project.developerId,
+      );
+    } catch (e) {
+      debugPrint('❌ Error tracking project view: $e');
+    }
+  }
+
+  Future<void> _prefetchProjectImages() async {
+    if (!mounted || widget.project.imageUrls.isEmpty) return;
+
+    final initialImages = widget.project.imageUrls.take(6);
+    for (final imageUrl in initialImages) {
+      try {
+        await precacheImage(CachedNetworkImageProvider(imageUrl), context);
+      } catch (_) {
+        // Ignore prefetch errors.
+      }
+    }
+  }
+
+  Future<void> _prefetchAroundIndex(int index) async {
+    if (!mounted || widget.project.imageUrls.isEmpty) return;
+
+    final indexes = {
+      index - 1,
+      index,
+      index + 1,
+    }.where((i) => i >= 0 && i < widget.project.imageUrls.length);
+
+    for (final i in indexes) {
+      try {
+        await precacheImage(
+          CachedNetworkImageProvider(widget.project.imageUrls[i]),
+          context,
+        );
+      } catch (_) {
+        // Ignore prefetch errors.
+      }
+    }
+  }
+
+  void _openImageZoom(int initialIndex) {
+    if (widget.project.imageUrls.isEmpty) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullscreenImageViewer(
+          imageUrls: widget.project.imageUrls,
+          initialIndex: initialIndex,
+          title: widget.project.name,
+        ),
+      ),
+    );
+  }
 
   Future<void> _launchUrl(String urlString) async {
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not launch URL')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Could not launch URL')));
       }
     }
   }
@@ -55,7 +128,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
   Future<void> _openWhatsApp(String phoneNumber) async {
     // Remove any non-digit characters except +
     String cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
-    
+
     // Add Uganda country code if not present
     if (!cleanNumber.startsWith('+')) {
       // Remove leading 0 if present
@@ -65,8 +138,10 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
       // Add +256 for Uganda
       cleanNumber = '+256$cleanNumber';
     }
-    
-    final Uri whatsappUri = Uri.parse('https://wa.me/$cleanNumber?text=Hi, I\'m interested in ${widget.project.name}');
+
+    final Uri whatsappUri = Uri.parse(
+      'https://wa.me/$cleanNumber?text=Hi, I\'m interested in ${widget.project.name}',
+    );
     if (!await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -95,19 +170,32 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                             setState(() {
                               _currentImageIndex = index;
                             });
+                            _prefetchAroundIndex(index);
                           },
                           itemBuilder: (context, index) {
-                            return Image.network(
-                              widget.project.imageUrls[index],
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
+                            return GestureDetector(
+                              onTap: () => _openImageZoom(index),
+                              child: CachedNetworkImage(
+                                imageUrl: widget.project.imageUrls[index],
+                                fit: BoxFit.cover,
+                                memCacheWidth: 1600,
+                                maxWidthDiskCache: 1600,
+                                fadeInDuration: Duration.zero,
+                                placeholder: (context, url) => Container(
                                   color: Colors.grey.shade300,
                                   child: const Center(
-                                    child: Icon(Icons.apartment, size: 60),
+                                    child: CircularProgressIndicator(),
                                   ),
-                                );
-                              },
+                                ),
+                                errorWidget: (context, url, error) {
+                                  return Container(
+                                    color: Colors.grey.shade300,
+                                    child: const Center(
+                                      child: Icon(Icons.apartment, size: 60),
+                                    ),
+                                  );
+                                },
+                              ),
                             );
                           },
                         ),
@@ -122,7 +210,9 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                               children: List.generate(
                                 widget.project.imageUrls.length,
                                 (index) => Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
                                   width: 8,
                                   height: 8,
                                   decoration: BoxDecoration(
@@ -152,7 +242,11 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.star, size: 16, color: Colors.white),
+                                  Icon(
+                                    Icons.star,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
                                     'FEATURED PROJECT',
@@ -205,14 +299,21 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                   const SizedBox(height: 12),
                   // Project Status Badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                      color: widget.project.projectStatus == ProjectStatus.underConstruction
+                      color:
+                          widget.project.projectStatus ==
+                              ProjectStatus.underConstruction
                           ? Colors.orange.shade50
                           : Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: widget.project.projectStatus == ProjectStatus.underConstruction
+                        color:
+                            widget.project.projectStatus ==
+                                ProjectStatus.underConstruction
                             ? Colors.orange.shade300
                             : Colors.blue.shade300,
                         width: 1,
@@ -222,23 +323,29 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          widget.project.projectStatus == ProjectStatus.underConstruction
+                          widget.project.projectStatus ==
+                                  ProjectStatus.underConstruction
                               ? Icons.construction
                               : Icons.architecture,
                           size: 16,
-                          color: widget.project.projectStatus == ProjectStatus.underConstruction
+                          color:
+                              widget.project.projectStatus ==
+                                  ProjectStatus.underConstruction
                               ? Colors.orange.shade700
                               : Colors.blue.shade700,
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          widget.project.projectStatus == ProjectStatus.underConstruction
+                          widget.project.projectStatus ==
+                                  ProjectStatus.underConstruction
                               ? 'Under Construction'
                               : 'Off-Plan',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: widget.project.projectStatus == ProjectStatus.underConstruction
+                            color:
+                                widget.project.projectStatus ==
+                                    ProjectStatus.underConstruction
                                 ? Colors.orange.shade700
                                 : Colors.blue.shade700,
                           ),
@@ -367,7 +474,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: widget.project.contactPhone != null
-                              ? () => _makePhoneCall(widget.project.contactPhone!)
+                              ? () =>
+                                    _makePhoneCall(widget.project.contactPhone!)
                               : null,
                           icon: const Icon(Icons.phone, size: 20),
                           label: const Text('Call'),
@@ -421,7 +529,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: widget.project.contactPhone != null
-                              ? () => _openWhatsApp(widget.project.contactPhone!)
+                              ? () =>
+                                    _openWhatsApp(widget.project.contactPhone!)
                               : null,
                           icon: const Icon(Icons.chat, size: 20),
                           label: const Text('WhatsApp'),
@@ -464,9 +573,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(10),
@@ -478,10 +585,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
         ),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 14,
-            color: AppColors.textSecondary,
-          ),
+          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
         ),
         subtitle: Text(
           subtitle,

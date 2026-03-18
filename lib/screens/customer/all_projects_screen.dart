@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/project_model.dart';
-import '../../services/project_service.dart';
+import '../../services/view_tracking_service.dart';
 import '../../utils/app_theme.dart';
 import 'project_details_screen.dart';
 
@@ -17,7 +17,7 @@ class AllProjectsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final projectService = ProjectService();
+    final viewTrackingService = ViewTrackingService();
     
     return Scaffold(
       appBar: AppBar(
@@ -30,7 +30,7 @@ class AllProjectsScreen extends StatelessWidget {
         itemCount: projects.length,
         itemBuilder: (context, index) {
           final project = projects[index];
-          return _buildProjectListCard(context, project, projectService);
+          return _buildProjectListCard(context, project, viewTrackingService);
         },
       ),
     );
@@ -39,7 +39,7 @@ class AllProjectsScreen extends StatelessWidget {
   Widget _buildProjectListCard(
     BuildContext context,
     Project project,
-    ProjectService projectService,
+    ViewTrackingService viewTrackingService,
   ) {
     return Card(
       elevation: 3,
@@ -48,8 +48,11 @@ class AllProjectsScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
-        onTap: () {
-          projectService.incrementClickCount(project.id);
+        onTap: () async {
+          await viewTrackingService.trackProjectClick(
+            projectId: project.id,
+            developerId: project.developerId,
+          );
           Navigator.push(
             context,
             MaterialPageRoute(

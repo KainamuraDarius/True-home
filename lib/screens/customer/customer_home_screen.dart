@@ -19,6 +19,7 @@ import '../property/property_details_screen.dart';
 import '../../services/notification_service.dart';
 import '../../services/project_service.dart';
 import '../../services/role_service.dart';
+import '../../services/view_tracking_service.dart';
 import '../../widgets/role_switcher.dart';
 import '../../widgets/web_footer.dart';
 import 'project_details_screen.dart';
@@ -59,7 +60,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             description:
                 'Use your account to manage bookings, profile details, and other protected actions.',
           )
-        : ProfileScreen(showWebFooter: true, embedded: kIsWeb),
+        : ProfileScreen(
+            showWebFooter: true,
+            embedded: kIsWeb,
+            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
   ];
 
   @override
@@ -95,85 +100,79 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = kIsWeb && ResponsiveHelper.isDesktop(context);
-    
+
     return Scaffold(
       key: _scaffoldKey,
-      drawer: kIsWeb && !isDesktop ? _buildDrawer() : null, // Drawer only for tablet web
-      body: isDesktop 
-          ? _buildDesktopLayout() 
-          : _screens[_currentIndex],
+      drawer: kIsWeb && !isDesktop
+          ? _buildDrawer()
+          : null, // Drawer only for tablet web
+      body: isDesktop ? _buildDesktopLayout() : _screens[_currentIndex],
       bottomNavigationBar: kIsWeb
           ? null
           : BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        selectedFontSize: 15,
-        unselectedFontSize: 14,
-        iconSize: 30,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_outline),
-            activeIcon: Icon(Icons.favorite),
-            label: 'Favorites',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
+              currentIndex: _currentIndex,
+              onTap: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: Theme.of(context).colorScheme.primary,
+              unselectedItemColor: AppColors.textSecondary,
+              selectedFontSize: 15,
+              unselectedFontSize: 14,
+              iconSize: 30,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.favorite_outline),
+                  activeIcon: Icon(Icons.favorite),
+                  label: 'Favorites',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person_outline),
+                  activeIcon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ],
+            ),
     );
   }
 
   Widget _buildDrawer() {
     return Drawer(
-        width: 300,
+      width: 300,
       child: Column(
         children: [
           // Header with user info
           UserAccountsDrawerHeader(
-                         margin: EdgeInsets.zero,
+            margin: EdgeInsets.zero,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  AppColors.primary,
-                  AppColors.primary.withOpacity(0.8),
-                ],
+                colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
               ),
             ),
             accountName: Text(
               _currentUser?.name ?? 'User',
-              style: const TextStyle(
-                 fontWeight: FontWeight.bold,
-                 fontSize: 20,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
             accountEmail: Text(
               _currentUser?.email ?? '',
-               style: const TextStyle(fontSize: 15),
+              style: const TextStyle(fontSize: 15),
             ),
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white,
-                             radius: 32,
+              radius: 32,
               child: Text(
                 (_currentUser?.name ?? 'U')[0].toUpperCase(),
                 style: TextStyle(
-                   fontSize: 36,
+                  fontSize: 36,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primary,
                 ),
@@ -183,31 +182,22 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
           // Navigation items
           Expanded(
-             child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _buildDrawerItem(
-                    icon: Icons.home,
-                    title: 'Home',
-                    index: 0,
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.search,
-                    title: 'Search',
-                    index: 1,
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.favorite,
-                    title: 'Favorites',
-                    index: 2,
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.person,
-                    title: 'Profile',
-                    index: 3,
-                  ),
-                ],
-             ),
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _buildDrawerItem(icon: Icons.home, title: 'Home', index: 0),
+                _buildDrawerItem(
+                  icon: Icons.favorite,
+                  title: 'Favorites',
+                  index: 1,
+                ),
+                _buildDrawerItem(
+                  icon: Icons.person,
+                  title: 'Profile',
+                  index: 2,
+                ),
+              ],
+            ),
           ),
 
           // Footer
@@ -218,8 +208,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               'True Home',
               style: TextStyle(
                 color: Colors.grey.shade600,
-                 fontSize: 13,
-                 fontWeight: FontWeight.w500,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
             ),
@@ -267,11 +257,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       children: [
         // Fixed Sidebar Navigation
         _buildDesktopSidebar(),
-        
+
         // Main Content Area
-        Expanded(
-          child: _screens[_currentIndex],
-        ),
+        Expanded(child: _screens[_currentIndex]),
       ],
     );
   }
@@ -333,10 +321,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       ),
                       Text(
                         'Find your perfect place',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                        ),
+                        style: TextStyle(color: Colors.white70, fontSize: 11),
                       ),
                     ],
                   ),
@@ -344,7 +329,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ],
             ),
           ),
-          
+
           // User Info (if logged in)
           if (_currentUser != null) ...[
             Container(
@@ -394,9 +379,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             ),
             Divider(height: 1, color: Colors.grey.shade200),
           ],
-          
+
           const SizedBox(height: 8),
-          
+
           // Navigation Items
           Expanded(
             child: ListView(
@@ -409,27 +394,21 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   index: 0,
                 ),
                 _buildSidebarItem(
-                  icon: Icons.search_outlined,
-                  activeIcon: Icons.search_rounded,
-                  title: 'Search',
-                  index: 1,
-                ),
-                _buildSidebarItem(
                   icon: Icons.favorite_outline,
                   activeIcon: Icons.favorite_rounded,
                   title: 'Favorites',
-                  index: 2,
+                  index: 1,
                 ),
                 _buildSidebarItem(
                   icon: Icons.person_outline,
                   activeIcon: Icons.person_rounded,
                   title: 'Profile',
-                  index: 3,
+                  index: 2,
                 ),
               ],
             ),
           ),
-          
+
           // Footer
           Container(
             padding: const EdgeInsets.all(16),
@@ -439,10 +418,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 const SizedBox(height: 16),
                 Text(
                   '© 2026 True Home',
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
                 ),
               ],
             ),
@@ -462,7 +438,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
-        color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+        color: isSelected
+            ? AppColors.primary.withOpacity(0.1)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -486,8 +464,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     title,
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      color: isSelected ? AppColors.primary : Colors.grey.shade700,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: isSelected
+                          ? AppColors.primary
+                          : Colors.grey.shade700,
                     ),
                   ),
                 ),
@@ -524,6 +506,7 @@ class _HomeTabState extends State<HomeTab> {
   final NotificationService _notificationService = NotificationService();
   final ProjectService _projectService = ProjectService();
   final RoleService _roleService = RoleService();
+  final ViewTrackingService _viewTrackingService = ViewTrackingService();
   int _unreadCount = 0;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _propertiesSectionKey = GlobalKey();
@@ -627,18 +610,18 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize price controllers
     _minPriceController.text = '';
     _maxPriceController.text = '';
-    
+
     // Load critical data first (non-blocking)
     Future.microtask(() async {
       _loadUnreadCount();
       _loadCurrentUser();
       _loadSearchHistory();
     });
-    
+
     // Defer heavy data loading until after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -814,7 +797,7 @@ class _HomeTabState extends State<HomeTab> {
         final projectSnapshot = await FirebaseFirestore.instance
             .collection('advertised_projects')
             .get();
-        
+
         print('   📦 Total projects in DB: ${projectSnapshot.docs.length}');
 
         for (var doc in projectSnapshot.docs) {
@@ -839,7 +822,9 @@ class _HomeTabState extends State<HomeTab> {
             }
 
             if (matchesSearch) {
-              print('   ✅ Project matched: "${project.name}" @ ${project.location}');
+              print(
+                '   ✅ Project matched: "${project.name}" @ ${project.location}',
+              );
               results.add(project);
             }
           } catch (e) {
@@ -859,16 +844,17 @@ class _HomeTabState extends State<HomeTab> {
         final propertySnapshot = await FirebaseFirestore.instance
             .collection('properties')
             .get();
-        
+
         print('   🏠 Total properties in DB: ${propertySnapshot.docs.length}');
 
         for (var doc in propertySnapshot.docs) {
           try {
             final data = doc.data() as Map<String, dynamic>;
             data['id'] = doc.id;
-            
+
             // Check if property should be shown - be lenient with defaults
-            bool isApproved = (data['status'] as String? ?? '').toLowerCase() == 'approved';
+            bool isApproved =
+                (data['status'] as String? ?? '').toLowerCase() == 'approved';
             bool isActive = data['isActive'] as bool? ?? true;
 
             // Show property if approved OR if we have no status info at all (default to showing)
@@ -876,7 +862,7 @@ class _HomeTabState extends State<HomeTab> {
               print('   ⏭️ Property not approved (status: ${data['status']})');
               continue;
             }
-            
+
             if (!isActive) {
               print('   ⏭️ Property not active');
               continue;
@@ -891,13 +877,15 @@ class _HomeTabState extends State<HomeTab> {
                   property.title.toLowerCase().contains(searchTerm) ||
                   property.description.toLowerCase().contains(searchTerm) ||
                   property.location.toLowerCase().contains(searchTerm) ||
-                  (property.address != null && 
-                   property.address.toLowerCase().contains(searchTerm));
+                  (property.address != null &&
+                      property.address.toLowerCase().contains(searchTerm));
             }
 
             // Match filters if any
             if (matchesSearch) {
-              print('   ✅ Property matched: "${property.title}" @ ${property.location}');
+              print(
+                '   ✅ Property matched: "${property.title}" @ ${property.location}',
+              );
               results.add(property);
             }
           } catch (e) {
@@ -917,9 +905,9 @@ class _HomeTabState extends State<HomeTab> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error searching: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error searching: $e')));
       }
       print('❌ Search error: $e');
     }
@@ -1148,31 +1136,31 @@ class _HomeTabState extends State<HomeTab> {
         key: const PageStorageKey<String>('customer_home_scroll'),
         controller: _scrollController,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Header section - scrolls with content
             _buildStickyHeader(context),
-            
-              // Top padding to account for content below header
+
+            // Top padding to account for content below header
             const SizedBox(height: 20),
-            
+
             // Below the header, order is:
             // Filters section (if active)
             // Search history (if shown)
             // Main content
 
-                // Search History
-                if (_showHistory && _searchHistory.isNotEmpty)
-                  Container(
-                    color: Theme.of(context).cardColor,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            // Search History
+            if (_showHistory && _searchHistory.isNotEmpty)
+              Container(
+                color: Theme.of(context).cardColor,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
+                        const Text(
                           'Recent Searches',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
@@ -1805,10 +1793,12 @@ class _HomeTabState extends State<HomeTab> {
                           var allProperties = snapshot.data!.docs.map((doc) {
                             final data = doc.data() as Map<String, dynamic>;
                             data['id'] = doc.id;
-                            
+
                             // Debug: Log imageUrls from Firestore
-                            print('🔥 Firestore doc ${doc.id}: imageUrls = ${data['imageUrls']}');
-                            
+                            print(
+                              '🔥 Firestore doc ${doc.id}: imageUrls = ${data['imageUrls']}',
+                            );
+
                             return PropertyModel.fromJson(data);
                           }).toList();
 
@@ -1875,7 +1865,9 @@ class _HomeTabState extends State<HomeTab> {
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    _selectedPropertyLocation != null && _selectedFilter == PropertyType.hostel
+                                    _selectedPropertyLocation != null &&
+                                            _selectedFilter ==
+                                                PropertyType.hostel
                                         ? 'We are currently onboarding listings in $_selectedPropertyLocation. Please check back shortly!'
                                         : 'No properties available in $_selectedPropertyLocation yet',
                                     textAlign: TextAlign.center,
@@ -1934,13 +1926,13 @@ class _HomeTabState extends State<HomeTab> {
                                     Text(
                                       _selectedFilter == null
                                           ? 'No properties available yet'
-                                          : _selectedFilter == PropertyType.hostel
-                                              ? 'We are currently onboarding listings in this area. Please check back shortly!'
-                                              : _selectedFilter == PropertyType.commercial
-                                              ? 'No commercial properties available'
-                                              : 'No ${_selectedFilter == PropertyType.rent
-                                                    ? "rental"
-                                                    : "sale"} properties available',
+                                          : _selectedFilter ==
+                                                PropertyType.hostel
+                                          ? 'We are currently onboarding listings in this area. Please check back shortly!'
+                                          : _selectedFilter ==
+                                                PropertyType.commercial
+                                          ? 'No commercial properties available'
+                                          : 'No ${_selectedFilter == PropertyType.rent ? "rental" : "sale"} properties available',
                                       style: TextStyle(color: Colors.grey[600]),
                                     ),
                                   ],
@@ -1963,27 +1955,36 @@ class _HomeTabState extends State<HomeTab> {
                               Center(
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(
-                                    maxWidth: ResponsiveHelper.getMaxContentWidth(context),
+                                    maxWidth:
+                                        ResponsiveHelper.getMaxContentWidth(
+                                          context,
+                                        ),
                                   ),
                                   child: Padding(
-                                    padding: ResponsiveHelper.getContentPadding(context),
+                                    padding: ResponsiveHelper.getContentPadding(
+                                      context,
+                                    ),
                                     child: ResponsiveHelper.isDesktop(context)
                                         ? GridView.builder(
                                             shrinkWrap: true,
-                                            physics: const NeverScrollableScrollPhysics(),
-                                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                              crossAxisCount: ResponsiveHelper.getGridCrossAxisCount(
-                                                context,
-                                                mobileCount: 1,
-                                                tabletCount: 2,
-                                                desktopCount: 3,
-                                                largeDesktopCount: 4,
-                                              ),
-                                              childAspectRatio: 0.75,
-                                              crossAxisSpacing: 20,
-                                              mainAxisSpacing: 20,
-                                            ),
-                                            itemCount: propertiesToDisplay.length,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            gridDelegate:
+                                                SliverGridDelegateWithFixedCrossAxisCount(
+                                                  crossAxisCount:
+                                                      ResponsiveHelper.getGridCrossAxisCount(
+                                                        context,
+                                                        mobileCount: 1,
+                                                        tabletCount: 2,
+                                                        desktopCount: 3,
+                                                        largeDesktopCount: 4,
+                                                      ),
+                                                  childAspectRatio: 0.75,
+                                                  crossAxisSpacing: 20,
+                                                  mainAxisSpacing: 20,
+                                                ),
+                                            itemCount:
+                                                propertiesToDisplay.length,
                                             itemBuilder: (context, index) {
                                               return _buildPropertyCard(
                                                 context,
@@ -1993,11 +1994,15 @@ class _HomeTabState extends State<HomeTab> {
                                           )
                                         : ListView.builder(
                                             shrinkWrap: true,
-                                            physics: const NeverScrollableScrollPhysics(),
-                                            itemCount: propertiesToDisplay.length,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            itemCount:
+                                                propertiesToDisplay.length,
                                             itemBuilder: (context, index) {
                                               return Padding(
-                                                padding: const EdgeInsets.only(bottom: 16),
+                                                padding: const EdgeInsets.only(
+                                                  bottom: 16,
+                                                ),
                                                 child: _buildPropertyCard(
                                                   context,
                                                   propertiesToDisplay[index],
@@ -2152,7 +2157,8 @@ class _HomeTabState extends State<HomeTab> {
               // Browse New Projects Section
               _buildBrowseNewProjectsSection(),
               const SizedBox(height: 24),
-              if (kIsWeb) const WebFooter(),
+              if (kIsWeb)
+                const SizedBox(width: double.infinity, child: WebFooter()),
             ], // Close the if (!_isSearchActive) statement
           ], // Close the main Column children
         ),
@@ -2163,7 +2169,7 @@ class _HomeTabState extends State<HomeTab> {
   /// Build the sticky header section that remains fixed at the top
   Widget _buildStickyHeader(BuildContext context) {
     final userName = _currentUser?.name ?? 'there';
-    
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -2201,7 +2207,7 @@ class _HomeTabState extends State<HomeTab> {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Search Bar with Filter Button
           Row(
             children: [
@@ -2317,7 +2323,7 @@ class _HomeTabState extends State<HomeTab> {
                             constraints: const BoxConstraints(maxHeight: 200),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius:  BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                 color: Colors.grey.shade300,
                                 width: 1,
@@ -2333,7 +2339,9 @@ class _HomeTabState extends State<HomeTab> {
                                   dense: false,
                                   leading: Icon(
                                     Icons.location_on,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     size: 20,
                                   ),
                                   title: Text(
@@ -2365,18 +2373,16 @@ class _HomeTabState extends State<HomeTab> {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.3),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
                   ],
                 ),
                 child: IconButton(
-                  icon: Icon(
-                    Icons.tune,
-                    color: Colors.white,
-                    size: 26,
-                  ),
+                  icon: Icon(Icons.tune, color: Colors.white, size: 26),
                   iconSize: 26,
                   onPressed: () {
                     setState(() => _showFilters = !_showFilters);
@@ -2387,29 +2393,20 @@ class _HomeTabState extends State<HomeTab> {
             ],
           ),
           const SizedBox(height: 14),
-          
+
           // Property type buttons - fit in single row
           Row(
             children: [
               Expanded(
-                child: _buildPropertyTypeButton(
-                  'Buy',
-                  PropertyType.sale,
-                ),
+                child: _buildPropertyTypeButton('Buy', PropertyType.sale),
               ),
               const SizedBox(width: 4),
               Expanded(
-                child: _buildPropertyTypeButton(
-                  'Rent',
-                  PropertyType.rent,
-                ),
+                child: _buildPropertyTypeButton('Rent', PropertyType.rent),
               ),
               const SizedBox(width: 4),
               Expanded(
-                child: _buildPropertyTypeButton(
-                  'Hostels',
-                  PropertyType.hostel,
-                ),
+                child: _buildPropertyTypeButton('Hostels', PropertyType.hostel),
               ),
               const SizedBox(width: 4),
               Expanded(
@@ -2421,7 +2418,7 @@ class _HomeTabState extends State<HomeTab> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // University filter (for student hostels)
           if (_selectedFilter == PropertyType.hostel) ...[
             InkWell(
@@ -2433,7 +2430,9 @@ class _HomeTabState extends State<HomeTab> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: Theme.of(context).colorScheme.onPrimary,
@@ -2449,7 +2448,9 @@ class _HomeTabState extends State<HomeTab> {
                         fontSize: 14,
                         color: _selectedUniversity != null
                             ? Theme.of(context).colorScheme.onPrimary
-                            : Theme.of(context).colorScheme.onPrimary.withOpacity(0.7),
+                            : Theme.of(
+                                context,
+                              ).colorScheme.onPrimary.withOpacity(0.7),
                       ),
                     ),
                     Icon(
@@ -2586,7 +2587,7 @@ class _HomeTabState extends State<HomeTab> {
 
   Widget _buildPropertyTypeButton(String label, PropertyType type) {
     final isSelected = _selectedFilter == type;
-    
+
     // Get icon for each property type
     IconData getIcon(PropertyType t) {
       switch (t) {
@@ -2600,7 +2601,7 @@ class _HomeTabState extends State<HomeTab> {
           return Icons.business;
       }
     }
-    
+
     return ElevatedButton.icon(
       onPressed: () {
         setState(() {
@@ -2643,10 +2644,7 @@ class _HomeTabState extends State<HomeTab> {
         }
         // For rent and sale buttons, no automatic scrolling
       },
-      icon: Icon(
-        getIcon(type),
-        size: 16,
-      ),
+      icon: Icon(getIcon(type), size: 16),
       label: Text(
         label,
         textAlign: TextAlign.center,
@@ -2819,10 +2817,14 @@ class _HomeTabState extends State<HomeTab> {
 
   // Normalize a location string to Title Case (e.g. 'kololo' → 'Kololo', 'NEW kampala' → 'New Kampala')
   String _toTitleCase(String text) {
-    return text.trim().split(' ').map((word) {
-      if (word.isEmpty) return '';
-      return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
-    }).join(' ');
+    return text
+        .trim()
+        .split(' ')
+        .map((word) {
+          if (word.isEmpty) return '';
+          return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+        })
+        .join(' ');
   }
 
   // Load available project locations
@@ -2838,7 +2840,7 @@ class _HomeTabState extends State<HomeTab> {
   // Load available property locations from Firestore
   Future<void> _loadPropertyLocations() async {
     if (!mounted) return;
-    
+
     setState(() {
       _loadingPropertyLocations = true;
     });
@@ -2891,7 +2893,7 @@ class _HomeTabState extends State<HomeTab> {
   // Load new projects for rotating carousel
   Future<void> _loadNewProjects() async {
     if (!mounted) return;
-    
+
     setState(() {
       _loadingNewProjects = true;
     });
@@ -2921,14 +2923,14 @@ class _HomeTabState extends State<HomeTab> {
             property.promotionEndDate!.isAfter(now)) {
           newProjects.add(property);
         }
-        
+
         // Break early if we have enough
         if (newProjects.length >= 6) break;
       }
 
       // Shuffle for variety
       newProjects.shuffle();
-      
+
       // Limit to max 6 projects
       if (newProjects.length > 6) {
         newProjects = newProjects.sublist(0, 6);
@@ -2952,9 +2954,7 @@ class _HomeTabState extends State<HomeTab> {
 
   // Build Browse New Projects Section - Now using separate widget to prevent scroll jumps
   Widget _buildBrowseNewProjectsSection() {
-    return BrowseNewProjectsSection(
-      projectLocations: _projectLocations,
-    );
+    return BrowseNewProjectsSection(projectLocations: _projectLocations);
   }
 
   // Build New Projects Carousel
@@ -3065,43 +3065,14 @@ class _HomeTabState extends State<HomeTab> {
               // Image with gradient overlay and "NEW" badge
               Stack(
                 children: [
-                  ClipRRect(
+                  ZoomableImageCarousel(
+                    imageUrls: property.imageUrls,
+                    height: 220,
+                    width: double.infinity,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(16),
                     ),
-                    child: property.imageUrls.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: property.imageUrls[0],
-                            height: 220,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              height: 220,
-                              color: Theme.of(context).cardColor,
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) {
-                              return Container(
-                                height: 220,
-                                color: Theme.of(context).cardColor,
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    size: 50,
-                                  ),
-                                ),
-                              );
-                            },
-                          )
-                        : Container(
-                            height: 220,
-                            color: Theme.of(context).cardColor,
-                            child: const Center(
-                              child: Icon(Icons.image_not_supported, size: 50),
-                            ),
-                          ),
+                    fallbackIcon: Icons.image_not_supported,
                   ),
                   // Gradient overlay
                   Positioned.fill(
@@ -3250,7 +3221,11 @@ class _HomeTabState extends State<HomeTab> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: () {
+        onTap: () async {
+          await _viewTrackingService.trackProjectClick(
+            projectId: project.id,
+            developerId: project.developerId,
+          );
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -3263,48 +3238,12 @@ class _HomeTabState extends State<HomeTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Project Image (full width, larger height)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              child: project.imageUrls.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: project.imageUrls.first,
-                      width: double.infinity,
-                      height: 250,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 200),
-                      placeholder: (context, url) => Container(
-                        width: double.infinity,
-                        height: 250,
-                        color: Theme.of(context).cardColor,
-                        child: const Center(
-                          child: SizedBox(
-                            width: 30,
-                            height: 30,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        width: double.infinity,
-                        height: 250,
-                        color: Theme.of(context).cardColor,
-                        child: const Icon(Icons.image_not_supported, size: 40),
-                      ),
-                      memCacheHeight: 400,
-                      memCacheWidth: 600,
-                    )
-                  : Container(
-                      width: double.infinity,
-                      height: 250,
-                      color: Colors.grey[300],
-                      child: const Icon(
-                        Icons.business,
-                        size: 60,
-                        color: Colors.grey,
-                      ),
-                    ),
+            ZoomableImageCarousel(
+              imageUrls: project.imageUrls,
+              height: 250,
+              width: double.infinity,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              fallbackIcon: Icons.business,
             ),
             // Project Details
             Padding(
@@ -3314,11 +3253,14 @@ class _HomeTabState extends State<HomeTab> {
                 children: [
                   // Badge: Project type
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -3345,11 +3287,7 @@ class _HomeTabState extends State<HomeTab> {
                   // Developer Name
                   Row(
                     children: [
-                      Icon(
-                        Icons.person,
-                        size: 16,
-                        color: Colors.grey[600],
-                      ),
+                      Icon(Icons.person, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -3391,10 +3329,7 @@ class _HomeTabState extends State<HomeTab> {
                   // Description (limited)
                   Text(
                     project.description,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -3409,7 +3344,9 @@ class _HomeTabState extends State<HomeTab> {
 
   // Search result card for Properties (Buy/Rent/Hostel/Commercial)
   Widget _buildSearchPropertyCard(
-      BuildContext context, PropertyModel property) {
+    BuildContext context,
+    PropertyModel property,
+  ) {
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3428,48 +3365,12 @@ class _HomeTabState extends State<HomeTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Property Image (full width, larger height)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              child: property.imageUrls.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: property.imageUrls.first,
-                      width: double.infinity,
-                      height: 250,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 200),
-                      placeholder: (context, url) => Container(
-                        width: double.infinity,
-                        height: 250,
-                        color: Theme.of(context).cardColor,
-                        child: const Center(
-                          child: SizedBox(
-                            width: 30,
-                            height: 30,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        width: double.infinity,
-                        height: 250,
-                        color: Theme.of(context).cardColor,
-                        child: const Icon(Icons.image_not_supported, size: 40),
-                      ),
-                      memCacheHeight: 400,
-                      memCacheWidth: 600,
-                    )
-                  : Container(
-                      width: double.infinity,
-                      height: 250,
-                      color: Colors.grey[300],
-                      child: const Icon(
-                        Icons.home,
-                        size: 60,
-                        color: Colors.grey,
-                      ),
-                    ),
+            ZoomableImageCarousel(
+              imageUrls: property.imageUrls,
+              height: 250,
+              width: double.infinity,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              fallbackIcon: Icons.home,
             ),
             // Property Details
             Padding(
@@ -3479,8 +3380,10 @@ class _HomeTabState extends State<HomeTab> {
                 children: [
                   // Badge: Property type
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.blue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
@@ -3544,8 +3447,7 @@ class _HomeTabState extends State<HomeTab> {
                     Row(
                       children: [
                         if (property.bedrooms > 0) ...[
-                          const Icon(Icons.bed,
-                              size: 14, color: Colors.grey),
+                          const Icon(Icons.bed, size: 14, color: Colors.grey),
                           const SizedBox(width: 4),
                           Text(
                             '${property.bedrooms}',
@@ -3554,8 +3456,11 @@ class _HomeTabState extends State<HomeTab> {
                           const SizedBox(width: 12),
                         ],
                         if (property.bathrooms > 0) ...[
-                          const Icon(Icons.bathtub,
-                              size: 14, color: Colors.grey),
+                          const Icon(
+                            Icons.bathtub,
+                            size: 14,
+                            color: Colors.grey,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '${property.bathrooms}',
@@ -3568,11 +3473,7 @@ class _HomeTabState extends State<HomeTab> {
                       property.university!.isNotEmpty)
                     Row(
                       children: [
-                        Icon(
-                          Icons.school,
-                          size: 14,
-                          color: Colors.grey[600],
-                        ),
+                        Icon(Icons.school, size: 14, color: Colors.grey[600]),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
@@ -3610,7 +3511,7 @@ class _HomeTabState extends State<HomeTab> {
   Widget _buildPropertyCard(BuildContext context, PropertyModel property) {
     final isDesktopGrid = ResponsiveHelper.isDesktop(context);
     final imageHeight = isDesktopGrid ? 160.0 : 180.0;
-    
+
     return Card(
       elevation: 2,
       clipBehavior: Clip.antiAlias,
@@ -3630,17 +3531,11 @@ class _HomeTabState extends State<HomeTab> {
           children: [
             // Property Image - Use AspectRatio for grid, fixed height for list
             isDesktopGrid
-                ? Expanded(
-                    flex: 3,
-                    child: _buildPropertyImage(property, null),
-                  )
+                ? Expanded(flex: 3, child: _buildPropertyImage(property, null))
                 : _buildPropertyImage(property, imageHeight),
             // Property Details
             isDesktopGrid
-                ? Expanded(
-                    flex: 2,
-                    child: _buildPropertyDetails(property),
-                  )
+                ? Expanded(flex: 2, child: _buildPropertyDetails(property))
                 : _buildPropertyDetails(property),
           ],
         ),
@@ -3652,52 +3547,14 @@ class _HomeTabState extends State<HomeTab> {
     return Stack(
       fit: height == null ? StackFit.expand : StackFit.loose,
       children: [
-        ClipRRect(
-          borderRadius: height != null 
+        ZoomableImageCarousel(
+          imageUrls: property.imageUrls,
+          width: double.infinity,
+          height: height,
+          borderRadius: height != null
               ? const BorderRadius.vertical(top: Radius.circular(12))
               : BorderRadius.zero,
-          child: property.imageUrls.isNotEmpty
-              ? CachedNetworkImage(
-                  imageUrl: property.imageUrls.first,
-                  width: double.infinity,
-                  height: height,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 600,
-                  memCacheHeight: 400,
-                  fadeInDuration: const Duration(milliseconds: 200),
-                  placeholder: (context, url) => Container(
-                    height: height ?? double.infinity,
-                    width: double.infinity,
-                    color: AppColors.surfaceLight,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    height: height ?? double.infinity,
-                    width: double.infinity,
-                    color: Colors.grey.shade200,
-                    child: const Icon(
-                      Icons.broken_image,
-                      size: 40,
-                      color: Colors.grey,
-                    ),
-                  ),
-                )
-              : Container(
-                  height: height ?? double.infinity,
-                  width: double.infinity,
-                  color: Colors.grey.shade200,
-                  child: const Icon(
-                    Icons.home_outlined,
-                    size: 40,
-                    color: Colors.grey,
-                  ),
-                ),
+          fallbackIcon: Icons.home_outlined,
         ),
         // Sold Out Badge
         if (!property.isActive)
@@ -3730,16 +3587,16 @@ class _HomeTabState extends State<HomeTab> {
               color: property.type == PropertyType.hostel
                   ? Colors.purple
                   : property.type == PropertyType.rent
-                      ? Colors.blue
-                      : Colors.green,
+                  ? Colors.blue
+                  : Colors.green,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               property.type == PropertyType.hostel
                   ? 'HOSTEL'
                   : property.type == PropertyType.rent
-                      ? 'RENT'
-                      : 'SALE',
+                  ? 'RENT'
+                  : 'SALE',
               style: const TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
@@ -3796,24 +3653,43 @@ class _HomeTabState extends State<HomeTab> {
             Row(
               children: [
                 if (property.bedrooms > 0) ...[
-                  const Icon(Icons.bed, size: 14, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.bed,
+                    size: 14,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 2),
-                  Text('${property.bedrooms}', style: const TextStyle(fontSize: 11)),
+                  Text(
+                    '${property.bedrooms}',
+                    style: const TextStyle(fontSize: 11),
+                  ),
                   const SizedBox(width: 8),
                 ],
                 if (property.bathrooms > 0) ...[
-                  const Icon(Icons.bathtub, size: 14, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.bathtub,
+                    size: 14,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 2),
-                  Text('${property.bathrooms}', style: const TextStyle(fontSize: 11)),
+                  Text(
+                    '${property.bathrooms}',
+                    style: const TextStyle(fontSize: 11),
+                  ),
                 ],
               ],
             ),
           ],
           const SizedBox(height: 6),
           Text(
-            property.type == PropertyType.hostel && property.roomTypes.isNotEmpty
+            property.type == PropertyType.hostel &&
+                    property.roomTypes.isNotEmpty
                 ? 'From ${property.currency} ${CurrencyFormatter.format(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}'
-                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? "/month" : property.type == PropertyType.hostel ? "/sem" : ""}',
+                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
+                      ? "/month"
+                      : property.type == PropertyType.hostel
+                      ? "/sem"
+                      : ""}',
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
@@ -3995,7 +3871,11 @@ class _SearchTabState extends State<SearchTab> {
 
       if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
         results = results
-            .where((p) => p.category.trim().toLowerCase() == _selectedCategory!.toLowerCase())
+            .where(
+              (p) =>
+                  p.category.trim().toLowerCase() ==
+                  _selectedCategory!.toLowerCase(),
+            )
             .toList();
       }
 
@@ -4017,7 +3897,9 @@ class _SearchTabState extends State<SearchTab> {
           results.where((p) => p.hasActivePromotion).toList()..shuffle();
       final featured = featuredCandidates.take(5).toList();
       final featuredIds = featured.map((p) => p.id).toSet();
-      final organic = results.where((p) => !featuredIds.contains(p.id)).toList();
+      final organic = results
+          .where((p) => !featuredIds.contains(p.id))
+          .toList();
 
       setState(() {
         _searchResults = results;
@@ -4107,9 +3989,7 @@ class _SearchTabState extends State<SearchTab> {
                 Navigator.pop(dialogContext);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const LoginScreen(),
-                  ),
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
                 );
               },
               child: const Text('Login'),
@@ -4733,25 +4613,28 @@ class _SearchTabState extends State<SearchTab> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: [
-                        'Flat',
-                        'Bungalow',
-                        'Condo',
-                        'Villa',
-                        'Apartment',
-                        'Studio room',
-                        'Commercial',
-                      ].map((category) {
-                        return FilterChip(
-                          label: Text(category),
-                          selected: _selectedCategory == category,
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedCategory = selected ? category : null;
-                            });
-                          },
-                        );
-                      }).toList(),
+                      children:
+                          [
+                            'Flat',
+                            'Bungalow',
+                            'Condo',
+                            'Villa',
+                            'Apartment',
+                            'Studio room',
+                            'Commercial',
+                          ].map((category) {
+                            return FilterChip(
+                              label: Text(category),
+                              selected: _selectedCategory == category,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _selectedCategory = selected
+                                      ? category
+                                      : null;
+                                });
+                              },
+                            );
+                          }).toList(),
                     ),
                     const SizedBox(height: 16),
 
@@ -4760,7 +4643,10 @@ class _SearchTabState extends State<SearchTab> {
                         Expanded(
                           child: SwitchListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('Featured only', style: TextStyle(fontSize: 13)),
+                            title: const Text(
+                              'Featured only',
+                              style: TextStyle(fontSize: 13),
+                            ),
                             value: _featuredOnly,
                             onChanged: (value) {
                               setState(() {
@@ -4772,7 +4658,10 @@ class _SearchTabState extends State<SearchTab> {
                         Expanded(
                           child: SwitchListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('With photos', style: TextStyle(fontSize: 13)),
+                            title: const Text(
+                              'With photos',
+                              style: TextStyle(fontSize: 13),
+                            ),
                             value: _withPhotosOnly,
                             onChanged: (value) {
                               setState(() {
@@ -4792,10 +4681,22 @@ class _SearchTabState extends State<SearchTab> {
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'newest', child: Text('Newest first')),
-                        DropdownMenuItem(value: 'price_low_high', child: Text('Price: Low to High')),
-                        DropdownMenuItem(value: 'price_high_low', child: Text('Price: High to Low')),
-                        DropdownMenuItem(value: 'most_viewed', child: Text('Most viewed')),
+                        DropdownMenuItem(
+                          value: 'newest',
+                          child: Text('Newest first'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'price_low_high',
+                          child: Text('Price: Low to High'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'price_high_low',
+                          child: Text('Price: High to Low'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'most_viewed',
+                          child: Text('Most viewed'),
+                        ),
                       ],
                       onChanged: (value) {
                         if (value != null) {
@@ -4874,12 +4775,18 @@ class _SearchTabState extends State<SearchTab> {
                             const SizedBox(width: 8),
                             const Text(
                               'Featured Listings',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const SizedBox(width: 8),
                             Text(
                               '(up to 5 per search)',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
                             ),
                           ],
                         ),
@@ -4887,7 +4794,10 @@ class _SearchTabState extends State<SearchTab> {
                         ..._featuredResults.map(
                           (property) => Padding(
                             padding: const EdgeInsets.only(bottom: 16),
-                            child: _buildPropertyCard(property, isFeatured: true),
+                            child: _buildPropertyCard(
+                              property,
+                              isFeatured: true,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -4895,7 +4805,10 @@ class _SearchTabState extends State<SearchTab> {
                       if (_organicResults.isNotEmpty) ...[
                         Text(
                           'All Listings (${_organicResults.length})',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         ..._organicResults.map(
@@ -4945,48 +4858,12 @@ class _SearchTabState extends State<SearchTab> {
                     ),
                     child: Stack(
                       children: [
-                        property.imageUrls.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: property.imageUrls[0],
-                                width: double.infinity,
-                                height: 240,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 1200,
-                                fadeInDuration: const Duration(milliseconds: 120),
-                                placeholder: (context, url) {
-                                  return Container(
-                                    height: 240,
-                                    color: Colors.grey.shade200,
-                                    child: const Center(
-                                      child: SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                errorWidget: (context, error, stackTrace) {
-                                  return Container(
-                                    height: 240,
-                                    color: Colors.grey.shade200,
-                                    child: const Icon(
-                                      Icons.home,
-                                      size: 50,
-                                      color: Colors.grey,
-                                    ),
-                                  );
-                                },
-                              )
-                            : Container(
-                                height: 240,
-                                color: Colors.grey.shade200,
-                                child: const Icon(
-                                  Icons.home,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ),
-                              ),
+                        ZoomableImageCarousel(
+                          imageUrls: property.imageUrls,
+                          width: double.infinity,
+                          height: 240,
+                          fallbackIcon: Icons.home,
+                        ),
                         Positioned.fill(
                           child: Container(
                             decoration: BoxDecoration(
@@ -5037,7 +4914,10 @@ class _SearchTabState extends State<SearchTab> {
                             top: 10,
                             left: 10,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.amber.shade700,
                                 borderRadius: BorderRadius.circular(20),
@@ -5045,7 +4925,11 @@ class _SearchTabState extends State<SearchTab> {
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.workspace_premium, size: 14, color: Colors.white),
+                                  Icon(
+                                    Icons.workspace_premium,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
                                     'FEATURED',
@@ -5144,7 +5028,10 @@ class _SearchTabState extends State<SearchTab> {
                     runSpacing: 8,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade50,
                           borderRadius: BorderRadius.circular(20),
@@ -5153,10 +5040,10 @@ class _SearchTabState extends State<SearchTab> {
                           property.type == PropertyType.sale
                               ? 'For Sale'
                               : property.type == PropertyType.rent
-                                  ? 'For Rent'
-                                  : property.type == PropertyType.commercial
-                                  ? 'Commercial'
-                                  : 'Hostel',
+                              ? 'For Rent'
+                              : property.type == PropertyType.commercial
+                              ? 'Commercial'
+                              : 'Hostel',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.blue.shade700,
@@ -5166,7 +5053,10 @@ class _SearchTabState extends State<SearchTab> {
                       ),
                       if (property.category.trim().isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(20),
@@ -5467,52 +5357,14 @@ class _FavoritesTabState extends State<FavoritesTab> {
             // Property Image with Badge and Favorite Button
             Stack(
               children: [
-                ClipRRect(
+                ZoomableImageCarousel(
+                  imageUrls: property.imageUrls,
+                  width: double.infinity,
+                  height: 250,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(12),
                   ),
-                  child: property.imageUrls.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: property.imageUrls[0],
-                          width: double.infinity,
-                          height: 250,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 600,
-                          memCacheHeight: 400,
-                          fadeInDuration: const Duration(milliseconds: 200),
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[300],
-                            width: double.infinity,
-                            height: 250,
-                            child: const Center(
-                              child: SizedBox(
-                                width: 32,
-                                height: 32,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey[300],
-                            width: double.infinity,
-                            height: 250,
-                            child: const Icon(
-                              Icons.image_not_supported,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: Colors.grey[300],
-                          width: double.infinity,
-                          height: 250,
-                          child: const Icon(
-                            Icons.home,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                        ),
+                  fallbackIcon: Icons.home,
                 ),
                 // Property Type Badge - Top Left
                 Positioned(
@@ -5621,22 +5473,14 @@ class _FavoritesTabState extends State<FavoritesTab> {
                   // Bedrooms and Bathrooms
                   Row(
                     children: [
-                      Icon(
-                        Icons.bed,
-                        size: 16,
-                        color: Colors.grey[600],
-                      ),
+                      Icon(Icons.bed, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 6),
                       Text(
                         '${property.bedrooms} Beds',
                         style: const TextStyle(fontSize: 14),
                       ),
                       const SizedBox(width: 20),
-                      Icon(
-                        Icons.bathroom,
-                        size: 16,
-                        color: Colors.grey[600],
-                      ),
+                      Icon(Icons.bathroom, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 6),
                       Text(
                         '${property.bathrooms} Baths',
@@ -5683,44 +5527,14 @@ class _FavoritesTabState extends State<FavoritesTab> {
             Expanded(
               child: Stack(
                 children: [
-                  ClipRRect(
+                  ZoomableImageCarousel(
+                    imageUrls: property.imageUrls,
+                    width: double.infinity,
+                    height: double.infinity,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(12),
                     ),
-                    child: property.imageUrls.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: property.imageUrls[0],
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                            fadeInDuration: const Duration(milliseconds: 100),
-                            placeholder: (context, url) => Container(
-                              color: Colors.grey[300],
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.home,
-                                size: 50,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            color: Colors.grey[300],
-                            child: const Icon(
-                              Icons.home,
-                              size: 50,
-                              color: Colors.grey,
-                            ),
-                          ),
+                    fallbackIcon: Icons.home,
                   ),
                   // Favorite Button
                   Positioned(
@@ -5855,17 +5669,16 @@ class _FavoritesTabState extends State<FavoritesTab> {
 class BrowseNewProjectsSection extends StatefulWidget {
   final List<String> projectLocations;
 
-  const BrowseNewProjectsSection({
-    super.key,
-    required this.projectLocations,
-  });
+  const BrowseNewProjectsSection({super.key, required this.projectLocations});
 
   @override
-  State<BrowseNewProjectsSection> createState() => _BrowseNewProjectsSectionState();
+  State<BrowseNewProjectsSection> createState() =>
+      _BrowseNewProjectsSectionState();
 }
 
 class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
   final ProjectService _projectService = ProjectService();
+  final ViewTrackingService _viewTrackingService = ViewTrackingService();
   String _selectedProjectLocation = 'All';
   List<Project> _locationProjects = [];
   bool _loadingProjects = false;
@@ -5895,10 +5708,13 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
       _selectedProjectLocation = location;
       _loadingProjects = true;
     });
-    
+
     final projects = location == 'All'
-        ? await _projectService.getAllApprovedProjects() // Get all projects
-        : await _projectService.getProjectsByLocation(location); // Get projects for specific location
+        ? await _projectService
+              .getAllApprovedProjects() // Get all projects
+        : await _projectService.getProjectsByLocation(
+            location,
+          ); // Get projects for specific location
 
     if (mounted) {
       setState(() {
@@ -5906,10 +5722,6 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
         _loadingProjects = false;
       });
 
-      // Increment view counts for displayed projects
-      for (var project in projects.take(5)) {
-        _projectService.incrementViewCount(project.id);
-      }
     }
   }
 
@@ -5955,7 +5767,10 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                 },
                 borderRadius: BorderRadius.circular(24),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: 'All' == _selectedProjectLocation
                         ? Theme.of(context).colorScheme.primary
@@ -5975,7 +5790,9 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                       color: 'All' == _selectedProjectLocation
                           ? Colors.white
                           : Colors.grey.shade800,
-                      fontWeight: 'All' == _selectedProjectLocation ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: 'All' == _selectedProjectLocation
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                     ),
                   ),
                 ),
@@ -5994,7 +5811,10 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                     },
                     borderRadius: BorderRadius.circular(24),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Theme.of(context).colorScheme.primary
@@ -6014,7 +5834,9 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                           color: isSelected
                               ? Colors.white
                               : Colors.grey.shade800,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                         ),
                       ),
                     ),
@@ -6035,11 +5857,13 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                   Icon(
                     Icons.apartment,
                     size: 48,
-                    color: Theme.of(context).textTheme.bodySmall!.color?.withOpacity(0.4),
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodySmall!.color?.withOpacity(0.4),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _selectedProjectLocation == 'All' 
+                    _selectedProjectLocation == 'All'
                         ? 'No projects yet'
                         : 'No projects in $_selectedProjectLocation yet',
                     style: TextStyle(
@@ -6066,18 +5890,23 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                         physics: const ClampingScrollPhysics(),
                         primary: false,
                         shrinkWrap: true,
-                        itemCount: _locationProjects.length > 3 ? 3 : _locationProjects.length,
+                        itemCount: _locationProjects.length > 3
+                            ? 3
+                            : _locationProjects.length,
                         itemBuilder: (context, index) {
-                          return _buildProjectCard(_locationProjects[index], context);
+                          return _buildProjectCard(
+                            _locationProjects[index],
+                            context,
+                          );
                         },
                       ),
                     // Show loading overlay only during loading
                     if (_loadingProjects)
                       Container(
-                        color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
-                        child: const Center(
-                          child: CircularProgressIndicator(),
-                        ),
+                        color: Theme.of(
+                          context,
+                        ).scaffoldBackgroundColor.withOpacity(0.8),
+                        child: const Center(child: CircularProgressIndicator()),
                       ),
                   ],
                 ),
@@ -6127,8 +5956,11 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
 
   Widget _buildProjectCard(Project project, BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        _projectService.incrementClickCount(project.id);
+      onTap: () async {
+        await _viewTrackingService.trackProjectClick(
+          projectId: project.id,
+          developerId: project.developerId,
+        );
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -6156,49 +5988,24 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
             // Project image
             Stack(
               children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                  child: project.imageUrls.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: project.imageUrls.first,
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 900,
-                          memCacheHeight: 450,
-                          fadeInDuration: const Duration(milliseconds: 300),
-                          fadeOutDuration: const Duration(milliseconds: 100),
-                          placeholder: (context, _) => Container(
-                            height: 180,
-                            color: Colors.grey.shade200,
-                            child: const Center(
-                              child: SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            ),
-                          ),
-                          errorWidget: (context, _, __) {
-                            return Container(
-                              height: 180,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.apartment, size: 48),
-                            );
-                          },
-                        )
-                      : Container(
-                          height: 180,
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.apartment, size: 48),
-                        ),
+                ZoomableImageCarousel(
+                  imageUrls: project.imageUrls,
+                  width: double.infinity,
+                  height: 180,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(14),
+                  ),
+                  fallbackIcon: Icons.apartment,
                 ),
                 if (project.isFirstPlaceSubscriber)
                   Positioned(
                     top: 10,
                     left: 10,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.amber.shade700,
                         borderRadius: BorderRadius.circular(20),
@@ -6233,7 +6040,11 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                      const Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -6251,10 +6062,7 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                   const SizedBox(height: 8),
                   Text(
                     project.description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[700],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -6265,6 +6073,232 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class ZoomableImageCarousel extends StatefulWidget {
+  final List<String> imageUrls;
+  final double? height;
+  final double? width;
+  final BorderRadius? borderRadius;
+  final BoxFit fit;
+  final IconData fallbackIcon;
+
+  const ZoomableImageCarousel({
+    super.key,
+    required this.imageUrls,
+    this.height,
+    this.width,
+    this.borderRadius,
+    this.fit = BoxFit.cover,
+    this.fallbackIcon = Icons.image_not_supported,
+  });
+
+  @override
+  State<ZoomableImageCarousel> createState() => _ZoomableImageCarouselState();
+}
+
+class _ZoomableImageCarouselState extends State<ZoomableImageCarousel> {
+  late final PageController _pageController;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _openViewer(int initialIndex) {
+    if (widget.imageUrls.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FullScreenImageGallery(
+          imageUrls: widget.imageUrls,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFallbackImage() {
+    return Container(
+      width: widget.width ?? double.infinity,
+      height: widget.height,
+      color: Colors.grey.shade200,
+      child: Icon(widget.fallbackIcon, size: 50, color: Colors.grey),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImages = widget.imageUrls.isNotEmpty;
+
+    Widget content = hasImages
+        ? Stack(
+            fit: StackFit.expand,
+            children: [
+              PageView.builder(
+                controller: _pageController,
+                itemCount: widget.imageUrls.length,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openViewer(index),
+                    child: CachedNetworkImage(
+                      imageUrl: widget.imageUrls[index],
+                      fit: widget.fit,
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      placeholder: (context, _) => Container(
+                        color: Colors.grey.shade200,
+                        child: const Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, _, __) => _buildFallbackImage(),
+                    ),
+                  );
+                },
+              ),
+              if (widget.imageUrls.length > 1)
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_currentIndex + 1}/${widget.imageUrls.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          )
+        : _buildFallbackImage();
+
+    if (widget.borderRadius != null) {
+      content = ClipRRect(borderRadius: widget.borderRadius!, child: content);
+    }
+
+    if (widget.height != null || widget.width != null) {
+      content = SizedBox(width: widget.width, height: widget.height, child: content);
+    }
+
+    return content;
+  }
+}
+
+class FullScreenImageGallery extends StatefulWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+
+  const FullScreenImageGallery({
+    super.key,
+    required this.imageUrls,
+    this.initialIndex = 0,
+  });
+
+  @override
+  State<FullScreenImageGallery> createState() => _FullScreenImageGalleryState();
+}
+
+class _FullScreenImageGalleryState extends State<FullScreenImageGallery> {
+  late final PageController _controller;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.imageUrls.isEmpty
+        ? 0
+        : widget.initialIndex.clamp(0, widget.imageUrls.length - 1);
+    _controller = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.imageUrls.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Icon(Icons.broken_image, color: Colors.white70, size: 48),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text('${_currentIndex + 1}/${widget.imageUrls.length}'),
+      ),
+      body: PageView.builder(
+        controller: _controller,
+        itemCount: widget.imageUrls.length,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemBuilder: (context, index) {
+          return Center(
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 5,
+              child: CachedNetworkImage(
+                imageUrl: widget.imageUrls[index],
+                fit: BoxFit.contain,
+                placeholder: (context, _) => const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                errorWidget: (context, _, __) => const Icon(
+                  Icons.broken_image,
+                  color: Colors.white70,
+                  size: 48,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
