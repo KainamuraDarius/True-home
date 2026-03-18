@@ -559,7 +559,7 @@ class _AddHostelScreenState extends State<AddHostelScreen> with WidgetsBindingOb
 
                   // Room Structure
                   DropdownButtonFormField<String>(
-                    value: _selectedRoomStructure,
+                    initialValue: _selectedRoomStructure,
                     decoration: const InputDecoration(
                       labelText: 'Room Structure *',
                       border: OutlineInputBorder(),

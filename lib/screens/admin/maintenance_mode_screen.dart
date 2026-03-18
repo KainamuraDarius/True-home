@@ -697,7 +697,7 @@ class _MaintenanceModeScreenState extends State<MaintenanceModeScreen>
                 Switch(
                   value: _allowAdmins,
                   onChanged: (value) => setState(() => _allowAdmins = value),
-                  activeColor: _accentPurple,
+                  activeThumbColor: _accentPurple,
                 ),
               ],
             ),

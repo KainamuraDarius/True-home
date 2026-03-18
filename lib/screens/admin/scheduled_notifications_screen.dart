@@ -562,7 +562,7 @@ class _ScheduledNotificationsScreenState extends State<ScheduledNotificationsScr
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} ${hour}:${dt.minute.toString().padLeft(2, '0')} $ampm';
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} $hour:${dt.minute.toString().padLeft(2, '0')} $ampm';
   }
 
   void _showCreateDialog() {

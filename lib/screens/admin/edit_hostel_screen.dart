@@ -400,7 +400,7 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
               Switch(
                 value: _isAvailable,
                 onChanged: (value) => setState(() => _isAvailable = value),
-                activeColor: Colors.white,
+                activeThumbColor: Colors.white,
               ),
             ],
           ),
@@ -453,7 +453,7 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
 
                     // University Selection
                     DropdownButtonFormField<String>(
-                      value: _selectedUniversity,
+                      initialValue: _selectedUniversity,
                       decoration: const InputDecoration(
                         labelText: 'University *',
                         border: OutlineInputBorder(),

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../models/project_model.dart';
 import '../../services/project_service.dart';
 import '../../utils/app_theme.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class AdminProjectsScreen extends StatefulWidget {
   final bool embedded;
@@ -288,20 +289,33 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> with SingleTi
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               child: Stack(
                 children: [
-                  Image.network(
-                    project.imageUrls.first,
+                  CachedNetworkImage(
+                    imageUrl: project.imageUrls.first,
                     height: 180,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 180,
-                        color: Colors.grey.shade300,
-                        child: const Center(
-                          child: Icon(Icons.apartment, size: 48),
+                    memCacheWidth: 900,
+                    memCacheHeight: 450,
+                    fadeInDuration: const Duration(milliseconds: 300),
+                    fadeOutDuration: const Duration(milliseconds: 100),
+                    placeholder: (context, url) => Container(
+                      height: 180,
+                      color: Colors.grey.shade300,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                      );
-                    },
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      height: 180,
+                      color: Colors.grey.shade300,
+                      child: const Center(
+                        child: Icon(Icons.image_not_supported, size: 48),
+                      ),
+                    ),
                   ),
                   // Status badges
                   Positioned(

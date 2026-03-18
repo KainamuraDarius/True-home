@@ -174,10 +174,23 @@ class ProjectService {
   // Admin: Approve/reject project
   Future<void> updateProjectApproval(String projectId, bool isApproved) async {
     try {
-      await _firestore
-          .collection('advertised_projects')
-          .doc(projectId)
-          .update({'isApproved': isApproved});
+      if (isApproved) {
+        // When approving, also initialize view/click counts to ensure accurate tracking
+        await _firestore
+            .collection('advertised_projects')
+            .doc(projectId)
+            .update({
+              'isApproved': true,
+              'viewCount': 0,
+              'clickCount': 0,
+            });
+      } else {
+        // Just reject without modifying counts
+        await _firestore
+            .collection('advertised_projects')
+            .doc(projectId)
+            .update({'isApproved': false});
+      }
     } catch (e) {
       print('Error updating project approval: $e');
       rethrow;

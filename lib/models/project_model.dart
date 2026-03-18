@@ -90,7 +90,7 @@ class Project {
       isFirstPlaceSubscriber: data['isFirstPlaceSubscriber'] ?? false,
       paymentAmount: (data['paymentAmount'] ?? 0).toDouble(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      adExpiresAt: (data['adExpiresAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      adExpiresAt: (data['adExpiresAt'] as Timestamp?)?.toDate() ?? DateTime.now().add(const Duration(days: 30)),
       isApproved: data['isApproved'] ?? false,
       contactPhone: data['contactPhone'],
       contactEmail: data['contactEmail'],

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/property_model.dart';
 import '../../models/reservation_model.dart';
 import '../../services/room_availability_service.dart';
+import '../../services/pandora_payment_service.dart';
 import '../../utils/app_theme.dart';
 import '../auth/login_screen.dart';
 import '../auth/role_selection_screen.dart';
@@ -31,11 +32,15 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   final _emailController = TextEditingController();
   final RoomAvailabilityService _availabilityService =
       RoomAvailabilityService();
+  final PandoraPaymentService _pandoraService = PandoraPaymentService();
 
   bool _isProcessing = false;
   final double _reservationFee = 20000; // UGX
   bool _isCheckingAvailability = true;
   bool _roomAvailable = false;
+  
+  String? _currentTransactionId; // Track current payment transaction
+  bool _paymentInitialized = false;
 
   @override
   void initState() {
@@ -76,6 +81,10 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
       return;
     }
 
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -84,7 +93,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
           children: [
             Icon(Icons.payment, color: AppColors.primary),
             const SizedBox(width: 12),
-            const Text('Payment Instructions'),
+            const Text('Confirm Payment'),
           ],
         ),
         content: SingleChildScrollView(
@@ -92,7 +101,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Instructions
+              // Payment Method Info
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -106,39 +115,33 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                     Row(
                       children: [
                         Icon(
-                          Icons.info_outline,
+                          Icons.credit_card,
                           color: Colors.blue.shade700,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'How to Pay',
+                        const Text(
+                          'Pandora Payment Gateway',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade900,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      '1. Dial *165# on your phone\n'
-                      '2. Follow the prompts to make payment\n'
-                      '3. Pay UGX 20,000 to: 0702021112\n'
-                      '4. Account Name: Ssemakula Ramzy Hadah\n'
-                      '5. Your reservation will be confirmed',
+                    const Text(
+                      'You will receive a payment prompt on your mobile money app or via USSD (*165# for MTN, etc). Complete the payment on your phone to confirm the reservation.',
                       style: TextStyle(
                         fontSize: 14,
                         height: 1.5,
-                        color: Colors.blue.shade900,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              // Reservation Fee Amount
+              // Reservation Fee
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -149,69 +152,37 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Reservation Fee:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.green.shade900,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Reservation Fee:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _phoneController.text,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
                     ),
                     Text(
-                      'UGX 20,000',
-                      style: TextStyle(
+                      'UGX ${CurrencyFormatter.format(_reservationFee)}',
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.green.shade900,
+                        color: Colors.green,
                       ),
                     ),
                   ],
                 ),
               ),
-              if (widget.property.paymentInstructions != null &&
-                  widget.property.paymentInstructions!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.account_balance,
-                            color: Colors.orange.shade700,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Payment Details',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange.shade900,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.property.paymentInstructions!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
-                          color: Colors.orange.shade900,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -223,17 +194,290 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _submitReservation();
+              _initiatePandoraPayment();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
             ),
-            child: const Text('I Understand, Reserve Now'),
+            child: const Text('Proceed to Pay'),
           ),
         ],
       ),
     );
+  }
+  
+  /// Initiate Pandora payment
+  /// Sends payment request to Pandora API - user will receive USSD/app prompt
+  Future<void> _initiatePandoraPayment() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      // Show processing dialog
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Sending payment request to Pandora...'),
+            ],
+          ),
+        ),
+      );
+
+      final transactionRef = 'HOSTEL_${widget.property.id}_${DateTime.now().millisecondsSinceEpoch}';
+      
+      // Call Pandora API to initiate payment
+      final response = await _pandoraService.initiatePayment(
+        phoneNumber: _phoneController.text.trim(),
+        amount: _reservationFee,
+        transactionRef: transactionRef,
+        narrative: 'Hostel room reservation - ${widget.property.title}',
+      );
+
+      if (!response.success) {
+        throw PaymentException(response.message);
+      }
+
+      _currentTransactionId = response.transactionReference;
+      _paymentInitialized = true;
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close processing dialog
+
+      // Show payment status checking dialog
+      _showPaymentStatusDialog(transactionRef);
+    } on PaymentException catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close processing dialog
+
+      setState(() {
+        _isProcessing = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Payment Error: ${e.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close processing dialog
+
+      setState(() {
+        _isProcessing = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+  
+  /// Show dialog that checks payment status
+  /// Polls Pandora API and waits for payment to complete
+  void _showPaymentStatusDialog(String transactionRef) {
+    bool paymentCompleted = false;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Complete Payment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '📱 Check Your Phone',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '✓ You should have received a payment prompt on your phone\n'
+                    '✓ Follow the on-screen instructions to complete payment\n'
+                    '✓ Your reservation will be confirmed once payment is received',
+                    style: TextStyle(fontSize: 13, height: 1.6),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Amount: UGX ${CurrencyFormatter.format(_reservationFee)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Phone: ${_phoneController.text}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 12),
+            const Text(
+              'Waiting for payment confirmation...',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _cancelPayment();
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    // Start polling for payment status
+    _pollPaymentStatus(transactionRef, maxAttempts: 60); // Poll for up to 5 minutes
+  }
+
+  /// Poll Pandora API to check payment status
+  Future<void> _pollPaymentStatus(
+    String transactionRef, {
+    int maxAttempts = 60,
+    int attemptNumber = 0,
+  }) async {
+    if (attemptNumber >= maxAttempts) {
+      if (mounted) {
+        Navigator.pop(context); // Close status dialog
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment request timed out. Please try again.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      setState(() {
+        _isProcessing = false;
+      });
+      return;
+    }
+
+    try {
+      // Wait 5 seconds before first check, then check every 5 seconds
+      await Future.delayed(const Duration(seconds: 5));
+
+      if (!mounted) return;
+
+      // Check payment status
+      final statusResponse = await _pandoraService.checkPaymentStatus(
+        transactionRef: transactionRef,
+      );
+
+      if (!mounted) return;
+
+      if (statusResponse.success) {
+        // Payment completed!
+        Navigator.pop(context); // Close status dialog
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('✅ Payment received! Creating your reservation...'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Create reservation with paid status
+        _submitReservationAfterPayment(transactionRef);
+      } else if (statusResponse.status.toLowerCase() == 'failed' ||
+                 statusResponse.status.toLowerCase() == 'cancelled' ||
+                 statusResponse.status.toLowerCase() == 'expired') {
+        // Payment failed
+        Navigator.pop(context); // Close status dialog
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment ${statusResponse.status.toLowerCase()}: ${statusResponse.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        
+        setState(() {
+          _isProcessing = false;
+        });
+      } else {
+        // Still processing - poll again
+        _pollPaymentStatus(transactionRef, maxAttempts: maxAttempts, attemptNumber: attemptNumber + 1);
+      }
+    } catch (e) {
+      debugPrint('Error checking payment status: $e');
+      
+      // Continue polling on error (network might be temporarily down)
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        _pollPaymentStatus(transactionRef, maxAttempts: maxAttempts, attemptNumber: attemptNumber + 1);
+      }
+    }
+  }
+  
+  /// Cancel the payment
+  Future<void> _cancelPayment() async {
+    if (_currentTransactionId != null) {
+      try {
+        await _pandoraService.cancelPayment(transactionRef: _currentTransactionId!);
+      } catch (e) {
+        debugPrint('Error cancelling payment: $e');
+      }
+    }
+    
+    setState(() {
+      _isProcessing = false;
+      _currentTransactionId = null;
+      _paymentInitialized = false;
+    });
   }
 
   void _showLoginRequiredDialog() {
@@ -270,13 +514,9 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
     );
   }
 
-  Future<void> _submitReservation() async {
+  Future<void> _submitReservationAfterPayment(String transactionId) async {
     if (FirebaseAuth.instance.currentUser == null) {
       _showLoginRequiredDialog();
-      return;
-    }
-
-    if (!_formKey.currentState!.validate()) {
       return;
     }
 
@@ -302,16 +542,16 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         ),
       );
 
-      // Get current user if logged in
+      // Get current user
       final currentUser = FirebaseAuth.instance.currentUser;
 
-      // Book the room first (this decreases available count)
+      // Book the room (decreases available count)
       await _availabilityService.bookRoom(
         propertyId: widget.property.id,
         roomTypeName: widget.roomType.name,
       );
 
-      // Create reservation with manual payment (to be paid via *165#)
+      // Create reservation with paid status
       final reservation = ReservationModel(
         id: '', // Will be set by Firestore
         propertyId: widget.property.id,
@@ -325,10 +565,10 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         studentEmail: _emailController.text.trim(),
         studentUserId: currentUser?.uid,
         reservationFee: _reservationFee,
-        paymentStatus: 'pending', // Payment to be made via *165#
-        paymentReference: 'MANUAL_${DateTime.now().millisecondsSinceEpoch}',
-        paymentTransactionId: null,
-        paymentDate: null,
+        paymentStatus: 'paid', // Payment successful!
+        paymentReference: _currentTransactionId ?? '',
+        paymentTransactionId: transactionId,
+        paymentDate: DateTime.now(),
         hostelManagerName: widget.property.agentName.trim().isNotEmpty
             ? widget.property.agentName
             : 'Hostel Manager',
@@ -337,17 +577,16 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
             ? widget.property.contactEmail
             : null,
         hostelPaymentInstructions: widget.property.paymentInstructions,
-        status: ReservationStatus.pending,
+        status: ReservationStatus.confirmed,
         createdAt: DateTime.now(),
       );
 
-      // Save to Firestore
+      // Save reservation to Firestore
       final docRef = await FirebaseFirestore.instance
           .collection('reservations')
           .add(reservation.toMap());
 
-      // Store a custodian-facing booking record for follow-up and reporting.
-      // This should not invalidate the reservation if the reporting write fails.
+      // Store custodian notification for follow-up
       try {
         await FirebaseFirestore.instance
           .collection('custodian_booking_notifications')
@@ -361,16 +600,18 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
           'studentEmail': _emailController.text.trim(),
           'custodianName': widget.property.agentName.trim().isNotEmpty
             ? widget.property.agentName.trim()
-            : 'Hostel Custodian',
+            : 'Hostel Manager',
           'custodianPhone': widget.property.contactPhone.trim(),
           'custodianEmail': widget.property.contactEmail.trim(),
           'studentUserId': currentUser!.uid,
-          'status': 'pending_follow_up',
+          'paymentStatus': 'paid',
+          'transactionId': transactionId,
+          'status': 'confirmed',
           'createdAt': Timestamp.fromDate(DateTime.now()),
           });
       } catch (notificationError) {
         debugPrint(
-          'Custodian follow-up record could not be created for reservation ${docRef.id}: $notificationError',
+          'Custodian notification error for reservation ${docRef.id}: $notificationError',
         );
       }
 
@@ -394,7 +635,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         _isProcessing = false;
       });
 
-      // If booking failed, try to restore the room count
+      // Try to restore room count on failure
       try {
         await _availabilityService.cancelBooking(
           propertyId: widget.property.id,

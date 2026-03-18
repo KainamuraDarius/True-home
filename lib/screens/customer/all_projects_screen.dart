@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/project_model.dart';
 import '../../services/project_service.dart';
 import '../../utils/app_theme.dart';
@@ -67,23 +68,42 @@ class AllProjectsScreen extends StatelessWidget {
               ),
               child: Stack(
                 children: [
-                  Image.network(
-                    project.imageUrls.isNotEmpty
-                        ? project.imageUrls.first
-                        : 'https://via.placeholder.com/400x200?text=No+Image',
-                    height: 240,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 240,
-                        color: Colors.grey.shade300,
-                        child: const Center(
-                          child: Icon(Icons.apartment, size: 60),
+                  project.imageUrls.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: project.imageUrls.first,
+                          height: 240,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 1000,
+                          memCacheHeight: 500,
+                          fadeInDuration: const Duration(milliseconds: 300),
+                          fadeOutDuration: const Duration(milliseconds: 100),
+                          placeholder: (context, url) => Container(
+                            height: 240,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: SizedBox(
+                                width: 30,
+                                height: 30,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            height: 240,
+                            color: Colors.grey.shade300,
+                            child: const Center(
+                              child: Icon(Icons.apartment, size: 60),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          height: 240,
+                          color: Colors.grey.shade300,
+                          child: const Center(
+                            child: Icon(Icons.apartment, size: 60),
+                          ),
                         ),
-                      );
-                    },
-                  ),
                   // Featured badge
                   if (project.isFirstPlaceSubscriber)
                     Positioned(

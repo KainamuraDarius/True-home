@@ -43,10 +43,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       isWebNav: kIsWeb,
       onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
     ),
-    SearchTab(
-      isWebNav: kIsWeb,
-      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-    ),
     _isGuestUser
         ? GuestAccessScreen(
             title: 'Login To Save Favorites',
@@ -126,11 +122,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             icon: Icon(Icons.home_outlined),
             activeIcon: Icon(Icons.home),
             label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search_outlined),
-            activeIcon: Icon(Icons.search),
-            label: 'Search',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.favorite_outline),
@@ -560,7 +551,7 @@ class _HomeTabState extends State<HomeTab> {
   final TextEditingController _maxPriceController = TextEditingController();
   bool _showFilters = false;
   bool _isSearchActive = false;
-  List<PropertyModel> _searchResults = [];
+  List<dynamic> _searchResults = []; // Can hold both Project and PropertyModel
   double _minPrice = 0;
   double _maxPrice = 10000000;
   int? _bedrooms;
@@ -810,17 +801,7 @@ class _HomeTabState extends State<HomeTab> {
     }
 
     try {
-      Query query = FirebaseFirestore.instance
-          .collection('properties')
-          .where('status', isEqualTo: 'approved')
-          .where('isActive', isEqualTo: true);
-
-      if (_selectedFilter != null) {
-        query = query.where('type', isEqualTo: _selectedFilter!.name);
-      }
-
-      final snapshot = await query.get();
-      List<PropertyModel> results = [];
+      List<dynamic> results = []; // Can hold both Project and PropertyModel
 
       // Sync text controllers with actual filter values
       final actualMinPrice = _minPriceController.text.isEmpty
@@ -833,46 +814,107 @@ class _HomeTabState extends State<HomeTab> {
       _minPrice = actualMinPrice;
       _maxPrice = actualMaxPrice;
 
-      print('🔍 Filter Debug:');
-      print('   Min Price: $_minPrice (text: "${_minPriceController.text}")');
-      print('   Max Price: $_maxPrice (text: "${_maxPriceController.text}")');
-      print('   Bedrooms: $_bedrooms');
-      print('   Property Type: $_selectedPropertyType');
+      print('🔍 Comprehensive Search:');
       print('   Search Term: ${_searchController.text}');
-      print('   Total properties fetched: ${snapshot.docs.length}');
+      print('   Filter: ${_selectedFilter?.name ?? "All"}');
 
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        final property = PropertyModel.fromJson(data);
+      // ============================================
+      // PART 1: Search Advertised Projects (All developers' projects)
+      // ============================================
+      try {
+        Query projectQuery = FirebaseFirestore.instance
+            .collection('advertised_projects')
+            .where('isApproved', isEqualTo: true);
 
-        bool matchesSearch = true;
-        if (_searchController.text.isNotEmpty) {
-          final searchTerm = _searchController.text.toLowerCase();
-          matchesSearch =
-              property.title.toLowerCase().contains(searchTerm) ||
-              property.description.toLowerCase().contains(searchTerm) ||
-              property.location.toLowerCase().contains(searchTerm) ||
-              property.address.toLowerCase().contains(searchTerm);
+        final projectSnapshot = await projectQuery.get();
+        print('   📦 Advertised projects found: ${projectSnapshot.docs.length}');
+
+        for (var doc in projectSnapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          final project = Project.fromFirestore(doc);
+
+          bool matchesSearch = true;
+          if (_searchController.text.isNotEmpty) {
+            final searchTerm = _searchController.text.toLowerCase();
+            matchesSearch =
+                project.name.toLowerCase().contains(searchTerm) ||
+                project.description.toLowerCase().contains(searchTerm) ||
+                project.location.toLowerCase().contains(searchTerm) ||
+                project.developerName.toLowerCase().contains(searchTerm);
+          }
+
+          if (matchesSearch) {
+            results.add(project);
+          }
         }
 
-        bool matchesPrice =
-            property.price >= _minPrice && property.price <= _maxPrice;
-        bool matchesBedrooms =
-            _bedrooms == null || property.bedrooms >= _bedrooms!;
-        bool matchesPropertyType =
-            _selectedPropertyType == null ||
-            property.type == _selectedPropertyType;
-
-        if (matchesSearch &&
-            matchesPrice &&
-            matchesBedrooms &&
-            matchesPropertyType) {
-          results.add(property);
-        }
+        print('   ✅ Advertised projects matching: ${results.length}');
+      } catch (e) {
+        print('   ⚠️ Error searching advertised projects: $e');
       }
 
-      print('   ✅ Properties matching filters: ${results.length}');
+      // ============================================
+      // PART 2: Search Properties by Type (Buyers' listings)
+      // ============================================
+      try {
+        // Determine which property types to search
+        List<PropertyType> typesToSearch = [];
+        if (_selectedFilter != null) {
+          typesToSearch = [_selectedFilter!];
+        } else {
+          // Search all types if no filter selected
+          typesToSearch = [
+            PropertyType.sale,
+            PropertyType.rent,
+            PropertyType.hostel,
+            PropertyType.commercial,
+          ];
+        }
+
+        for (var propertyType in typesToSearch) {
+          Query propertyQuery = FirebaseFirestore.instance
+              .collection('properties')
+              .where('type', isEqualTo: propertyType.name)
+              .where('status', isEqualTo: 'approved')
+              .where('isActive', isEqualTo: true);
+
+          final propertySnapshot = await propertyQuery.get();
+          print(
+              '   🏠 ${propertyType.name} properties found: ${propertySnapshot.docs.length}');
+
+          for (var doc in propertySnapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            data['id'] = doc.id;
+            final property = PropertyModel.fromJson(data);
+
+            bool matchesSearch = true;
+            if (_searchController.text.isNotEmpty) {
+              final searchTerm = _searchController.text.toLowerCase();
+              matchesSearch =
+                  property.title.toLowerCase().contains(searchTerm) ||
+                  property.description.toLowerCase().contains(searchTerm) ||
+                  property.location.toLowerCase().contains(searchTerm) ||
+                  property.address.toLowerCase().contains(searchTerm);
+            }
+
+            bool matchesPrice =
+                property.price >= _minPrice && property.price <= _maxPrice;
+            bool matchesBedrooms =
+                _bedrooms == null || property.bedrooms >= _bedrooms!;
+
+            if (matchesSearch && matchesPrice && matchesBedrooms) {
+              results.add(property);
+            }
+          }
+        }
+
+        print('   ✅ Properties matching: ${results.length}');
+      } catch (e) {
+        print('   ⚠️ Error searching properties: $e');
+      }
+
+      print('   📊 Total results combined: ${results.length}');
 
       setState(() {
         _searchResults = results;
@@ -882,6 +924,7 @@ class _HomeTabState extends State<HomeTab> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error searching: $e')));
+        print('❌ Search error: $e');
       }
     }
   }
@@ -1111,393 +1154,29 @@ class _HomeTabState extends State<HomeTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hero Section
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryDark],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Find Your Dream Home',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Browse rentals, hostels and properties for sale',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onPrimary.withOpacity(0.8),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Property type buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildPropertyTypeButton(
-                          'Buy',
-                          PropertyType.sale,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _buildPropertyTypeButton(
-                          'Rent',
-                          PropertyType.rent,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _buildPropertyTypeButton(
-                          'Student Hostels',
-                          PropertyType.hostel,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _buildPropertyTypeButton(
-                          'Commercial',
-                          PropertyType.commercial,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+            // Header section - scrolls with content
+            _buildStickyHeader(context),
+            
+              // Top padding to account for content below header
+            const SizedBox(height: 20),
+            
+            // Below the header, order is:
+            // Filters section (if active)
+            // Search history (if shown)
+            // Main content
 
-                  // University filter (for student hostels)
-                  if (_selectedFilter == PropertyType.hostel) ...[
-                    InkWell(
-                      key: _universityDropdownKey,
-                      onTap: () => _showUniversityPicker(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        child: Row(
+                // Search History
+                if (_showHistory && _searchHistory.isNotEmpty)
+                  Container(
+                    color: Theme.of(context).cardColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              _selectedUniversity ?? 'Select University',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: _selectedUniversity != null
-                                    ? Theme.of(
-                                        context,
-                                      ).textTheme.bodyLarge!.color
-                                    : Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall!.color,
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_drop_down,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Search Bar with Filter Button
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).cardColor,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Stack(
-                                alignment: Alignment.centerLeft,
-                                children: [
-                                  // Inline autocomplete suggestion (gray text)
-                                  if (_inlineAutocompleteSuggestion.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        left: 52,
-                                        top: 16,
-                                        bottom: 16,
-                                      ),
-                                      child: Text(
-                                        _inlineAutocompleteSuggestion,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall!.color,
-                                        ),
-                                      ),
-                                    ),
-                                  // Actual TextField
-                                  TextField(
-                                    controller: _searchController,
-                                    focusNode: _searchFocusNode,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Theme.of(
-                                        context,
-                                      ).textTheme.bodyLarge!.color,
-                                    ),
-                                    decoration: InputDecoration(
-                                      hintText:
-                                          'Search by location, city, area, or property...',
-                                      prefixIcon: const Icon(Icons.search),
-                                      suffixIcon:
-                                          _searchController.text.isNotEmpty ||
-                                              _isSearchActive
-                                          ? IconButton(
-                                              icon: const Icon(Icons.clear),
-                                              onPressed: _clearSearch,
-                                            )
-                                          : null,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      fillColor: Colors.transparent,
-                                      filled: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 16,
-                                          ),
-                                    ),
-                                    onTap: () {
-                                      if (_searchHistory.isNotEmpty &&
-                                          _searchController.text.isEmpty) {
-                                        setState(() {
-                                          _showHistory = true;
-                                          _showSuggestions = false;
-                                        });
-                                      }
-                                    },
-                                    onChanged: (value) {
-                                      _updateSearchSuggestions(value);
-                                      setState(() {
-                                        _showHistory =
-                                            false; // Hide history when typing
-                                        _isSearchActive = value.isNotEmpty;
-                                      });
-                                    },
-                                    onSubmitted: (value) {
-                                      if (value.isNotEmpty) {
-                                        _performSearch();
-                                      }
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Autocomplete suggestions dropdown
-                            if (_showSuggestions &&
-                                _searchSuggestions.isNotEmpty)
-                              Positioned(
-                                top: 60,
-                                left: 0,
-                                right: 0,
-                                child: Material(
-                                  elevation: 8,
-                                  borderRadius: BorderRadius.circular(12),
-                                  shadowColor: Colors.black.withOpacity(0.3),
-                                  child: Container(
-                                    constraints: const BoxConstraints(
-                                      maxHeight: 250,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).cardColor,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Theme.of(context).dividerColor,
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: ListView.builder(
-                                      shrinkWrap: true,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 4,
-                                      ),
-                                      itemCount: _searchSuggestions.length,
-                                      itemBuilder: (context, index) {
-                                        final suggestion =
-                                            _searchSuggestions[index];
-                                        final isTypo = _isTypoCorrection(
-                                          _searchController.text,
-                                          suggestion,
-                                        );
-                                        return ListTile(
-                                          dense: true,
-                                          leading: Icon(
-                                            _commonLocations.contains(
-                                                  suggestion,
-                                                )
-                                                ? Icons.location_on
-                                                : _propertyTypes.contains(
-                                                    suggestion,
-                                                  )
-                                                ? Icons.home
-                                                : Icons.history,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                            size: 20,
-                                          ),
-                                          title: RichText(
-                                            text: TextSpan(
-                                              children: [
-                                                TextSpan(
-                                                  text: suggestion,
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    color: Theme.of(context)
-                                                        .textTheme
-                                                        .bodyLarge!
-                                                        .color,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                                if (isTypo)
-                                                  TextSpan(
-                                                    text:
-                                                        '  (Did you mean this?)',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.orange[700],
-                                                      fontStyle:
-                                                          FontStyle.italic,
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                          trailing:
-                                              index == 0 &&
-                                                  suggestion
-                                                      .toLowerCase()
-                                                      .startsWith(
-                                                        _searchController.text
-                                                            .toLowerCase(),
-                                                      )
-                                              ? Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .primary
-                                                        .withOpacity(0.1),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          4,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    'Tab',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: Theme.of(
-                                                        context,
-                                                      ).colorScheme.primary,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                )
-                                              : null,
-                                          onTap: () {
-                                            _searchController.text = suggestion;
-                                            setState(() {
-                                              _showSuggestions = false;
-                                              _inlineAutocompleteSuggestion =
-                                                  '';
-                                            });
-                                            _performSearch();
-                                          },
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Filter Button
-                      Container(
-                        decoration: BoxDecoration(
-                          color: _showFilters
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _showFilters
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).dividerColor,
-                            width: 1,
-                          ),
-                        ),
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.filter_list,
-                            color: _showFilters
-                                ? Theme.of(context).colorScheme.onPrimary
-                                : Theme.of(context).iconTheme.color,
-                          ),
-                          onPressed: () {
-                            setState(() => _showFilters = !_showFilters);
-                          },
-                          tooltip: 'Filter properties',
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Search History
-            if (_showHistory && _searchHistory.isNotEmpty)
-              Container(
-                color: Theme.of(context).cardColor,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
+                            const Text(
                           'Recent Searches',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
@@ -2485,6 +2164,313 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
+  /// Build the sticky header section that remains fixed at the top
+  Widget _buildStickyHeader(BuildContext context) {
+    final userName = _currentUser?.name ?? 'there';
+    
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primaryDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Personalized greeting
+          Text(
+            'Welcome, $userName',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Find your perfect home in Uganda',
+            style: TextStyle(
+              fontSize: 18,
+              color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.85),
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          // Search Bar with Filter Button
+          Row(
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          // Inline autocomplete suggestion (gray text)
+                          if (_inlineAutocompleteSuggestion.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 50,
+                                top: 16,
+                                bottom: 16,
+                              ),
+                              child: Text(
+                                _inlineAutocompleteSuggestion,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                          // Actual TextField
+                          TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey.shade800,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search location...',
+                              hintStyle: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey.shade400,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.location_on,
+                                color: Colors.grey.shade600,
+                                size: 24,
+                              ),
+                              suffixIcon:
+                                  _searchController.text.isNotEmpty ||
+                                      _isSearchActive
+                                  ? IconButton(
+                                      icon: Icon(
+                                        Icons.close,
+                                        color: Colors.grey.shade600,
+                                        size: 24,
+                                      ),
+                                      onPressed: _clearSearch,
+                                    )
+                                  : null,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide.none,
+                              ),
+                              fillColor: Colors.transparent,
+                              filled: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                            ),
+                            onTap: () {
+                              if (_searchHistory.isNotEmpty &&
+                                  _searchController.text.isEmpty) {
+                                setState(() {
+                                  _showHistory = true;
+                                  _showSuggestions = false;
+                                });
+                              }
+                            },
+                            onChanged: (value) {
+                              _updateSearchSuggestions(value);
+                              setState(() {
+                                _showHistory = false;
+                                _isSearchActive = value.isNotEmpty;
+                              });
+                            },
+                            onSubmitted: (value) {
+                              if (value.isNotEmpty) {
+                                _performSearch();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Autocomplete suggestions dropdown
+                    if (_showSuggestions && _searchSuggestions.isNotEmpty)
+                      Positioned(
+                        top: 62,
+                        left: 0,
+                        right: 0,
+                        child: Material(
+                          elevation: 8,
+                          borderRadius: BorderRadius.circular(14),
+                          shadowColor: Colors.black.withOpacity(0.3),
+                          child: Container(
+                            constraints: const BoxConstraints(maxHeight: 200),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius:  BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.grey.shade300,
+                                width: 1,
+                              ),
+                            ),
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              itemCount: _searchSuggestions.length,
+                              itemBuilder: (context, index) {
+                                final suggestion = _searchSuggestions[index];
+                                return ListTile(
+                                  dense: false,
+                                  leading: Icon(
+                                    Icons.location_on,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    size: 20,
+                                  ),
+                                  title: Text(
+                                    suggestion,
+                                    style: const TextStyle(fontSize: 15),
+                                  ),
+                                  onTap: () {
+                                    _searchController.text = suggestion;
+                                    setState(() {
+                                      _showSuggestions = false;
+                                      _inlineAutocompleteSuggestion = '';
+                                    });
+                                    _performSearch();
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Filter Button
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.tune,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                  iconSize: 26,
+                  onPressed: () {
+                    setState(() => _showFilters = !_showFilters);
+                  },
+                  tooltip: 'Filters',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          
+          // Property type buttons - fit in single row
+          Row(
+            children: [
+              Expanded(
+                child: _buildPropertyTypeButton(
+                  'Buy',
+                  PropertyType.sale,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _buildPropertyTypeButton(
+                  'Rent',
+                  PropertyType.rent,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _buildPropertyTypeButton(
+                  'Hostels',
+                  PropertyType.hostel,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _buildPropertyTypeButton(
+                  'Commercial',
+                  PropertyType.commercial,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // University filter (for student hostels)
+          if (_selectedFilter == PropertyType.hostel) ...[
+            InkWell(
+              key: _universityDropdownKey,
+              onTap: () => _showUniversityPicker(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _selectedUniversity ?? 'Select University',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _selectedUniversity != null
+                            ? Theme.of(context).colorScheme.onPrimary
+                            : Theme.of(context).colorScheme.onPrimary.withOpacity(0.7),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_drop_down,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildSearchResults() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -2495,7 +2481,7 @@ class _HomeTabState extends State<HomeTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${_searchResults.length} ${_searchResults.length == 1 ? "property" : "properties"} found',
+                '${_searchResults.length} ${_searchResults.length == 1 ? "result" : "results"} found',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -2588,10 +2574,13 @@ class _HomeTabState extends State<HomeTab> {
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 16),
                   itemBuilder: (context, index) {
-                    return _buildSearchResultCard(
-                      context,
-                      _searchResults[index],
-                    );
+                    final result = _searchResults[index];
+                    if (result is Project) {
+                      return _buildSearchProjectCard(context, result);
+                    } else if (result is PropertyModel) {
+                      return _buildSearchPropertyCard(context, result);
+                    }
+                    return const SizedBox.shrink();
                   },
                 ),
         ],
@@ -2601,7 +2590,22 @@ class _HomeTabState extends State<HomeTab> {
 
   Widget _buildPropertyTypeButton(String label, PropertyType type) {
     final isSelected = _selectedFilter == type;
-    return ElevatedButton(
+    
+    // Get icon for each property type
+    IconData getIcon(PropertyType t) {
+      switch (t) {
+        case PropertyType.sale:
+          return Icons.home;
+        case PropertyType.rent:
+          return Icons.apartment;
+        case PropertyType.hostel:
+          return Icons.school;
+        case PropertyType.commercial:
+          return Icons.business;
+      }
+    }
+    
+    return ElevatedButton.icon(
       onPressed: () {
         setState(() {
           _selectedFilter = isSelected ? null : type;
@@ -2643,31 +2647,35 @@ class _HomeTabState extends State<HomeTab> {
         }
         // For rent and sale buttons, no automatic scrolling
       },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected
-            ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).cardColor,
-        foregroundColor: isSelected
-            ? Theme.of(context).colorScheme.onPrimary
-            : Theme.of(context).textTheme.bodyLarge!.color,
-        elevation: isSelected ? 4 : 1,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: 1,
-          ),
-        ),
+      icon: Icon(
+        getIcon(type),
+        size: 16,
       ),
-      child: Text(
+      label: Text(
         label,
         textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: 11,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected
+            ? Theme.of(context).colorScheme.primary
+            : Colors.grey.shade100,
+        foregroundColor: isSelected
+            ? Colors.white
+            : Theme.of(context).textTheme.bodyLarge!.color,
+        elevation: isSelected ? 4 : 0,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.grey.shade300,
+            width: 1,
+          ),
         ),
       ),
     );
@@ -3239,11 +3247,177 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // Search result card with horizontal layout - no overflow issues
-  Widget _buildSearchResultCard(BuildContext context, PropertyModel property) {
+  // Search result card for Projects
+  Widget _buildSearchProjectCard(BuildContext context, Project project) {
     return Card(
-      elevation: 2,
+      elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProjectDetailsScreen(project: project),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Project Image (full width, larger height)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
+              child: project.imageUrls.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: project.imageUrls.first,
+                      width: double.infinity,
+                      height: 250,
+                      fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 200),
+                      placeholder: (context, url) => Container(
+                        width: double.infinity,
+                        height: 250,
+                        color: Theme.of(context).cardColor,
+                        child: const Center(
+                          child: SizedBox(
+                            width: 30,
+                            height: 30,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: double.infinity,
+                        height: 250,
+                        color: Theme.of(context).cardColor,
+                        child: const Icon(Icons.image_not_supported, size: 40),
+                      ),
+                      memCacheHeight: 400,
+                      memCacheWidth: 600,
+                    )
+                  : Container(
+                      width: double.infinity,
+                      height: 250,
+                      color: Colors.grey[300],
+                      child: const Icon(
+                        Icons.business,
+                        size: 60,
+                        color: Colors.grey,
+                      ),
+                    ),
+            ),
+            // Project Details
+            Padding(
+              padding: const EdgeInsets.all(14.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Badge: Project type
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color:
+                          Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '🏗️ Development Project',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Project Name
+                  Text(
+                    project.name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // Developer Name
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          project.developerName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Location
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          project.location,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Description (limited)
+                  Text(
+                    project.description,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Search result card for Properties (Buy/Rent/Hostel/Commercial)
+  Widget _buildSearchPropertyCard(
+      BuildContext context, PropertyModel property) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -3254,179 +3428,187 @@ class _HomeTabState extends State<HomeTab> {
           );
         },
         borderRadius: BorderRadius.circular(12),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Property Image (fixed width, flexible height)
+            // Property Image (full width, larger height)
             ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(12),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
               ),
               child: property.imageUrls.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: property.imageUrls.first,
-                      width: 140,
-                      height: 140,
+                      width: double.infinity,
+                      height: 250,
                       fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 100),
+                      fadeInDuration: const Duration(milliseconds: 200),
                       placeholder: (context, url) => Container(
-                        width: 140,
-                        height: 140,
+                        width: double.infinity,
+                        height: 250,
                         color: Theme.of(context).cardColor,
                         child: const Center(
                           child: SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 30,
+                            height: 30,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                         ),
                       ),
                       errorWidget: (context, url, error) => Container(
-                        width: 140,
-                        height: 140,
+                        width: double.infinity,
+                        height: 250,
                         color: Theme.of(context).cardColor,
-                        child: const Icon(Icons.image_not_supported),
+                        child: const Icon(Icons.image_not_supported, size: 40),
                       ),
+                      memCacheHeight: 400,
+                      memCacheWidth: 600,
                     )
                   : Container(
-                      width: 140,
-                      height: 140,
+                      width: double.infinity,
+                      height: 250,
                       color: Colors.grey[300],
                       child: const Icon(
                         Icons.home,
-                        size: 50,
+                        size: 60,
                         color: Colors.grey,
                       ),
                     ),
             ),
             // Property Details
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Property Name
-                    Text(
-                      property.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+            Padding(
+              padding: const EdgeInsets.all(14.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Badge: Property type
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    const SizedBox(height: 4),
-                    // Location
+                    child: Text(
+                      _getPropertyTypeLabel(property.type),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Property Name
+                  Text(
+                    property.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // Location
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          property.location,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Price
+                  Text(
+                    '${property.currency} ${CurrencyFormatter.format(property.price)}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Bedrooms & Bathrooms
+                  if (property.type != PropertyType.hostel)
+                    Row(
+                      children: [
+                        if (property.bedrooms > 0) ...[
+                          const Icon(Icons.bed,
+                              size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${property.bedrooms}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        if (property.bathrooms > 0) ...[
+                          const Icon(Icons.bathtub,
+                              size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${property.bathrooms}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ],
+                    )
+                  else if (property.university != null &&
+                      property.university!.isNotEmpty)
                     Row(
                       children: [
                         Icon(
-                          Icons.location_on,
+                          Icons.school,
                           size: 14,
                           color: Colors.grey[600],
                         ),
                         const SizedBox(width: 4),
-                        Expanded(
+                        Flexible(
                           child: Text(
-                            property.location,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[700],
-                            ),
+                            property.university!,
+                            style: const TextStyle(fontSize: 12),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    // Company Name (if available)
-                    if (property.companyName.isNotEmpty) ...[
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.business,
-                            size: 14,
-                            color: Colors.grey[600],
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              property.companyName,
-                              style: const TextStyle(fontSize: 12),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                    // Property Type & Bedrooms/Bathrooms
-                    Row(
-                      children: [
-                        if (property.type == PropertyType.hostel) ...[
-                          if (property.university != null &&
-                              property.university!.isNotEmpty) ...[
-                            Icon(
-                              Icons.school,
-                              size: 14,
-                              color: Colors.grey[600],
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                property.university!,
-                                style: const TextStyle(fontSize: 12),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ] else ...[
-                          if (property.bedrooms > 0) ...[
-                            const Icon(Icons.bed, size: 14, color: Colors.grey),
-                            const SizedBox(width: 2),
-                            Text(
-                              '${property.bedrooms}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          if (property.bathrooms > 0) ...[
-                            const Icon(
-                              Icons.bathtub,
-                              size: 14,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              '${property.bathrooms}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // Price
-                    Text(
-                      '${property.currency} ${CurrencyFormatter.format(property.price)}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  // Helper to get property type label
+  String _getPropertyTypeLabel(PropertyType type) {
+    switch (type) {
+      case PropertyType.sale:
+        return '🏠 For Sale';
+      case PropertyType.rent:
+        return '🔑 For Rent';
+      case PropertyType.hostel:
+        return '🛏️ Hostel';
+      case PropertyType.commercial:
+        return '🏢 Commercial';
+    }
   }
 
   Widget _buildPropertyCard(BuildContext context, PropertyModel property) {
@@ -3484,7 +3666,9 @@ class _HomeTabState extends State<HomeTab> {
                   width: double.infinity,
                   height: height,
                   fit: BoxFit.cover,
-                  fadeInDuration: const Duration(milliseconds: 100),
+                  memCacheWidth: 600,
+                  memCacheHeight: 400,
+                  fadeInDuration: const Duration(milliseconds: 200),
                   placeholder: (context, url) => Container(
                     height: height ?? double.infinity,
                     width: double.infinity,
@@ -3780,7 +3964,6 @@ class _SearchTabState extends State<SearchTab> {
         data['id'] = doc.id;
         final property = PropertyModel.fromJson(data);
 
-        // Apply additional filters
         bool matchesSearch = true;
 
         // Search query filter
@@ -5256,36 +5439,231 @@ class _FavoritesTabState extends State<FavoritesTab> {
             )
           : RefreshIndicator(
               onRefresh: _loadFavorites,
-              child: ListView(
-                children: [
-                  Padding(
-                    padding: ResponsiveHelper.getContentPadding(context),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: ResponsiveHelper.getMaxContentWidth(context),
-                        ),
-                        child: GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: ResponsiveHelper.getGridCrossAxisCount(context),
-                            childAspectRatio: ResponsiveHelper.getPropertyCardAspectRatio(context),
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _favoriteProperties.length,
+                itemBuilder: (context, index) {
+                  final property = _favoriteProperties[index];
+                  return _buildFavoritesPropertyCard(property);
+                },
+              ),
+            ),
+    );
+  }
+
+  Widget _buildFavoritesPropertyCard(PropertyModel property) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PropertyDetailsScreen(property: property),
+          ),
+        ).then((_) => _loadFavorites());
+      },
+      child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Property Image with Badge and Favorite Button
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: property.imageUrls.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: property.imageUrls[0],
+                          width: double.infinity,
+                          height: 250,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 600,
+                          memCacheHeight: 400,
+                          fadeInDuration: const Duration(milliseconds: 200),
+                          placeholder: (context, url) => Container(
+                            color: Colors.grey[300],
+                            width: double.infinity,
+                            height: 250,
+                            child: const Center(
+                              child: SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
                           ),
-                          itemCount: _favoriteProperties.length,
-                          itemBuilder: (context, index) {
-                            final property = _favoriteProperties[index];
-                            return _buildPropertyCard(property);
-                          },
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey[300],
+                            width: double.infinity,
+                            height: 250,
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey[300],
+                          width: double.infinity,
+                          height: 250,
+                          child: const Icon(
+                            Icons.home,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                        ),
+                ),
+                // Property Type Badge - Top Left
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: property.type == PropertyType.rent
+                          ? Colors.blue
+                          : property.type == PropertyType.hostel
+                          ? Colors.orange
+                          : property.type == PropertyType.commercial
+                          ? Colors.purple
+                          : Colors.green,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      property.type == PropertyType.rent
+                          ? 'RENT'
+                          : property.type == PropertyType.hostel
+                          ? 'HOSTEL'
+                          : property.type == PropertyType.commercial
+                          ? 'COMMERCIAL'
+                          : 'SALE',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                // Favorite Remove Button - Top Right
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () => _removeFavorite(property.id),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.favorite,
+                        color: Colors.red,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Property Details
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  Text(
+                    property.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // Location
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          property.location,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Bedrooms and Bathrooms
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.bed,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${property.bedrooms} Beds',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const SizedBox(width: 20),
+                      Icon(
+                        Icons.bathroom,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${property.bathrooms} Baths',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Price
+                  Text(
+                    '${property.currency} ${property.price.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                      fontSize: 16,
                     ),
                   ),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -5791,7 +6169,9 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                           width: double.infinity,
                           fit: BoxFit.cover,
                           memCacheWidth: 900,
-                          fadeInDuration: const Duration(milliseconds: 120),
+                          memCacheHeight: 450,
+                          fadeInDuration: const Duration(milliseconds: 300),
+                          fadeOutDuration: const Duration(milliseconds: 100),
                           placeholder: (context, _) => Container(
                             height: 180,
                             color: Colors.grey.shade200,
@@ -5883,16 +6263,7 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.visibility_outlined, size: 14, color: Colors.grey.shade600),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${project.viewCount} views',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      ),
-                    ],
-                  ),
+                  // View count hidden from customers - only visible to project owner (agent)
                 ],
               ),
             ),

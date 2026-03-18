@@ -7,6 +7,7 @@ import '../../services/project_service.dart';
 import '../../utils/app_theme.dart';
 import 'edit_project_screen.dart';
 import 'submit_project_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MyProjectsScreen extends StatefulWidget {
   final bool isTabView;
@@ -79,9 +80,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
           ),
         ],
       ),
-      floatingActionButton: widget.isTabView
-          ? null
-          : FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton.extended(
               onPressed: () {
                 Navigator.push(
                   context,
@@ -200,18 +199,31 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
           if (project.imageUrls.isNotEmpty)
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: Image.network(
-                project.imageUrls.first,
+              child: CachedNetworkImage(
+                imageUrl: project.imageUrls.first,
                 height: 240,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 240,
-                    color: Colors.grey.shade300,
-                    child: const Icon(Icons.image_not_supported, size: 50),
-                  );
-                },
+                memCacheWidth: 900,
+                memCacheHeight: 450,
+                fadeInDuration: const Duration(milliseconds: 300),
+                fadeOutDuration: const Duration(milliseconds: 100),
+                placeholder: (context, url) => Container(
+                  height: 240,
+                  color: Colors.grey.shade300,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  height: 240,
+                  color: Colors.grey.shade300,
+                  child: const Icon(Icons.image_not_supported, size: 50),
+                ),
               ),
             ),
 
