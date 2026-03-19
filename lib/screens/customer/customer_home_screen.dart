@@ -3073,6 +3073,7 @@ class _HomeTabState extends State<HomeTab> {
                       top: Radius.circular(16),
                     ),
                     fallbackIcon: Icons.image_not_supported,
+                    disableImageTap: true,
                   ),
                   // Gradient overlay
                   Positioned.fill(
@@ -3244,6 +3245,7 @@ class _HomeTabState extends State<HomeTab> {
               width: double.infinity,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               fallbackIcon: Icons.business,
+              disableImageTap: true,
             ),
             // Project Details
             Padding(
@@ -5997,6 +5999,7 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
                     top: Radius.circular(14),
                   ),
                   fallbackIcon: Icons.apartment,
+                  disableImageTap: true,
                 ),
                 if (project.isFirstPlaceSubscriber)
                   Positioned(

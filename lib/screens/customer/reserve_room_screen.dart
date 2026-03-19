@@ -26,6 +26,9 @@ class ReserveRoomScreen extends StatefulWidget {
 }
 
 class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
+      bool _useDifferentPaymentNumber = false;
+    User? _firebaseUser;
+    Map<String, dynamic>? _userProfile;
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -46,6 +49,40 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   void initState() {
     super.initState();
     _checkRoomAvailability();
+    _prefillUserInfo();
+  }
+
+  Future<void> _prefillUserInfo() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    setState(() {
+      _firebaseUser = user;
+    });
+    // Try to get extra profile info from Firestore
+    String? firestorePhone;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        _userProfile = doc.data();
+        _nameController.text = _userProfile?['name'] ?? user.displayName ?? '';
+        _emailController.text = _userProfile?['email'] ?? user.email ?? '';
+        firestorePhone = _userProfile?['phone'];
+      } else {
+        _nameController.text = user.displayName ?? '';
+        _emailController.text = user.email ?? '';
+      }
+    } catch (e) {
+      _nameController.text = user.displayName ?? '';
+      _emailController.text = user.email ?? '';
+    }
+    // Prefer FirebaseAuth phoneNumber if available, else Firestore, else blank
+    if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
+      _phoneController.text = user.phoneNumber!;
+    } else if (firestorePhone != null && firestorePhone.isNotEmpty) {
+      _phoneController.text = firestorePhone;
+    } else {
+      _phoneController.text = '';
+    }
   }
 
   Future<void> _checkRoomAvailability() async {
@@ -860,6 +897,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                   prefixIcon: Icon(Icons.person),
                   border: OutlineInputBorder(),
                 ),
+                readOnly: FirebaseAuth.instance.currentUser != null,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter your full name';
@@ -870,25 +908,51 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
 
               const SizedBox(height: 16),
 
-              // Phone Field
-              TextFormField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number *',
-                  prefixIcon: Icon(Icons.phone),
-                  border: OutlineInputBorder(),
-                  hintText: '+256...',
-                ),
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter your phone number';
-                  }
-                  if (value.trim().length < 10) {
-                    return 'Please enter a valid phone number';
-                  }
-                  return null;
-                },
+
+              // Phone Field with toggle
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number for Payment *',
+                        prefixIcon: Icon(Icons.phone),
+                        border: OutlineInputBorder(),
+                        hintText: '+256...',
+                        helperText: 'This is your default number. You can use a different number for payment if needed.',
+                      ),
+                      readOnly: FirebaseAuth.instance.currentUser != null && !_useDifferentPaymentNumber,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter your phone number';
+                        }
+                        if (value.trim().length < 10) {
+                          return 'Please enter a valid phone number';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  if (FirebaseAuth.instance.currentUser != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: Column(
+                        children: [
+                          Switch(
+                            value: _useDifferentPaymentNumber,
+                            onChanged: (val) {
+                              setState(() {
+                                _useDifferentPaymentNumber = val;
+                              });
+                            },
+                          ),
+                          const Text('Change?'),
+                        ],
+                      ),
+                    ),
+                ],
               ),
 
               const SizedBox(height: 16),
@@ -901,6 +965,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                   prefixIcon: Icon(Icons.email),
                   border: OutlineInputBorder(),
                 ),
+                readOnly: FirebaseAuth.instance.currentUser != null,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   // Only validate format if email is provided
