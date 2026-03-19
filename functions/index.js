@@ -22,7 +22,7 @@ exports.pandoraPayment = functions.https.onRequest((req, res) => {
     }
 
     // Store your Pandora API key securely (do NOT expose in frontend)
-    const PANDORA_API_KEY = '$argon2id$v=19$m=65536,t=4,p=3$TnZqZTdOWEd3enVxVHZyMw$Dvu0B/DsxqDfxoHzQKTgKLUeXZ242xJhooLf7sWUdOM'; // <-- Replace with your real key
+    const PANDORA_API_KEY = 'pk_live_35aa5d8d019945f6d918ed216b3d223820295f803d7d0ce76425c36e37f1ea8b'; // <-- Updated with new key
 
     try {
       const response = await fetch('https://api.pandorapayments.com/v1/transactions/mobile-money', {
