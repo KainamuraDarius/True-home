@@ -3555,6 +3555,7 @@ class _HomeTabState extends State<HomeTab> {
               ? const BorderRadius.vertical(top: Radius.circular(12))
               : BorderRadius.zero,
           fallbackIcon: Icons.home_outlined,
+          disableImageTap: true, // Disable image tap in property card
         ),
         // Sold Out Badge
         if (!property.isActive)
@@ -6085,6 +6086,7 @@ class ZoomableImageCarousel extends StatefulWidget {
   final BorderRadius? borderRadius;
   final BoxFit fit;
   final IconData fallbackIcon;
+  final bool disableImageTap;
 
   const ZoomableImageCarousel({
     super.key,
@@ -6094,6 +6096,7 @@ class ZoomableImageCarousel extends StatefulWidget {
     this.borderRadius,
     this.fit = BoxFit.cover,
     this.fallbackIcon = Icons.image_not_supported,
+    this.disableImageTap = false,
   });
 
   @override
@@ -6154,26 +6157,31 @@ class _ZoomableImageCarouselState extends State<ZoomableImageCarousel> {
                   });
                 },
                 itemBuilder: (context, index) {
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _openViewer(index),
-                    child: CachedNetworkImage(
-                      imageUrl: widget.imageUrls[index],
-                      fit: widget.fit,
-                      fadeInDuration: const Duration(milliseconds: 150),
-                      placeholder: (context, _) => Container(
-                        color: Colors.grey.shade200,
-                        child: const Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
+                  Widget imageWidget = CachedNetworkImage(
+                    imageUrl: widget.imageUrls[index],
+                    fit: widget.fit,
+                    fadeInDuration: const Duration(milliseconds: 150),
+                    placeholder: (context, _) => Container(
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       ),
-                      errorWidget: (context, _, __) => _buildFallbackImage(),
                     ),
+                    errorWidget: (context, _, __) => _buildFallbackImage(),
                   );
+                  if (widget.disableImageTap) {
+                    return imageWidget;
+                  } else {
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _openViewer(index),
+                      child: imageWidget,
+                    );
+                  }
                 },
               ),
               if (widget.imageUrls.length > 1)
