@@ -158,7 +158,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                         ),
                         const SizedBox(width: 8),
                         const Text(
-                          'Pandora Payment Gateway',
+                          'payment will be processed securely via Mobile Money',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -267,7 +267,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 16),
-              Text('Sending payment request to Pandora...'),
+              Text('Sending payment request to your phone...'),
             ],
           ),
         ),
