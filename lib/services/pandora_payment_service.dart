@@ -11,12 +11,9 @@ class PandoraPaymentService {
 
   PandoraPaymentService._internal();
 
-  static const String _apiKey = r'$argon2id$v=19$m=65536,t=4,p=3$TnZqZTdOWEd3enVxVHZyMw$Dvu0B/DsxqDfxoHzQKTgKLUeXZ242xJhooLf7sWUdOM';
-  static const List<String> _apiBaseUrls = [
-    'https://api.pandorapayments.com/v1',
-    'https://pandorapayments.com/api/v1',
-    'https://payments.pandora.co.ug/v1',
-  ];
+  // Use your deployed Firebase Cloud Function endpoint
+  static const String _cloudFunctionUrl =
+      'https://us-central1-truehome-9a244.cloudfunctions.net/pandoraPayment';
   static const String _callbackUrl =
       'https://us-central1-truehome-9a244.cloudfunctions.net/pandoraPaymentWebhook';
 
@@ -61,15 +58,13 @@ class PandoraPaymentService {
       };
 
       // Make API request with longer timeout (60 seconds)
-      final String apiUrl = _apiBaseUrls[0]; // Use primary endpoint
       final response = await http.post(
-        Uri.parse('$apiUrl/transactions/mobile-money'),
+        Uri.parse(_cloudFunctionUrl),
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': _apiKey, // Authentication header
         },
         body: jsonEncode(requestBody),
-      ).timeout(const Duration(seconds: 60)); // Increased timeout
+      ).timeout(const Duration(seconds: 60));
 
       debugPrint('📡 Response Status: ${response.statusCode}');
       debugPrint('📡 Response Body: ${response.body}\n');
@@ -131,58 +126,8 @@ class PandoraPaymentService {
   Future<PaymentStatusResponse> checkPaymentStatus({
     required String transactionRef,
   }) async {
-    try {
-      debugPrint('🔵 PANDORA PAYMENTS: Checking Transaction Status');
-      debugPrint('Reference: $transactionRef\n');
-
-      final String apiUrl = _apiBaseUrls[0]; // Use primary endpoint
-      final response = await http.get(
-        Uri.parse(
-            '$apiUrl/transactions/$transactionRef'), // Endpoint pattern based on API docs
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': _apiKey,
-        },
-      ).timeout(const Duration(seconds: 15));
-
-      debugPrint('📡 Response Status: ${response.statusCode}');
-
-      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
-
-      if (response.statusCode == 200) {
-        final transactionData =
-            (jsonResponse['data'] as List?)?.first as Map<String, dynamic>?;
-
-        if (transactionData != null) {
-          final status = transactionData['status']?.toString() ?? 'unknown';
-          final isComplete = status.toLowerCase() == 'completed' ||
-              status.toLowerCase() == 'success' ||
-              status.toLowerCase() == 'paid';
-
-          debugPrint('📡 Transaction Status: $status');
-          debugPrint('📡 Successfully Completed: $isComplete\n');
-
-          return PaymentStatusResponse(
-            success: isComplete,
-            transactionId: transactionRef,
-            status: status,
-            message: _getStatusMessage(status),
-            amount: double.tryParse(
-                    transactionData['amount']?.toString() ?? '0') ??
-                0.0,
-            transactionCharge:
-                double.tryParse(transactionData['transaction_charge']?.toString() ?? '0') ??
-                    0.0,
-            completedOn: transactionData['completed_on'],
-          );
-        }
-      }
-
-      throw PaymentException('Failed to check payment status');
-    } catch (e) {
-      debugPrint('❌ ERROR: $e\n');
-      throw PaymentException('Status check failed: $e');
-    }
+    // Not supported via the proxy Cloud Function yet
+    throw PaymentException('Checking payment status is not supported via the Cloud Function.');
   }
 
   /// Cancel a payment request (before user completes payment)
@@ -192,18 +137,8 @@ class PandoraPaymentService {
       debugPrint('🔵 PANDORA PAYMENTS: Cancelling Transaction');
       debugPrint('Reference: $transactionRef\n');
 
-      final String apiUrl = _apiBaseUrls[0]; // Use primary endpoint
-      final response = await http.post(
-        Uri.parse('$apiUrl/transactions/$transactionRef/cancel'),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': _apiKey,
-        },
-      ).timeout(const Duration(seconds: 15));
-
-      debugPrint('📡 Response Status: ${response.statusCode}\n');
-
-      return response.statusCode == 200;
+      // Not supported via the proxy Cloud Function yet
+      throw PaymentException('Canceling payment is not supported via the Cloud Function.');
     } catch (e) {
       debugPrint('❌ ERROR: $e\n');
       return false;
