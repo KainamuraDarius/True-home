@@ -849,7 +849,7 @@ class _HomeTabState extends State<HomeTab> {
 
         for (var doc in propertySnapshot.docs) {
           try {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             data['id'] = doc.id;
 
             // Check if property should be shown - be lenient with defaults
@@ -877,8 +877,7 @@ class _HomeTabState extends State<HomeTab> {
                   property.title.toLowerCase().contains(searchTerm) ||
                   property.description.toLowerCase().contains(searchTerm) ||
                   property.location.toLowerCase().contains(searchTerm) ||
-                  (property.address != null &&
-                      property.address.toLowerCase().contains(searchTerm));
+                  (property.address.toLowerCase().contains(searchTerm));
             }
 
             // Match filters if any
