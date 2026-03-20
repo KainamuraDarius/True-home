@@ -126,8 +126,46 @@ class PandoraPaymentService {
   Future<PaymentStatusResponse> checkPaymentStatus({
     required String transactionRef,
   }) async {
-    // Not supported via the proxy Cloud Function yet
-    throw PaymentException('Checking payment status is not supported via the Cloud Function.');
+    try {
+      final response = await http.post(
+        Uri.parse('https://us-central1-truehome-9a244.cloudfunctions.net/pandoraPaymentStatus'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({ 'transaction_ref': transactionRef }),
+      ).timeout(const Duration(seconds: 30));
+
+      // Check for HTML or non-JSON response (e.g., 404, 500, or Firebase error page)
+      if (!response.headers['content-type']!.contains('application/json')) {
+        throw PaymentException('Payment status service unavailable. Please try again later.');
+      }
+
+      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+
+      if (response.statusCode == 200 && jsonResponse['success'] == true) {
+        final data = (jsonResponse['data'] as List?)?.first as Map<String, dynamic>?;
+        if (data != null) {
+          return PaymentStatusResponse(
+            success: data['status'] == 'completed' || data['status'] == 'success' || data['status'] == 'paid',
+            transactionId: transactionRef,
+            status: data['status'] ?? 'processing',
+            message: _getStatusMessage(data['status'] ?? ''),
+            amount: double.tryParse(data['amount']?.toString() ?? '0') ?? 0,
+            transactionCharge: double.tryParse(data['transaction_charge']?.toString() ?? '0') ?? 0,
+            completedOn: data['completed_on'],
+          );
+        }
+      }
+
+      final errorMessage = jsonResponse['messages'] != null
+          ? (jsonResponse['messages'] as List?)?.first ?? 'Failed to check payment status'
+          : 'Failed to check payment status';
+      throw PaymentException(errorMessage);
+    } on PaymentException {
+      rethrow;
+    } catch (e) {
+      throw PaymentException('Error checking payment status: $e');
+    }
   }
 
   /// Cancel a payment request (before user completes payment)
@@ -192,9 +230,13 @@ class PandoraPaymentService {
       case 'declined':
         return 'Payment failed. Please try again.';
       case 'cancelled':
-        return 'Payment was cancelled.';
+        return 'Payment was cancelled. You may have cancelled the prompt or failed to confirm your PIN.';
       case 'expired':
-        return 'Payment request expired. Please try again.';
+        return 'Payment request expired. You may have ignored the prompt or not confirmed your PIN in time.';
+      case 'user_cancelled':
+        return 'You cancelled the payment request or did not confirm your PIN.';
+      case 'timeout':
+        return 'Payment timed out. You may have ignored the prompt or not confirmed your PIN.';
       default:
         return 'Payment status: $status';
     }

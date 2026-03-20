@@ -7,41 +7,12 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const fetch = require('node-fetch');
+const pandoraPayment = require('./pandora_payment');
 
 admin.initializeApp();
 
-// =============================
-// PANDORA PAYMENTS PROXY (API)
-// =============================
-// Securely proxy payment requests to Pandora Payments API
-exports.pandoraPayment = functions.https.onRequest((req, res) => {
-  corsHandler(req, res, async () => {
-    // Only allow POST requests
-    if (req.method !== 'POST') {
-      return res.status(405).send({ error: 'Method not allowed' });
-    }
-
-    // Store your Pandora API key securely (do NOT expose in frontend)
-    const PANDORA_API_KEY = 'pk_live_35aa5d8d019945f6d918ed216b3d223820295f803d7d0ce76425c36e37f1ea8b'; // <-- Updated with new key
-
-    try {
-      const response = await fetch('https://api.pandorapayments.com/v1/transactions/mobile-money', {
-        method: 'POST',
-        headers: {
-          'X-API-Key': PANDORA_API_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(req.body)
-      });
-
-      const data = await response.json();
-      res.status(response.status).send(data);
-    } catch (error) {
-      console.error('Pandora Payment Error:', error);
-      res.status(500).send({ error: 'Internal server error' });
-    }
-  });
-});
+// Register the payment function
+exports.pandoraPayment = pandoraPayment.pandoraPayment;
 
 // Configure email transporter
 // For Gmail: Enable 2FA and create an App Password
