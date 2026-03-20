@@ -88,6 +88,8 @@ dependencies:
   # JSON Serialization
   json_annotation: ^4.9.0
   google_sign_in: ^6.2.1
+  sign_in_with_apple: ^6.1.4
+  crypto: ^3.0.6
   timezone: ^0.9.4
 
 dev_dependencies:

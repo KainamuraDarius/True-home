@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
@@ -21,6 +22,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _authService = AuthService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  bool get _showAppleSignIn => !kIsWeb;
 
   @override
   void dispose() {
@@ -86,14 +89,36 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _signInWithApple() async {
+    setState(() => _isLoading = true);
 
+    try {
+      UserModel? user = await _authService.signInWithApple();
+
+      if (user != null && mounted) {
+        // Clear navigation stack - AuthenticationWrapper will route to correct dashboard
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Apple sign-in failed: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-      ),
+      appBar: AppBar(title: const Text('Login')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -208,7 +233,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     prefixIcon: const Icon(Icons.lock_outlined),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
                       onPressed: () {
                         setState(() {
@@ -252,7 +279,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             width: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text('Login'),
@@ -262,7 +291,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Divider with "OR"
                 Row(
                   children: [
-                    Expanded(child: Divider(color: AppColors.textSecondary.withOpacity(0.3))),
+                    Expanded(
+                      child: Divider(
+                        color: AppColors.textSecondary.withOpacity(0.3),
+                      ),
+                    ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
@@ -273,7 +306,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    Expanded(child: Divider(color: AppColors.textSecondary.withOpacity(0.3))),
+                    Expanded(
+                      child: Divider(
+                        color: AppColors.textSecondary.withOpacity(0.3),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -295,11 +332,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(fontSize: 16),
                     ),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: AppColors.textSecondary.withOpacity(0.3)),
+                      side: BorderSide(
+                        color: AppColors.textSecondary.withOpacity(0.3),
+                      ),
                       foregroundColor: AppColors.textPrimary,
                     ),
                   ),
                 ),
+                if (_showAppleSignIn) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 56,
+                    child: SignInWithAppleButton(
+                      style: SignInWithAppleButtonStyle.black,
+                      onPressed: () {
+                        if (_isLoading) return;
+                        _signInWithApple();
+                      },
+                    ),
+                  ),
+                ],
                 // Phone Sign-In Button (Web only)
                 if (kIsWeb) ...[
                   const SizedBox(height: 16),
@@ -312,7 +364,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const PhoneLoginScreen(),
+                                  builder: (context) =>
+                                      const PhoneLoginScreen(),
                                 ),
                               );
                             },
@@ -322,7 +375,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: TextStyle(fontSize: 16),
                       ),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                        side: BorderSide(
+                          color: AppColors.primary.withOpacity(0.5),
+                        ),
                         foregroundColor: AppColors.primary,
                       ),
                     ),

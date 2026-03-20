@@ -1,23 +1,45 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../models/user_model.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
+
   // GoogleSignIn is lazily initialized only when needed (for Google sign-in flow)
   // This avoids web crash when clientId is not set and Google sign-in isn't needed
   GoogleSignIn? _googleSignIn;
-  
+
   GoogleSignIn get googleSignIn {
     _googleSignIn ??= GoogleSignIn(
-      serverClientId: '843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com',
+      serverClientId:
+          '843422990018-5tkf432tdafu68vml3o2obo7kfcthn85.apps.googleusercontent.com',
       scopes: ['email', 'profile'],
     );
     return _googleSignIn!;
+  }
+
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   // Get current user
@@ -39,7 +61,8 @@ class AuthService {
   }) async {
     try {
       // Block admin email from being used by regular users
-      if (email.toLowerCase() == 'truehome376@gmail.com' && role != UserRole.admin) {
+      if (email.toLowerCase() == 'truehome376@gmail.com' &&
+          role != UserRole.admin) {
         throw Exception('This email address is reserved for system use');
       }
 
@@ -134,7 +157,7 @@ class AuthService {
       // Add the document ID to the data
       final userData = userDoc.data()!;
       userData['id'] = userDoc.id;
-      
+
       return UserModel.fromJson(userData);
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
@@ -165,11 +188,12 @@ class AuthService {
       if (kIsWeb) {
         // Create a GoogleAuthProvider instance
         final GoogleAuthProvider googleProvider = GoogleAuthProvider();
-        
+
         // Trigger the authentication flow
-        final UserCredential userCredential = 
-            await _auth.signInWithPopup(googleProvider);
-        
+        final UserCredential userCredential = await _auth.signInWithPopup(
+          googleProvider,
+        );
+
         if (userCredential.user == null) {
           throw Exception('Google sign in failed - no user');
         }
@@ -204,16 +228,13 @@ class AuthService {
           return newUser;
         }
 
-        return UserModel.fromJson({
-          ...userDoc.data()!,
-          'id': userDoc.id,
-        });
+        return UserModel.fromJson({...userDoc.data()!, 'id': userDoc.id});
       }
 
       // Mobile Google Sign-In flow
       // Sign out first to force account picker to show
       await googleSignIn.signOut();
-      
+
       // Trigger the authentication flow
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
@@ -222,7 +243,8 @@ class AuthService {
       }
 
       // Get authentication details
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
       // Create credential for Firebase
       final credential = GoogleAuthProvider.credential(
@@ -244,7 +266,9 @@ class AuthService {
       if (userEmail.toLowerCase() == 'truehome376@gmail.com') {
         await _auth.signOut();
         await googleSignIn.signOut();
-        throw Exception('This email address is reserved for system administrators. Please use the admin login portal.');
+        throw Exception(
+          'This email address is reserved for system administrators. Please use the admin login portal.',
+        );
       }
 
       // Check if user document exists in Firestore
@@ -301,6 +325,142 @@ class AuthService {
       }
     } catch (e) {
       throw Exception('Google sign-in failed: $e');
+    }
+  }
+
+  // Sign in with Apple (iOS/macOS)
+  Future<UserModel?> signInWithApple() async {
+    if (kIsWeb) {
+      throw Exception('Sign in with Apple is not available on web.');
+    }
+
+    try {
+      final isAvailable = await SignInWithApple.isAvailable();
+      if (!isAvailable) {
+        throw Exception('Sign in with Apple is not available on this device.');
+      }
+
+      final rawNonce = _generateNonce();
+      final hashedNonce = _sha256ofString(rawNonce);
+
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: const [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+
+      if (appleCredential.identityToken == null) {
+        throw Exception('Apple identity token was not returned.');
+      }
+
+      final oauthCredential = OAuthProvider(
+        'apple.com',
+      ).credential(idToken: appleCredential.identityToken, rawNonce: rawNonce);
+
+      final UserCredential userCredential = await _auth.signInWithCredential(
+        oauthCredential,
+      );
+
+      if (userCredential.user == null) {
+        throw Exception('Failed to sign in with Apple');
+      }
+
+      // Block admin email from being used with Apple Sign-In
+      final userEmail =
+          (userCredential.user!.email ?? appleCredential.email ?? '').trim();
+      if (userEmail.toLowerCase() == 'truehome376@gmail.com') {
+        await _auth.signOut();
+        throw Exception(
+          'This email address is reserved for system administrators. Please use the admin login portal.',
+        );
+      }
+
+      // Check if user document exists in Firestore
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      UserModel userModel;
+
+      if (!userDoc.exists) {
+        final fullName = [appleCredential.givenName, appleCredential.familyName]
+            .where((part) => part != null && part.trim().isNotEmpty)
+            .join(' ')
+            .trim();
+
+        final resolvedName =
+            (userCredential.user!.displayName != null &&
+                userCredential.user!.displayName!.trim().isNotEmpty)
+            ? userCredential.user!.displayName!.trim()
+            : (fullName.isNotEmpty ? fullName : 'User');
+
+        if ((userCredential.user!.displayName == null ||
+                userCredential.user!.displayName!.trim().isEmpty) &&
+            fullName.isNotEmpty) {
+          await userCredential.user!.updateDisplayName(fullName);
+        }
+
+        // Create new user document for first-time Apple sign-in
+        userModel = UserModel(
+          id: userCredential.user!.uid,
+          email: userEmail,
+          name: resolvedName,
+          phoneNumber: userCredential.user!.phoneNumber ?? '',
+          roles: [UserRole.customer],
+          activeRole: UserRole.customer,
+          profileImageUrl: userCredential.user!.photoURL,
+          isVerified: userCredential.user!.emailVerified,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        await _firestore
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .set(userModel.toJson());
+      } else {
+        // User already exists, get their data
+        final userData = userDoc.data()!;
+        userData['id'] = userDoc.id; // Add document ID to data
+        userModel = UserModel.fromJson(userData);
+      }
+
+      return userModel;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      switch (e.code) {
+        case AuthorizationErrorCode.canceled:
+          throw Exception('Apple sign-in was cancelled');
+        case AuthorizationErrorCode.failed:
+          throw Exception('Apple sign-in failed. Please try again.');
+        case AuthorizationErrorCode.invalidResponse:
+          throw Exception('Invalid response from Apple sign-in');
+        case AuthorizationErrorCode.notHandled:
+          throw Exception('Apple sign-in request was not handled');
+        case AuthorizationErrorCode.notInteractive:
+          throw Exception('Apple sign-in requires user interaction');
+        case AuthorizationErrorCode.unknown:
+          throw Exception('Unknown Apple sign-in error');
+      }
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'account-exists-with-different-credential':
+          throw Exception(
+            'An account already exists with a different sign-in method',
+          );
+        case 'invalid-credential':
+          throw Exception('Invalid Apple credentials');
+        case 'operation-not-allowed':
+          throw Exception('Apple sign-in is not enabled');
+        case 'user-disabled':
+          throw Exception('This account has been disabled');
+        default:
+          throw Exception('Apple sign-in failed: ${e.message}');
+      }
+    } catch (e) {
+      throw Exception('Apple sign-in failed: $e');
     }
   }
 

@@ -158,11 +158,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                         ),
                         const SizedBox(width: 8),
                         const Text(
-<<<<<<< HEAD
-                          'payment will be processed',
-=======
-                          'payment will be processed securely',
->>>>>>> f74c9597a0bf9706f21be8a7b2c611e45d52a5cf
+                          'Payment will be processed securely',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
