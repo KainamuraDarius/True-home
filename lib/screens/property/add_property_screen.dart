@@ -22,6 +22,22 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   String _selectedCategory = 'Flat'; // Default category
+  final List<String> _residentialCategories = const [
+    'Flat',
+    'Bungalow',
+    'Condo',
+    'Villa',
+    'Apartment',
+    'Studio room',
+  ];
+  final List<String> _commercialCategories = const [
+    'Office',
+    'Shop',
+    'Warehouse',
+    'Showroom',
+    'Commercial Plot',
+    'Mixed-Use Building',
+  ];
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
   final _locationController = TextEditingController();
@@ -67,6 +83,25 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     'Laundry',
     'Pets Allowed',
   ];
+
+  List<String> get _availableCategories {
+    return _selectedType == PropertyType.commercial
+        ? _commercialCategories
+        : _residentialCategories;
+  }
+
+  void _setPropertyType(PropertyType type) {
+    setState(() {
+      _selectedType = type;
+      if (!_availableCategories.contains(_selectedCategory)) {
+        _selectedCategory = _availableCategories.first;
+      }
+      if (_selectedType == PropertyType.commercial) {
+        _bedroomsController.clear();
+        _bathroomsController.clear();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -390,10 +425,14 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
             : _locationController.text.trim().split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' '),
         bedrooms: _bedroomsController.text.trim().isEmpty
             ? 0
-            : int.parse(_bedroomsController.text.trim()),
+            : (_selectedType == PropertyType.commercial
+                ? 0
+                : int.parse(_bedroomsController.text.trim())),
         bathrooms: _bathroomsController.text.trim().isEmpty
             ? 0
-            : int.parse(_bathroomsController.text.trim()),
+            : (_selectedType == PropertyType.commercial
+                ? 0
+                : int.parse(_bathroomsController.text.trim())),
         areaSqft: _areaSqftController.text.trim().isEmpty
             ? 0
             : double.parse(_areaSqftController.text.trim()),
@@ -707,9 +746,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             value: PropertyType.sale,
                             groupValue: _selectedType,
                             onChanged: (value) {
-                              setState(() {
-                                _selectedType = value!;
-                              });
+                              if (value != null) {
+                                _setPropertyType(value);
+                              }
                             },
                           ),
                         ),
@@ -719,13 +758,23 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             value: PropertyType.rent,
                             groupValue: _selectedType,
                             onChanged: (value) {
-                              setState(() {
-                                _selectedType = value!;
-                              });
+                              if (value != null) {
+                                _setPropertyType(value);
+                              }
                             },
                           ),
                         ),
                       ],
+                    ),
+                    RadioListTile<PropertyType>(
+                      title: const Text('Commercial'),
+                      value: PropertyType.commercial,
+                      groupValue: _selectedType,
+                      onChanged: (value) {
+                        if (value != null) {
+                          _setPropertyType(value);
+                        }
+                      },
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -778,22 +827,26 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     // Category
                     DropdownButtonFormField<String>(
                       initialValue: _selectedCategory,
-                      decoration: const InputDecoration(
-                        labelText: 'Property Category *',
+                      decoration: InputDecoration(
+                        labelText: _selectedType == PropertyType.commercial
+                            ? 'Commercial Category *'
+                            : 'Property Category *',
                         border: OutlineInputBorder(),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'Flat', child: Text('Flat')),
-                        DropdownMenuItem(value: 'Bungalow', child: Text('Bungalow')),
-                        DropdownMenuItem(value: 'Condo', child: Text('Condo')),
-                        DropdownMenuItem(value: 'Villa', child: Text('Villa')),
-                        DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
-                        DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
-                      ],
+                      items: _availableCategories
+                          .map(
+                            (category) => DropdownMenuItem<String>(
+                              value: category,
+                              child: Text(category),
+                            ),
+                          )
+                          .toList(),
                       onChanged: (value) {
-                        setState(() {
-                          _selectedCategory = value!;
-                        });
+                        if (value != null) {
+                          setState(() {
+                            _selectedCategory = value;
+                          });
+                        }
                       },
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -802,32 +855,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         return null;
                       },
                     ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedCategory,
-                        decoration: const InputDecoration(
-                          labelText: 'Property Category *',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'Flat', child: Text('Flat')),
-                          DropdownMenuItem(value: 'Bungalow', child: Text('Bungalow')),
-                          DropdownMenuItem(value: 'Condo', child: Text('Condo')),
-                          DropdownMenuItem(value: 'Villa', child: Text('Villa')),
-                          DropdownMenuItem(value: 'Apartment', child: Text('Apartment')),
-                          DropdownMenuItem(value: 'Studio room', child: Text('Studio room')),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCategory = value!;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please select a category';
-                          }
-                          return null;
-                        },
-                      ),
                     const SizedBox(height: 16),
 
                     // Description
@@ -932,51 +959,53 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Bedrooms and Bathrooms
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _bedroomsController,
-                            decoration: const InputDecoration(
-                              labelText: 'Bedrooms (Optional)',
-                              border: OutlineInputBorder(),
-                              hintText: 'e.g., 3',
+                    // Bedrooms and Bathrooms (not required for commercial)
+                    if (_selectedType != PropertyType.commercial) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _bedroomsController,
+                              decoration: const InputDecoration(
+                                labelText: 'Bedrooms (Optional)',
+                                border: OutlineInputBorder(),
+                                hintText: 'e.g., 3',
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value != null &&
+                                    value.isNotEmpty &&
+                                    int.tryParse(value) == null) {
+                                  return 'Invalid';
+                                }
+                                return null;
+                              },
                             ),
-                            keyboardType: TextInputType.number,
-                            validator: (value) {
-                              if (value != null &&
-                                  value.isNotEmpty &&
-                                  int.tryParse(value) == null) {
-                                return 'Invalid';
-                              }
-                              return null;
-                            },
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _bathroomsController,
-                            decoration: const InputDecoration(
-                              labelText: 'Bathrooms (Optional)',
-                              border: OutlineInputBorder(),
-                              hintText: 'e.g., 2',
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _bathroomsController,
+                              decoration: const InputDecoration(
+                                labelText: 'Bathrooms (Optional)',
+                                border: OutlineInputBorder(),
+                                hintText: 'e.g., 2',
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value != null &&
+                                    value.isNotEmpty &&
+                                    int.tryParse(value) == null) {
+                                  return 'Invalid';
+                                }
+                                return null;
+                              },
                             ),
-                            keyboardType: TextInputType.number,
-                            validator: (value) {
-                              if (value != null &&
-                                  value.isNotEmpty &&
-                                  int.tryParse(value) == null) {
-                                return 'Invalid';
-                              }
-                              return null;
-                            },
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Area with unit selection
                     Row(

@@ -158,7 +158,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                         ),
                         const SizedBox(width: 8),
                         const Text(
-                          'payment will be processed securely via Mobile Money',
+                          'payment will be processed',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
