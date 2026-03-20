@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
@@ -23,8 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  bool get _showAppleSignIn => !kIsWeb;
-
   @override
   void dispose() {
     _emailController.dispose();
@@ -33,51 +29,24 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      try {
-        UserModel? user = await _authService.signInWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
-
-        if (user != null && mounted) {
-          // Clear navigation stack - AuthenticationWrapper will route to correct dashboard
-          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Login failed: ${e.toString()}'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-      }
-    }
-  }
-
-  Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
 
     try {
-      UserModel? user = await _authService.signInWithGoogle();
+      UserModel? user = await _authService.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
 
       if (user != null && mounted) {
-        // Clear navigation stack - AuthenticationWrapper will route to correct dashboard
         Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Google sign-in failed: ${e.toString()}'),
+            content: Text('Login failed: ${e.toString()}'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -89,30 +58,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _signInWithApple() async {
-    setState(() => _isLoading = true);
-
-    try {
-      UserModel? user = await _authService.signInWithApple();
-
-      if (user != null && mounted) {
-        // Clear navigation stack - AuthenticationWrapper will route to correct dashboard
-        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Apple sign-in failed: ${e.toString()}'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+  void _openPhoneLogin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PhoneLoginScreen()),
+    );
   }
 
   @override
@@ -128,7 +78,6 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 30),
-                // True Home Logo/Icon
                 Center(
                   child: Container(
                     width: 140,
@@ -160,7 +109,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // App Name
                 const Center(
                   child: Text(
                     'True Home',
@@ -185,7 +133,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                // Welcome Text
                 const Text(
                   'Welcome Back!',
                   style: TextStyle(
@@ -203,7 +150,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                // Email Field
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -223,7 +169,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                // Password Field
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -252,7 +197,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
-                // Forgot Password
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -268,7 +212,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                // Login Button
                 SizedBox(
                   height: 56,
                   child: ElevatedButton(
@@ -288,7 +231,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                // Divider with "OR"
                 Row(
                   children: [
                     Expanded(
@@ -314,77 +256,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                // Google Sign-In Button
                 SizedBox(
                   height: 56,
                   child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signInWithGoogle,
-                    icon: Image.asset(
-                      'assets/google_logo.png',
-                      height: 24,
-                      width: 24,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.login, size: 24);
-                      },
-                    ),
+                    onPressed: _isLoading ? null : _openPhoneLogin,
+                    icon: const Icon(Icons.phone_android, size: 24),
                     label: const Text(
-                      'Sign in with Google',
+                      'Continue with Phone Number',
                       style: TextStyle(fontSize: 16),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(
-                        color: AppColors.textSecondary.withOpacity(0.3),
+                        color: AppColors.primary.withOpacity(0.5),
                       ),
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: AppColors.primary,
                     ),
                   ),
                 ),
-                if (_showAppleSignIn) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 56,
-                    child: SignInWithAppleButton(
-                      style: SignInWithAppleButtonStyle.black,
-                      onPressed: () {
-                        if (_isLoading) return;
-                        _signInWithApple();
-                      },
-                    ),
-                  ),
-                ],
-                // Phone Sign-In Button (Web only)
-                if (kIsWeb) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 56,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading
-                          ? null
-                          : () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const PhoneLoginScreen(),
-                                ),
-                              );
-                            },
-                      icon: const Icon(Icons.phone_android, size: 24),
-                      label: const Text(
-                        'Sign in with Phone',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: AppColors.primary.withOpacity(0.5),
-                        ),
-                        foregroundColor: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 32),
-                // Sign Up Link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -397,7 +286,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     TextButton(
                       onPressed: () {
-                        // Navigate to role selection screen
                         Navigator.push(
                           context,
                           MaterialPageRoute(

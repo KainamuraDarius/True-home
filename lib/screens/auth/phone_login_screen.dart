@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kDebugMode, kIsWeb;
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -83,25 +84,30 @@ class PhoneLoginScreen extends StatefulWidget {
   State<PhoneLoginScreen> createState() => _PhoneLoginScreenState();
 }
 
-class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerProviderStateMixin {
+class _PhoneLoginScreenState extends State<PhoneLoginScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  final List<TextEditingController> _otpControllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _otpControllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _otpFocusNodes = List.generate(6, (_) => FocusNode());
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  
-  EastAfricanCountry _selectedCountry = eastAfricanCountries[0]; // Default to Uganda
+
+  EastAfricanCountry _selectedCountry =
+      eastAfricanCountries[0]; // Default to Uganda
   bool _isLoading = false;
   bool _codeSent = false;
   String? _verificationId;
   int? _resendToken;
   String? _errorMessage;
   ConfirmationResult? _confirmationResult; // For web phone auth
-  
+
   // Timer for resend
   Timer? _resendTimer;
   int _resendCountdown = 0;
-  
+
   // Animation
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -117,10 +123,26 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+        );
     _animationController.forward();
+    _configurePhoneAuthForDebug();
+  }
+
+  Future<void> _configurePhoneAuthForDebug() async {
+    if (!kDebugMode || kIsWeb) return;
+
+    // In debug builds installed via `flutter run`, Play Integrity can fail with
+    // "app not recognized by Play Store". Forcing reCAPTCHA improves OTP testing.
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        await _auth.setSettings(forceRecaptchaFlow: true);
+      } catch (e) {
+        debugPrint('Failed to apply debug phone auth settings: $e');
+      }
+    }
   }
 
   @override
@@ -136,7 +158,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
     _animationController.dispose();
     super.dispose();
   }
-  
+
   String get _otpCode => _otpControllers.map((c) => c.text).join();
 
   void _startResendTimer() {
@@ -151,14 +173,28 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
     });
   }
 
-  String get _fullPhoneNumber {
-    String phone = _phoneController.text.trim();
-    // Remove leading zero if user accidentally added it
+  String _normalizeLocalNumber(String input) {
+    String phone = input.replaceAll(RegExp(r'[^0-9]'), '');
+    final countryDigits = _selectedCountry.dialCode.replaceAll('+', '');
+
+    // If user pasted full international format (e.g. 2567xxxxxxx), strip country code.
+    if (phone.startsWith(countryDigits)) {
+      phone = phone.substring(countryDigits.length);
+    }
+
+    // Normalize local format with optional leading zero (e.g. 07xxxxxxxx -> 7xxxxxxxx).
     if (phone.startsWith('0')) {
       phone = phone.substring(1);
     }
-    return '${_selectedCountry.dialCode}$phone';
+
+    return phone;
   }
+
+  String get _normalizedLocalNumber =>
+      _normalizeLocalNumber(_phoneController.text);
+
+  String get _fullPhoneNumber =>
+      '${_selectedCountry.dialCode}$_normalizedLocalNumber';
 
   Future<void> _sendOTP() async {
     if (!_formKey.currentState!.validate()) return;
@@ -169,18 +205,24 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
     });
 
     try {
+      // Keep the field in normalized local format so users can verify exactly what is sent.
+      _phoneController.text = _normalizedLocalNumber;
+      _phoneController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _phoneController.text.length),
+      );
+
       if (kIsWeb) {
         // Web-specific phone authentication (Firebase handles reCAPTCHA automatically)
         _confirmationResult = await _auth.signInWithPhoneNumber(
           _fullPhoneNumber,
         );
-        
+
         setState(() {
           _verificationId = _confirmationResult?.verificationId;
           _codeSent = true;
           _isLoading = false;
         });
-        
+
         _startResendTimer();
         _animationController.reset();
         _animationController.forward();
@@ -198,9 +240,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
             await _signInWithCredential(credential);
           },
           verificationFailed: (FirebaseAuthException e) {
+            debugPrint('Phone verification failed: ${e.code} - ${e.message}');
             setState(() {
               _isLoading = false;
-              _errorMessage = _getErrorMessage(e.code);
+              _errorMessage = _getErrorMessage(e.code, e.message);
             });
           },
           codeSent: (String verificationId, int? resendToken) {
@@ -228,7 +271,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
     } on FirebaseAuthException catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = _getErrorMessage(e.code);
+        _errorMessage = _getErrorMessage(e.code, e.message);
       });
       debugPrint('Phone auth FirebaseAuthException: ${e.code} - ${e.message}');
     } catch (e) {
@@ -294,7 +337,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
           .collection('users')
           .doc(user.uid)
           .get();
-      
+
       if (!userDoc.exists) {
         // Create new user document for phone-authenticated users
         final newUser = UserModel(
@@ -310,13 +353,13 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
-        
+
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .set(newUser.toJson());
       }
-      
+
       if (mounted) {
         // Navigate to home
         Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
@@ -339,8 +382,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
     } on FirebaseAuthException catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = _getErrorMessage(e.code);
+        _errorMessage = _getErrorMessage(e.code, e.message);
       });
+      debugPrint('Sign-in with credential failed: ${e.code} - ${e.message}');
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -349,7 +393,11 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
     }
   }
 
-  String _getErrorMessage(String code) {
+  String _getErrorMessage(String code, [String? details]) {
+    final detailText = (details != null && details.trim().isNotEmpty)
+        ? ' ($details)'
+        : '';
+
     switch (code) {
       case 'invalid-phone-number':
         return 'Invalid phone number format. Please check and try again.';
@@ -367,17 +415,16 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
         return 'Verification failed. Please refresh the page and try again.';
       case 'captcha-check-failed':
         return 'reCAPTCHA verification failed. Please try again.';
+      case 'app-not-authorized':
+        return 'App verification failed. Check Firebase Android app setup.$detailText';
       default:
-        return 'An error occurred. Please try again.';
+        return 'Phone verification failed.$detailText';
     }
   }
 
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
   }
 
@@ -422,7 +469,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        color: Colors.white,
+                      ),
                     ),
                     const Expanded(
                       child: Text(
@@ -439,7 +489,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                   ],
                 ),
               ),
-              
+
               // Main Content
               Expanded(
                 child: Center(
@@ -482,16 +532,20 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
-                                    _codeSent ? Icons.sms_outlined : Icons.phone_android,
+                                    _codeSent
+                                        ? Icons.sms_outlined
+                                        : Icons.phone_android,
                                     size: 50,
                                     color: AppColors.primary,
                                   ),
                                 ),
                                 const SizedBox(height: 24),
-                                
+
                                 // Title
                                 Text(
-                                  _codeSent ? 'Verify Your Number' : 'Enter Your Phone',
+                                  _codeSent
+                                      ? 'Verify Your Number'
+                                      : 'Enter Your Phone',
                                   style: const TextStyle(
                                     fontSize: 26,
                                     fontWeight: FontWeight.bold,
@@ -499,7 +553,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                
+
                                 // Subtitle
                                 Text(
                                   _codeSent
@@ -513,7 +567,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                                   textAlign: TextAlign.center,
                                 ),
                                 const SizedBox(height: 32),
-                                
+
                                 // Error Message
                                 if (_errorMessage != null) ...[
                                   Container(
@@ -526,7 +580,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                                         ],
                                       ),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: Colors.red.shade200),
+                                      border: Border.all(
+                                        color: Colors.red.shade200,
+                                      ),
                                     ),
                                     child: Row(
                                       children: [
@@ -557,30 +613,30 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                                   ),
                                   const SizedBox(height: 24),
                                 ],
-                                
+
                                 if (!_codeSent) ...[
                                   // Country Selector
                                   _buildCountrySelector(),
                                   const SizedBox(height: 16),
-                                  
+
                                   // Phone Input
                                   _buildPhoneInput(),
                                 ] else ...[
                                   // OTP Input Boxes
                                   _buildOtpInput(),
                                   const SizedBox(height: 24),
-                                  
+
                                   // Resend Timer
                                   _buildResendSection(),
                                 ],
-                                
+
                                 const SizedBox(height: 32),
-                                
+
                                 // Action Button
                                 _buildActionButton(),
-                                
+
                                 const SizedBox(height: 24),
-                                
+
                                 // Info Section
                                 _buildInfoSection(),
                               ],
@@ -642,10 +698,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.keyboard_arrow_down,
-                  color: Colors.grey.shade600,
-                ),
+                Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
               ],
             ),
           ),
@@ -679,10 +732,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
               padding: EdgeInsets.all(16),
               child: Text(
                 'Select Country',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             const Divider(height: 1),
@@ -701,15 +751,21 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                     title: Text(
                       country.name,
                       style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                         color: isSelected ? AppColors.primary : null,
                       ),
                     ),
                     trailing: Text(
                       country.dialCode,
                       style: TextStyle(
-                        color: isSelected ? AppColors.primary : Colors.grey.shade600,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.grey.shade600,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                     selected: isSelected,
@@ -739,7 +795,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
       ),
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
-        LengthLimitingTextInputFormatter(10),
+        LengthLimitingTextInputFormatter(15),
       ],
       decoration: InputDecoration(
         labelText: 'Phone Number',
@@ -750,10 +806,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                _selectedCountry.flag,
-                style: const TextStyle(fontSize: 20),
-              ),
+              Text(_selectedCountry.flag, style: const TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
               Text(
                 _selectedCountry.dialCode,
@@ -764,11 +817,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                 ),
               ),
               const SizedBox(width: 12),
-              Container(
-                width: 1,
-                height: 28,
-                color: Colors.grey.shade300,
-              ),
+              Container(width: 1, height: 28, color: Colors.grey.shade300),
             ],
           ),
         ),
@@ -795,15 +844,19 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
         if (value == null || value.isEmpty) {
           return 'Please enter your phone number';
         }
-        String phone = value.trim();
-        if (phone.startsWith('0')) {
-          phone = phone.substring(1);
-        }
+
+        final localNumber = _normalizeLocalNumber(value);
         final expectedLength = _selectedCountry.phoneLength;
-        if (phone.length < expectedLength - 1 || phone.length > expectedLength + 1) {
-          return 'Phone number should be around $expectedLength digits';
+
+        if (localNumber.isEmpty) {
+          return 'Please enter your phone number';
         }
-        if (!RegExp(r'^[0-9]+$').hasMatch(phone)) {
+
+        if (localNumber.length != expectedLength) {
+          return 'Enter exactly $expectedLength digits after ${_selectedCountry.dialCode}';
+        }
+
+        if (!RegExp(r'^[0-9]+$').hasMatch(localNumber)) {
           return 'Please enter numbers only';
         }
         return null;
@@ -905,9 +958,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                   },
             icon: const Icon(Icons.refresh),
             label: const Text('Resend Code'),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primary,
-            ),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
           ),
         ],
         const SizedBox(height: 8),
@@ -960,7 +1011,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> with SingleTickerPr
                   ),
                   const SizedBox(width: 8),
                   Icon(
-                    _codeSent ? Icons.check_circle_outline : Icons.arrow_forward,
+                    _codeSent
+                        ? Icons.check_circle_outline
+                        : Icons.arrow_forward,
                     size: 20,
                   ),
                 ],
