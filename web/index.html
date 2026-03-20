@@ -34,18 +34,59 @@
 </head>
 <body>
   <script>
-    // Register Firebase messaging service worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/firebase-messaging-sw.js')
-          .then(function(registration) {
-            console.log('Firebase messaging service worker registered:', registration.scope);
-          })
-          .catch(function(error) {
-            console.log('Firebase messaging service worker registration failed:', error);
-          });
-      });
+    const flutterCleanupKey = 'truehome_flutter_cleanup_v1';
+
+    async function cleanupOldFlutterCacheOnce() {
+      if (!('serviceWorker' in navigator)) return;
+
+      const alreadyCleaned = localStorage.getItem(flutterCleanupKey) === 'done';
+      if (alreadyCleaned) return;
+
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          const scriptUrl =
+            registration.active?.scriptURL ||
+            registration.waiting?.scriptURL ||
+            registration.installing?.scriptURL ||
+            '';
+
+          if (scriptUrl.includes('flutter_service_worker.js')) {
+            await registration.unregister();
+          }
+        }
+
+        if ('caches' in window) {
+          const cacheKeys = await caches.keys();
+          const flutterCacheKeys = cacheKeys.filter((key) =>
+            key.startsWith('flutter-app-cache') ||
+            key.startsWith('flutter-temp-cache') ||
+            key.startsWith('flutter-assets')
+          );
+          await Promise.all(flutterCacheKeys.map((key) => caches.delete(key)));
+        }
+
+        localStorage.setItem(flutterCleanupKey, 'done');
+      } catch (error) {
+        console.log('Flutter cache cleanup failed:', error);
+      }
     }
+
+    async function registerFirebaseMessagingServiceWorker() {
+      if (!('serviceWorker' in navigator)) return;
+
+      try {
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('Firebase messaging service worker registered:', registration.scope);
+      } catch (error) {
+        console.log('Firebase messaging service worker registration failed:', error);
+      }
+    }
+
+    window.addEventListener('load', async function () {
+      await cleanupOldFlutterCacheOnce();
+      await registerFirebaseMessagingServiceWorker();
+    });
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
