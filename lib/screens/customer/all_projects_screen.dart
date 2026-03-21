@@ -197,7 +197,9 @@ class AllProjectsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'By ${project.developerName}',
+                    project.hasDeveloperTagline
+                        ? project.customerVisibleDeveloperName
+                        : 'By ${project.customerVisibleDeveloperName}',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade600,
