@@ -217,4 +217,19 @@ class Project {
       companyAbout: companyAbout ?? this.companyAbout,
     );
   }
+
+  String get customerVisibleDeveloperName {
+    final tagline = developerTagline?.trim();
+    if (tagline != null && tagline.isNotEmpty) return tagline;
+
+    final name = developerName.trim();
+    if (name.isNotEmpty) return name;
+
+    return 'Developer';
+  }
+
+  bool get hasDeveloperTagline {
+    final tagline = developerTagline?.trim();
+    return tagline != null && tagline.isNotEmpty;
+  }
 }

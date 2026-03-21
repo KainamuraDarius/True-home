@@ -98,7 +98,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
   }
 
   String _developerInitial() {
-    final name = widget.project.developerName.trim();
+    final name = widget.project.customerVisibleDeveloperName.trim();
     if (name.isEmpty) return 'D';
     return name.substring(0, 1).toUpperCase();
   }
@@ -375,10 +375,14 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
   }
 
   Widget _buildDeveloperSection() {
-    final tagline = widget.project.developerTagline?.trim();
     final companyAbout = widget.project.companyAbout?.trim();
     final operationalAreas = _operationalAreasText();
     final iconUrl = widget.project.companyIconUrl?.trim();
+    final displayName = widget.project.customerVisibleDeveloperName;
+    final agentName = widget.project.developerName.trim();
+    final showListedByAgent = widget.project.hasDeveloperTagline &&
+        agentName.isNotEmpty &&
+        agentName != displayName;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -461,7 +465,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.project.developerName,
+                      displayName,
                       style: const TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
@@ -469,12 +473,12 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                         height: 1.15,
                       ),
                     ),
-                    if (tagline != null && tagline.isNotEmpty) ...[
+                    if (showListedByAgent) ...[
                       const SizedBox(height: 6),
                       Text(
-                        tagline,
+                        'Listed by $agentName',
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 13,
                           color: Colors.white70,
                           height: 1.35,
                         ),
@@ -666,7 +670,9 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                   const SizedBox(height: 8),
                   // Developer name
                   Text(
-                    'By ${widget.project.developerName}',
+                    widget.project.hasDeveloperTagline
+                        ? widget.project.customerVisibleDeveloperName
+                        : 'By ${widget.project.customerVisibleDeveloperName}',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey.shade700,

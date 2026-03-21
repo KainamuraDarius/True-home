@@ -818,7 +818,10 @@ class _HomeTabState extends State<HomeTab> {
                   project.name.toLowerCase().contains(searchTerm) ||
                   project.description.toLowerCase().contains(searchTerm) ||
                   project.location.toLowerCase().contains(searchTerm) ||
-                  project.developerName.toLowerCase().contains(searchTerm);
+                  project.developerName.toLowerCase().contains(searchTerm) ||
+                  project.customerVisibleDeveloperName
+                      .toLowerCase()
+                      .contains(searchTerm);
             }
 
             if (matchesSearch) {
@@ -3288,11 +3291,17 @@ class _HomeTabState extends State<HomeTab> {
                   // Developer Name
                   Row(
                     children: [
-                      Icon(Icons.person, size: 16, color: Colors.grey[600]),
+                      Icon(
+                        project.hasDeveloperTagline
+                            ? Icons.business
+                            : Icons.person,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          project.developerName,
+                          project.customerVisibleDeveloperName,
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey[700],
