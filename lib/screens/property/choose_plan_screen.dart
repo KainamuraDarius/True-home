@@ -6,11 +6,11 @@ class ChoosePlanScreen extends StatefulWidget {
   final Function(String plan, String period, int price) onPlanSelected;
 
   const ChoosePlanScreen({
-    Key? key,
+    super.key,
     this.onCancel,
     this.onSkip,
     required this.onPlanSelected,
-  }) : super(key: key);
+  });
 
   @override
   State<ChoosePlanScreen> createState() => _ChoosePlanScreenState();

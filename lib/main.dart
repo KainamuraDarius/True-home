@@ -9,7 +9,6 @@ import 'screens/auth/welcome_screen.dart';
 import 'screens/customer/customer_home_screen.dart';
 import 'screens/owner/agent_main_screen.dart';
 import 'screens/maintenance_screen.dart';
-import 'widgets/animated_splash_screen.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_service.dart';
@@ -84,10 +83,26 @@ class MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'True Home',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
+      theme: AppTheme.lightTheme.copyWith(
+        scaffoldBackgroundColor: Colors.white,
+      ),
       darkTheme: AppTheme.darkTheme,
       themeMode: _themeMode,
       home: const MaintenanceWrapper(),
+    );
+  }
+}
+
+class LaunchLoadingScreen extends StatelessWidget {
+  const LaunchLoadingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Colors.white,
+      child: Center(
+        child: CircularProgressIndicator(),
+      ),
     );
   }
 }
@@ -102,55 +117,14 @@ class MaintenanceWrapper extends StatelessWidget {
   }
 }
 
-class _MaintenanceWithSplash extends StatefulWidget {
-  @override
-  State<_MaintenanceWithSplash> createState() => _MaintenanceWithSplashState();
-}
-
-class _MaintenanceWithSplashState extends State<_MaintenanceWithSplash> {
-  bool _showSplash = true;
-  bool _splashFadingOut = false;
-  AsyncSnapshot<MaintenanceStatus>? _snapshot;
-
-  void _onSplashFinish() {
-    setState(() {
-      _splashFadingOut = true;
-    });
-    // Wait for fade-out (300ms), then hide splash
-    Future.delayed(const Duration(milliseconds: 300), () {
-      setState(() {
-        _showSplash = false;
-      });
-    });
-  }
-
+class _MaintenanceWithSplash extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<MaintenanceStatus>(
       stream: MaintenanceService().maintenanceStatusStream(),
       builder: (context, snapshot) {
-        _snapshot = snapshot;
-        if (_showSplash) {
-          return Stack(
-            children: [
-              AnimatedSplashScreen(
-                duration: const Duration(seconds: 3),
-                onFinish: _onSplashFinish,
-              ),
-              if (_splashFadingOut)
-                const Positioned.fill(
-                  child: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-            ],
-          );
-        }
-
-        // After splash, show the real app
-        // No extra spinner after splash
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
+          return const LaunchLoadingScreen();
         }
 
         final status = snapshot.data;
@@ -170,9 +144,7 @@ class _MaintenanceWithSplashState extends State<_MaintenanceWithSplash> {
                       .get(),
                   builder: (context, userSnapshot) {
                     if (userSnapshot.connectionState == ConnectionState.waiting) {
-                      return const Scaffold(
-                        body: Center(child: CircularProgressIndicator()),
-                      );
+                      return const LaunchLoadingScreen();
                     }
                     if (userSnapshot.hasData && userSnapshot.data!.exists) {
                       final userData = userSnapshot.data!.data() as Map<String, dynamic>;
@@ -206,11 +178,7 @@ class AuthenticationWrapper extends StatelessWidget {
       builder: (context, snapshot) {
         // Show loading while checking auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
+          return const LaunchLoadingScreen();
         }
 
         // User is logged in
@@ -222,11 +190,7 @@ class AuthenticationWrapper extends StatelessWidget {
                 .get(),
             builder: (context, userSnapshot) {
               if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
+                return const LaunchLoadingScreen();
               }
 
               if (userSnapshot.hasData && userSnapshot.data!.exists) {
