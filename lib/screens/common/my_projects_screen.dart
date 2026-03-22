@@ -93,6 +93,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add),
               label: const Text('New Project'),
+              heroTag: 'newProjectFAB',
             ),
     );
   }

@@ -483,6 +483,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_home),
         label: const Text('Add Property'),
+        heroTag: 'addPropertyFAB',
       ) : null,
     );
   }

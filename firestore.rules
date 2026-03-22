@@ -158,6 +158,8 @@ service cloud.firestore {
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
       // Anyone authenticated can create notifications (for system notifications)
       allow create: if isSignedIn();
+      // Users can delete their own notifications
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
     
     // Messages/Chats collection

@@ -10,10 +10,12 @@ import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
 import '../../services/storage_service.dart';
+import 'choose_plan_screen.dart';
+import '../../services/pandora_payment_service.dart';
 
 class EditPropertyScreen extends StatefulWidget {
   final PropertyModel property;
-  
+
   const EditPropertyScreen({
     super.key,
     required this.property,
@@ -24,6 +26,8 @@ class EditPropertyScreen extends StatefulWidget {
 }
 
 class _EditPropertyScreenState extends State<EditPropertyScreen> {
+  bool _isPaying = false;
+  final PandoraPaymentService _pandoraService = PandoraPaymentService();
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -38,15 +42,25 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
   final _contactEmailController = TextEditingController();
   final _companyNameController = TextEditingController();
   final _agentNameController = TextEditingController();
-  
+
   late PropertyType _selectedType;
-  String _currency = 'UGX'; // Default currency
-  final List<XFile> _newImages = []; // Newly selected images
-  final List<String> _existingImageUrls = []; // Existing images from property
+  String _currency = 'UGX';
+  final List<XFile> _newImages = [];
+  final List<String> _existingImageUrls = [];
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
+
+  // Promotional Add-ons
   bool _requestSpotlightPromotion = false;
-  
+  bool _requestFeaturedPromotion = false;
+  bool _requestDeveloperAdvertising = false;
+
+  // Plan screen state
+  bool _showPlanScreen = true;
+  String? _selectedPlan;
+  String? _selectedPeriod;
+  int? _selectedPlanPrice;
+
   // Amenities
   final List<String> _selectedAmenities = [];
   final List<String> _availableAmenities = [
@@ -75,35 +89,30 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
   }
 
   void _initializeFormData() {
-    // Populate controllers with existing property data
     _titleController.text = widget.property.title;
     _descriptionController.text = widget.property.description;
     _priceController.text = widget.property.price.toString();
     _locationController.text = widget.property.location;
     _addressController.text = widget.property.address;
-    _bedroomsController.text = widget.property.bedrooms > 0 ? widget.property.bedrooms.toString() : '';
-    _bathroomsController.text = widget.property.bathrooms > 0 ? widget.property.bathrooms.toString() : '';
-    _areaSqftController.text = widget.property.areaSqft > 0 ? widget.property.areaSqft.toString() : '';
+    _bedroomsController.text =
+        widget.property.bedrooms > 0 ? widget.property.bedrooms.toString() : '';
+    _bathroomsController.text =
+        widget.property.bathrooms > 0 ? widget.property.bathrooms.toString() : '';
+    _areaSqftController.text =
+        widget.property.areaSqft > 0 ? widget.property.areaSqft.toString() : '';
     _contactPhoneController.text = widget.property.contactPhone;
     _whatsappPhoneController.text = widget.property.whatsappPhone;
     _contactEmailController.text = widget.property.contactEmail;
     _companyNameController.text = widget.property.companyName;
     _agentNameController.text = widget.property.agentName;
-    
-    // Set property type
+
     _selectedType = widget.property.type;
-    
-    // Set currency
     _currency = widget.property.currency;
-    
-    // Copy existing images
     _existingImageUrls.addAll(widget.property.imageUrls);
-    
-    // Set amenities
     _selectedAmenities.addAll(widget.property.amenities);
-    
-    // Set promotion request status
     _requestSpotlightPromotion = widget.property.promotionRequested;
+    _requestFeaturedPromotion = widget.property.featuredPromotion ?? false;
+    _requestDeveloperAdvertising = widget.property.developerAdvertising ?? false;
   }
 
   @override
@@ -124,7 +133,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
     super.dispose();
   }
 
-  // Get total image count
   int get _totalImageCount => _existingImageUrls.length + _newImages.length;
 
   Future<void> _pickImages() async {
@@ -133,18 +141,17 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         imageQuality: 95,
       );
       if (images.isNotEmpty) {
-        // Check if adding these images would exceed the limit
         final totalImages = _totalImageCount + images.length;
         if (totalImages > 20) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('You can only upload up to 20 images. Currently: $_totalImageCount, Selected: ${images.length}'),
+                content: Text(
+                    'You can only upload up to 20 images. Currently: $_totalImageCount, Selected: ${images.length}'),
                 backgroundColor: Colors.orange,
               ),
             );
           }
-          // Add only images that fit within the limit
           final remainingSlots = 12 - _totalImageCount;
           if (remainingSlots > 0) {
             setState(() {
@@ -180,8 +187,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
   Future<List<String>> _uploadNewImages() async {
     final List<String> imageUrls = [];
-    
-    // Detect mobile web to prevent memory crashes on iOS Safari
+
     final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
     final maxWidth = isMobileWeb ? 1200 : 1920;
     final maxHeight = isMobileWeb ? 1600 : 2560;
@@ -193,8 +199,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         final file = File(_newImages[i].path);
         final bytes = await file.readAsBytes();
         print('Original image size: ${bytes.length} bytes');
-        
-        // Decode and compress the image
+
         img.Image? image = img.decodeImage(bytes);
         if (image == null) {
           print('Failed to decode image ${i + 1}');
@@ -208,32 +213,30 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
           }
           continue;
         }
-        
+
         print('Original dimensions: ${image.width}x${image.height}');
-        
-        // Resize based on platform (more aggressive on mobile web)
+
         if (image.width > maxWidth) {
           image = img.copyResize(image, width: maxWidth);
         } else if (image.height > maxHeight) {
           image = img.copyResize(image, height: maxHeight);
         }
-        
+
         print('Resized dimensions: ${image.width}x${image.height}');
-        
-        // Compress with platform-appropriate quality
+
         final compressedBytes = Uint8List.fromList(
           img.encodeJpg(image, quality: quality),
         );
-        
+
         print('Compressed image size: ${compressedBytes.length} bytes');
-        
-        // Upload to Firebase Storage
-        final imageUrl = await StorageService.uploadImage(compressedBytes, folder: 'properties');
-        
+
+        final imageUrl =
+            await StorageService.uploadImage(compressedBytes, folder: 'properties');
+
         if (imageUrl != null) {
           imageUrls.add(imageUrl);
-          print('Successfully uploaded image ${i + 1} to Firebase Storage: $imageUrl');
-          
+          print(
+              'Successfully uploaded image ${i + 1} to Firebase Storage: $imageUrl');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -254,7 +257,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
             );
           }
         }
-        
       } catch (e) {
         print('Error processing image ${i + 1}: $e');
         if (mounted) {
@@ -265,12 +267,12 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
             ),
           );
         }
-        // Continue with other images
         continue;
       }
     }
 
-    print('Successfully uploaded ${imageUrls.length}/${_newImages.length} images to Firebase Storage');
+    print(
+        'Successfully uploaded ${imageUrls.length}/${_newImages.length} images to Firebase Storage');
     return imageUrls;
   }
 
@@ -279,7 +281,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
       return;
     }
 
-    // Validate that at least one image exists
     if (_totalImageCount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -305,37 +306,47 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         'id': userDoc.id,
       });
 
-      // Upload new images to Firebase Storage if any
       List<String> newlyUploadedUrls = [];
       if (_newImages.isNotEmpty) {
         newlyUploadedUrls = await _uploadNewImages();
         if (mounted && newlyUploadedUrls.length < _newImages.length) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${newlyUploadedUrls.length} of ${_newImages.length} new images uploaded successfully'),
+              content: Text(
+                  '${newlyUploadedUrls.length} of ${_newImages.length} new images uploaded successfully'),
               backgroundColor: Colors.orange,
             ),
           );
         }
       }
 
-      // Combine existing images with newly uploaded ones
       final allImageUrls = [..._existingImageUrls, ...newlyUploadedUrls];
 
-      // Update property with new data
       final updatedProperty = PropertyModel(
         id: widget.property.id,
         title: _titleController.text.trim(),
-        category: widget.property.category, // Keep existing category
+        category: widget.property.category,
         description: _descriptionController.text.trim(),
         type: _selectedType,
         price: double.parse(_priceController.text.trim()),
         currency: _currency,
-        location: _locationController.text.trim().split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' '),
+        location: _locationController.text
+            .trim()
+            .split(' ')
+            .map((w) => w.isEmpty
+                ? ''
+                : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
+            .join(' '),
         address: _addressController.text.trim(),
-        bedrooms: _bedroomsController.text.trim().isEmpty ? 0 : int.parse(_bedroomsController.text.trim()),
-        bathrooms: _bathroomsController.text.trim().isEmpty ? 0 : int.parse(_bathroomsController.text.trim()),
-        areaSqft: _areaSqftController.text.trim().isEmpty ? 0 : double.parse(_areaSqftController.text.trim()),
+        bedrooms: _bedroomsController.text.trim().isEmpty
+            ? 0
+            : int.parse(_bedroomsController.text.trim()),
+        bathrooms: _bathroomsController.text.trim().isEmpty
+            ? 0
+            : int.parse(_bathroomsController.text.trim()),
+        areaSqft: _areaSqftController.text.trim().isEmpty
+            ? 0
+            : double.parse(_areaSqftController.text.trim()),
         imageUrls: allImageUrls,
         ownerId: widget.property.ownerId,
         ownerName: widget.property.ownerName,
@@ -346,13 +357,15 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         contactPhone: _contactPhoneController.text.trim(),
         whatsappPhone: _whatsappPhoneController.text.trim(),
         contactEmail: _contactEmailController.text.trim(),
-        status: widget.property.status, // Keep existing status (pending)
+        status: widget.property.status,
         createdAt: widget.property.createdAt,
-        updatedAt: DateTime.now(), // Update the timestamp
+        updatedAt: DateTime.now(),
         amenities: _selectedAmenities,
         university: widget.property.university,
         roomTypes: widget.property.roomTypes,
-        promotionRequested: _requestSpotlightPromotion,
+        featuredPromotion: _requestFeaturedPromotion,
+        developerAdvertising: _requestDeveloperAdvertising,
+        promotionRequested: _requestFeaturedPromotion,
       );
 
       await FirebaseFirestore.instance
@@ -367,7 +380,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, true); // Return true to indicate successful update
+        Navigator.pop(context, true);
       }
     } catch (e) {
       print('Error updating property: $e');
@@ -388,8 +401,165 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
     }
   }
 
+  // ── Moved out of build() so it can be referenced before being "declared" ──
+  Future<void> _showAgentPlanPaymentDialog() async {
+    if (_selectedPlan == null || _selectedPlanPrice == null) return;
+
+    final phoneController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool paymentSuccess = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.payment,
+                      color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 12),
+                  const Text('Confirm Payment'),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Plan: ${_selectedPlan!.toUpperCase()}'),
+                    const SizedBox(height: 8),
+                    Text(
+                        'Period: ${_selectedPeriod == 'annual' ? 'Annual (Save 20%)' : 'Monthly'}'),
+                    const SizedBox(height: 8),
+                    Text(
+                        'Amount: UGX ${_selectedPlanPrice!.toString().replaceAllMapped(RegExp(r"\B(?=(\d{3})+(?!\d))"), (match) => ",")}'),
+                    const SizedBox(height: 16),
+                    Form(
+                      key: formKey,
+                      child: TextFormField(
+                        controller: phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Mobile Money Number',
+                          hintText: 'e.g. 2567XXXXXXXX',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) => v == null || v.trim().isEmpty
+                            ? 'Enter phone number'
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      _isPaying ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: _isPaying
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => _isPaying = true);
+
+                          final transactionRef =
+                              'AGENTPLAN_${DateTime.now().millisecondsSinceEpoch}';
+                          final narrative =
+                              'Agent Plan: ${_selectedPlan!.toUpperCase()} (${_selectedPeriod == 'annual' ? 'Annual' : 'Monthly'})';
+
+                          try {
+                            final response =
+                                await _pandoraService.initiatePayment(
+                              phoneNumber: phoneController.text.trim(),
+                              amount: _selectedPlanPrice!.toDouble(),
+                              transactionRef: transactionRef,
+                              narrative: narrative,
+                            );
+                            if (!response.success) {
+                              throw PaymentException(response.message);
+                            }
+
+                            if (context.mounted) {
+                              await showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => const AlertDialog(
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircularProgressIndicator(),
+                                      SizedBox(height: 16),
+                                      Text(
+                                          'Check your phone to complete payment...'),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+
+                            await Future.delayed(const Duration(seconds: 3));
+                            paymentSuccess = true;
+
+                            if (context.mounted) {
+                              Navigator.pop(context); // close waiting dialog
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text('Payment Error: $e'),
+                                    backgroundColor: Colors.red),
+                              );
+                            }
+                          } finally {
+                            setDialogState(() => _isPaying = false);
+                            if (paymentSuccess && context.mounted) {
+                              Navigator.pop(context); // close payment dialog
+                              setState(() => _showPlanScreen = false);
+                            }
+                          }
+                        },
+                  child: _isPaying
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Proceed to Pay'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_showPlanScreen) {
+      return ChoosePlanScreen(
+        onCancel: () => Navigator.of(context).pop(),
+        onSkip: () {
+          setState(() => _showPlanScreen = false);
+        },
+        onPlanSelected: (plan, period, price) async {
+          setState(() {
+            _selectedPlan = plan;
+            _selectedPeriod = period;
+            _selectedPlanPrice = price;
+          });
+          await _showAgentPlanPaymentDialog(); // ✅ now safely callable
+        },
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Property'),
@@ -404,10 +574,11 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Property Type (Note: Student Hostels can only be added by Admin)
+                    // Property Type
                     const Text(
                       'Property Type',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -448,7 +619,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, color: Colors.purple.shade700, size: 20),
+                          Icon(Icons.info_outline,
+                              color: Colors.purple.shade700, size: 20),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -534,13 +706,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             ),
                             items: const [
                               DropdownMenuItem(
-                                value: 'UGX',
-                                child: Text('UGX'),
-                              ),
+                                  value: 'UGX', child: Text('UGX')),
                               DropdownMenuItem(
-                                value: 'USD',
-                                child: Text('USD'),
-                              ),
+                                  value: 'USD', child: Text('USD')),
                             ],
                             onChanged: (value) {
                               setState(() {
@@ -569,7 +737,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Full Address (optional)
+                    // Full Address
                     TextFormField(
                       controller: _addressController,
                       decoration: const InputDecoration(
@@ -577,7 +745,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                         hintText: 'e.g., Plot 25, Acacia Avenue, Kololo',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.home_outlined),
-                        helperText: 'Exact street address — only visible to admin and your agent view',
+                        helperText:
+                            'Exact street address — only visible to admin and your agent view',
                         helperMaxLines: 2,
                       ),
                     ),
@@ -596,7 +765,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             ),
                             keyboardType: TextInputType.number,
                             validator: (value) {
-                              if (value != null && value.isNotEmpty && int.tryParse(value) == null) {
+                              if (value != null &&
+                                  value.isNotEmpty &&
+                                  int.tryParse(value) == null) {
                                 return 'Invalid';
                               }
                               return null;
@@ -614,7 +785,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             ),
                             keyboardType: TextInputType.number,
                             validator: (value) {
-                              if (value != null && value.isNotEmpty && int.tryParse(value) == null) {
+                              if (value != null &&
+                                  value.isNotEmpty &&
+                                  int.tryParse(value) == null) {
                                 return 'Invalid';
                               }
                               return null;
@@ -635,7 +808,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       ),
                       keyboardType: TextInputType.number,
                       validator: (value) {
-                        if (value != null && value.isNotEmpty && double.tryParse(value) == null) {
+                        if (value != null &&
+                            value.isNotEmpty &&
+                            double.tryParse(value) == null) {
                           return 'Please enter a valid number';
                         }
                         return null;
@@ -647,11 +822,11 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     const Divider(height: 32),
                     const Text(
                       'Agent Information',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
 
-                    // Company Name
                     TextFormField(
                       controller: _companyNameController,
                       decoration: const InputDecoration(
@@ -669,7 +844,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Agent Name
                     TextFormField(
                       controller: _agentNameController,
                       decoration: const InputDecoration(
@@ -693,18 +867,21 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       children: [
                         const Text(
                           'Amenities',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Text(
                             'Optional',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                            style:
+                                TextStyle(fontSize: 12, color: Colors.grey),
                           ),
                         ),
                       ],
@@ -719,7 +896,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: _availableAmenities.map((amenity) {
-                        final isSelected = _selectedAmenities.contains(amenity);
+                        final isSelected =
+                            _selectedAmenities.contains(amenity);
                         return FilterChip(
                           label: Text(amenity),
                           selected: isSelected,
@@ -732,11 +910,16 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                               }
                             });
                           },
-                          selectedColor: AppColors.primary.withOpacity(0.2),
+                          selectedColor:
+                              AppColors.primary.withOpacity(0.2),
                           checkmarkColor: AppColors.primary,
                           labelStyle: TextStyle(
-                            color: isSelected ? AppColors.primary : Colors.black87,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.black87,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         );
                       }).toList(),
@@ -747,11 +930,11 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     const Divider(height: 32),
                     const Text(
                       'Contact Information',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
 
-                    // Contact Phone
                     TextFormField(
                       controller: _contactPhoneController,
                       decoration: const InputDecoration(
@@ -770,7 +953,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // WhatsApp Phone
                     TextFormField(
                       controller: _whatsappPhoneController,
                       decoration: const InputDecoration(
@@ -789,7 +971,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Contact Email
                     TextFormField(
                       controller: _contactEmailController,
                       decoration: const InputDecoration(
@@ -800,7 +981,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       ),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
-                        // Only validate format if email is provided
                         if (value != null &&
                             value.isNotEmpty &&
                             !value.contains('@')) {
@@ -817,14 +997,15 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       children: [
                         const Text(
                           'Property Images',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         Text(
                           '$_totalImageCount/12',
                           style: TextStyle(
                             fontSize: 14,
-                            color: _totalImageCount >= 12 
-                                ? Colors.red 
+                            color: _totalImageCount >= 12
+                                ? Colors.red
                                 : Colors.grey[600],
                             fontWeight: FontWeight.bold,
                           ),
@@ -832,12 +1013,15 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    
-                    // Existing Images (from URLs)
+
+                    // Existing Images
                     if (_existingImageUrls.isNotEmpty) ...[
                       const Text(
                         'Existing Images',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey),
                       ),
                       const SizedBox(height: 8),
                       SizedBox(
@@ -849,13 +1033,16 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             return Stack(
                               children: [
                                 Container(
-                                  margin: const EdgeInsets.only(right: 8),
+                                  margin:
+                                      const EdgeInsets.only(right: 8),
                                   width: 120,
                                   height: 120,
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius:
+                                        BorderRadius.circular(8),
                                     image: DecorationImage(
-                                      image: NetworkImage(_existingImageUrls[index]),
+                                      image: NetworkImage(
+                                          _existingImageUrls[index]),
                                       fit: BoxFit.cover,
                                     ),
                                   ),
@@ -864,7 +1051,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                                   top: 4,
                                   right: 12,
                                   child: GestureDetector(
-                                    onTap: () => _removeExistingImage(index),
+                                    onTap: () =>
+                                        _removeExistingImage(index),
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: const BoxDecoration(
@@ -886,12 +1074,15 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    
-                    // New Images (locally selected)
+
+                    // New Images
                     if (_newImages.isNotEmpty) ...[
                       const Text(
                         'New Images to Upload',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey),
                       ),
                       const SizedBox(height: 8),
                       SizedBox(
@@ -903,13 +1094,16 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             return Stack(
                               children: [
                                 Container(
-                                  margin: const EdgeInsets.only(right: 8),
+                                  margin:
+                                      const EdgeInsets.only(right: 8),
                                   width: 120,
                                   height: 120,
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius:
+                                        BorderRadius.circular(8),
                                     image: DecorationImage(
-                                      image: FileImage(File(_newImages[index].path)),
+                                      image: FileImage(
+                                          File(_newImages[index].path)),
                                       fit: BoxFit.cover,
                                     ),
                                   ),
@@ -940,9 +1134,10 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       ),
                       const SizedBox(height: 8),
                     ],
-                    
+
                     OutlinedButton.icon(
-                      onPressed: _totalImageCount >= 12 ? null : _pickImages,
+                      onPressed:
+                          _totalImageCount >= 12 ? null : _pickImages,
                       icon: const Icon(Icons.add_photo_alternate),
                       label: Text(_totalImageCount == 0
                           ? 'Add Images (Up to 12)'
@@ -950,28 +1145,34 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                               ? 'Maximum 12 images reached'
                               : 'Add More Images (${12 - _totalImageCount} remaining)'),
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Request Spotlight Promotion
+                    // Promotional Add-ons Section
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.shade200),
+                        border:
+                            Border.all(color: Colors.orange.shade200),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.star, color: Colors.orange.shade700, size: 24),
+                              Icon(
+                                Icons.campaign,
+                                color: Colors.orange.shade700,
+                                size: 24,
+                              ),
                               const SizedBox(width: 8),
                               const Text(
-                                'Spotlight Promotion',
+                                'Promotional Add-ons',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -980,28 +1181,32 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Request to feature your property in the Spotlight Properties carousel on the customer home page. Admin will review and approve if eligible.',
-                            style: TextStyle(fontSize: 14, color: Colors.black87),
-                          ),
-                          const SizedBox(height: 12),
                           CheckboxListTile(
-                            value: _requestSpotlightPromotion,
+                            value: _requestFeaturedPromotion,
                             onChanged: (value) {
                               setState(() {
-                                _requestSpotlightPromotion = value ?? false;
+                                _requestFeaturedPromotion =
+                                    value ?? false;
+                              });
+                            },
+                            title:
+                                const Text('Featured Property Promotion'),
+                            subtitle: const Text(
+                                'UGX 200,000 / month · per property\nPin your listing to the top of search results in its area and category. Ideal for high-value properties or listings that need faster visibility.'),
+                          ),
+                          const SizedBox(height: 8),
+                          CheckboxListTile(
+                            value: _requestDeveloperAdvertising,
+                            onChanged: (value) {
+                              setState(() {
+                                _requestDeveloperAdvertising =
+                                    value ?? false;
                               });
                             },
                             title: const Text(
-                              'Request Spotlight Promotion',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
+                                'Developer Project Advertising'),
                             subtitle: const Text(
-                              'Subject to admin approval',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            activeColor: Colors.orange,
-                            contentPadding: EdgeInsets.zero,
+                                'UGX 400,000 / month · per project\nShowcase an active construction or development project with dedicated exposure to buyers. Includes rich media display, full project description, and a direct call-to-action link to your sales team.'),
                           ),
                         ],
                       ),
@@ -1015,7 +1220,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                         onPressed: _updateProperty,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16),
                         ),
                         child: const Text(
                           'Update Property',

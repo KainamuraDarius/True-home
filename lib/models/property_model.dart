@@ -75,6 +75,9 @@ class RoomType {
 }
 
 class PropertyModel {
+    /// Promotional Add-ons
+    final bool featuredPromotion;
+    final bool developerAdvertising;
   final String id;
   final String title;
   final String category; // Property category (Flat, Bungalow, Condo, Villa, Apartment, Studio room)
@@ -158,6 +161,8 @@ class PropertyModel {
     this.inspectionFee,
     this.isActive = true, // Default to active
     this.viewCount = 0, // Default to 0 views
+    this.featuredPromotion = false,
+    this.developerAdvertising = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -202,6 +207,8 @@ class PropertyModel {
       'inspectionFee': inspectionFee,
       'isActive': isActive,
       'viewCount': viewCount,
+      'featuredPromotion': featuredPromotion,
+      'developerAdvertising': developerAdvertising,
     };
   }
 
@@ -323,6 +330,8 @@ class PropertyModel {
       inspectionFee: json['inspectionFee']?.toDouble(),
       isActive: json['isActive'] ?? true, // Default to active for old data
       viewCount: json['viewCount'] ?? 0, // Default to 0 for old data
+      featuredPromotion: json['featuredPromotion'] ?? false,
+      developerAdvertising: json['developerAdvertising'] ?? false,
     );
   }
 
@@ -358,6 +367,8 @@ class PropertyModel {
     String? university,
     List<RoomType>? roomTypes,
     String? paymentInstructions,
+    bool? featuredPromotion,
+    bool? developerAdvertising,
     GenderPolicy? genderPolicy,
     String? roomStructure,
     bool? isNewProject,
@@ -400,6 +411,8 @@ class PropertyModel {
       paymentInstructions: paymentInstructions ?? this.paymentInstructions,
       genderPolicy: genderPolicy ?? this.genderPolicy,
       roomStructure: roomStructure ?? this.roomStructure,
+      featuredPromotion: featuredPromotion ?? this.featuredPromotion,
+      developerAdvertising: developerAdvertising ?? this.developerAdvertising,
       isNewProject: isNewProject ?? this.isNewProject,
       hasActivePromotion: hasActivePromotion ?? this.hasActivePromotion,
       promotionEndDate: promotionEndDate ?? this.promotionEndDate,
