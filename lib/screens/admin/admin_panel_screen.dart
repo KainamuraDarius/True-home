@@ -20,6 +20,7 @@ import 'add_admin_role_screen.dart';
 import 'manage_room_availability_screen.dart';
 import 'maintenance_mode_screen.dart';
 import 'scheduled_notifications_screen.dart';
+import 'admin_trash_screen.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -73,6 +74,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       subItems: [
         MenuItem(id: 'review_properties', title: 'Review Properties', icon: Icons.rate_review_rounded),
         MenuItem(id: 'manage_projects', title: 'Advertised Projects', icon: Icons.apartment_rounded),
+        MenuItem(id: 'admin_trash', title: 'Trash', icon: Icons.delete_outline),
       ],
     ),
     MenuSection(
@@ -726,6 +728,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         return AdminPropertiesScreen(embedded: true);
       case 'manage_projects':
         return const AdminProjectsScreen(embedded: true);
+      case 'admin_trash':
+        return const AdminTrashScreen();
       case 'add_hostel':
         return const AddHostelScreen(embedded: true);
       case 'manage_hostels':
