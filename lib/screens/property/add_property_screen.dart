@@ -26,10 +26,12 @@ class AddPropertyScreen extends StatefulWidget {
 class _AddPropertyScreenState extends State<AddPropertyScreen>
     with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
-  bool _showPlanScreen = true;
+  bool _showPlanScreen = false;
   String? _selectedPlan;
   String? _selectedPeriod;
   int? _selectedPlanPrice;
+  bool _planStepCompleted = false;
+  bool _submitAfterPlan = false;
   bool _isPaying = false;
   final PandoraPaymentService _pandoraService = PandoraPaymentService();
   final _titleController = TextEditingController();
@@ -147,10 +149,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       final prefs = await SharedPreferences.getInstance();
       final draft = <String, dynamic>{
         'savedAt': DateTime.now().millisecondsSinceEpoch,
-        'showPlanScreen': _showPlanScreen,
         'selectedPlan': _selectedPlan,
         'selectedPeriod': _selectedPeriod,
         'selectedPlanPrice': _selectedPlanPrice,
+        'planStepCompleted': _planStepCompleted,
         'title': _titleController.text,
         'selectedCategory': _selectedCategory,
         'description': _descriptionController.text,
@@ -223,10 +225,11 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       if (!mounted) return;
 
       setState(() {
-        _showPlanScreen = decoded['showPlanScreen'] as bool? ?? _showPlanScreen;
+        _showPlanScreen = false;
         _selectedPlan = decoded['selectedPlan']?.toString();
         _selectedPeriod = decoded['selectedPeriod']?.toString();
         _selectedPlanPrice = (decoded['selectedPlanPrice'] as num?)?.toInt();
+        _planStepCompleted = decoded['planStepCompleted'] as bool? ?? false;
         _selectedType = restoredType;
         _selectedCategory = _availableCategories.contains(restoredCategory)
             ? restoredCategory!
@@ -822,8 +825,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   }
 
   // ── Moved out of build() so it can be referenced before being "declared" ──
-  Future<void> _showAgentPlanPaymentDialog() async {
-    if (_selectedPlan == null || _selectedPlanPrice == null) return;
+  Future<bool> _showAgentPlanPaymentDialog() async {
+    if (_selectedPlan == null || _selectedPlanPrice == null) return false;
 
     final phoneController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -946,8 +949,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                             setDialogState(() => _isPaying = false);
                             if (paymentSuccess && context.mounted) {
                               Navigator.pop(context); // close payment dialog
-                              setState(() => _showPlanScreen = false);
-                              _saveDraft();
                             }
                           }
                         },
@@ -965,16 +966,79 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
         );
       },
     );
+
+    return paymentSuccess;
+  }
+
+  bool _canProceedToPlanStep() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to submit a property.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+
+    if (!_formKey.currentState!.validate()) {
+      return false;
+    }
+
+    if (_selectedImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add property images before submitting'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _handleSubmitFlow() async {
+    if (!_canProceedToPlanStep()) return;
+
+    if (!_planStepCompleted) {
+      setState(() {
+        _showPlanScreen = true;
+        _submitAfterPlan = true;
+      });
+      _saveDraft();
+      return;
+    }
+
+    await _submitProperty();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_showPlanScreen) {
       return ChoosePlanScreen(
-        onCancel: () => Navigator.of(context).pop(),
-        onSkip: () {
-          setState(() => _showPlanScreen = false);
+        onCancel: () {
+          setState(() {
+            _showPlanScreen = false;
+            _submitAfterPlan = false;
+          });
           _saveDraft();
+        },
+        onSkip: () {
+          final shouldSubmit = _submitAfterPlan;
+          setState(() {
+            _showPlanScreen = false;
+            _submitAfterPlan = false;
+            _planStepCompleted = true;
+            _selectedPlan = null;
+            _selectedPeriod = null;
+            _selectedPlanPrice = null;
+          });
+          _saveDraft();
+          if (shouldSubmit) {
+            _submitProperty();
+          }
         },
         onPlanSelected: (plan, period, price) async {
           setState(() {
@@ -983,7 +1047,21 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
             _selectedPlanPrice = price;
           });
           _saveDraft();
-          await _showAgentPlanPaymentDialog(); // ✅ now safely callable
+
+          final paymentSuccess = await _showAgentPlanPaymentDialog();
+          if (!paymentSuccess || !mounted) return;
+
+          final shouldSubmit = _submitAfterPlan;
+          setState(() {
+            _showPlanScreen = false;
+            _submitAfterPlan = false;
+            _planStepCompleted = true;
+          });
+          _saveDraft();
+
+          if (shouldSubmit) {
+            await _submitProperty();
+          }
         },
       );
     }
@@ -1926,7 +2004,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: (_agreedToAgentTerms && !_isLoading)
-                                ? _submitProperty
+                                ? _handleSubmitFlow
                                 : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
