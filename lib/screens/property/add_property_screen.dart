@@ -12,6 +12,7 @@ import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
 import '../../services/storage_service.dart';
+import '../../services/organization_access_service.dart';
 import '../common/legal_policies_screen.dart';
 import 'choose_plan_screen.dart';
 import '../../services/pandora_payment_service.dart';
@@ -34,6 +35,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   bool _submitAfterPlan = false;
   bool _isPaying = false;
   final PandoraPaymentService _pandoraService = PandoraPaymentService();
+  final OrganizationAccessService _organizationAccessService =
+      OrganizationAccessService();
   final _titleController = TextEditingController();
   String _selectedCategory = 'Flat';
   final List<String> _residentialCategories = const [
@@ -201,7 +204,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       _bathroomsController.text = decoded['bathrooms']?.toString() ?? '';
       _areaSqftController.text = decoded['areaSqft']?.toString() ?? '';
       _contactPhoneController.text = decoded['contactPhone']?.toString() ?? '';
-      _whatsappPhoneController.text = decoded['whatsappPhone']?.toString() ?? '';
+      _whatsappPhoneController.text =
+          decoded['whatsappPhone']?.toString() ?? '';
       _contactEmailController.text = decoded['contactEmail']?.toString() ?? '';
       _companyNameController.text = decoded['companyName']?.toString() ?? '';
       _agentNameController.text = decoded['agentName']?.toString() ?? '';
@@ -210,14 +214,16 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
         decoded['selectedType']?.toString(),
       );
       final restoredCategory = decoded['selectedCategory']?.toString();
-      final imagePaths = (decoded['selectedImagePaths'] as List?)
+      final imagePaths =
+          (decoded['selectedImagePaths'] as List?)
               ?.whereType<String>()
               .toList() ??
           const <String>[];
       final restoredImages = kIsWeb
           ? <XFile>[]
           : imagePaths.map((path) => XFile(path)).toList();
-      final restoredAmenities = (decoded['selectedAmenities'] as List?)
+      final restoredAmenities =
+          (decoded['selectedAmenities'] as List?)
               ?.whereType<String>()
               .toList() ??
           const <String>[];
@@ -256,7 +262,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Draft restored. You can continue from where you stopped.'),
+              content: Text(
+                'Draft restored. You can continue from where you stopped.',
+              ),
               duration: Duration(seconds: 3),
             ),
           );
@@ -544,6 +552,21 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
         'id': userDoc.id,
       });
 
+      final accessResult = await _organizationAccessService
+          .checkPropertyListingAccess(userId: user.uid);
+      if (!accessResult.allowed) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(accessResult.message ?? 'Permission denied.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      final activeOrganizationId = accessResult.organizationId;
+
       List<String> imageUrls = [];
       if (_selectedImages.isNotEmpty) {
         imageUrls = await _uploadImages();
@@ -622,6 +645,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
         currency: _currency,
         imageUrls: imageUrls,
         ownerId: user.uid,
+        organizationId: activeOrganizationId,
+        createdByUserId: user.uid,
         ownerName: userData.name,
         ownerEmail: userData.email,
         companyName: _companyNameController.text.trim(),
@@ -1001,15 +1026,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
 
   Future<void> _handleSubmitFlow() async {
     if (!_canProceedToPlanStep()) return;
-
-    if (!_planStepCompleted) {
-      setState(() {
-        _showPlanScreen = true;
-        _submitAfterPlan = true;
-      });
-      _saveDraft();
-      return;
-    }
 
     await _submitProperty();
   }

@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/project_model.dart';
 import '../../services/project_service.dart';
 import '../../services/pandora_payment_service.dart';
+import '../../services/organization_access_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
 
@@ -29,6 +30,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
   final _projectService = ProjectService();
   final _imagePicker = ImagePicker();
   final _pandoraService = PandoraPaymentService();
+  final _organizationAccessService = OrganizationAccessService();
 
   // Form fields
   final _nameController = TextEditingController();
@@ -137,7 +139,8 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
       _phoneController.text = decoded['phone']?.toString() ?? '';
       _emailController.text = decoded['email']?.toString() ?? '';
       _websiteController.text = decoded['website']?.toString() ?? '';
-      _startingPriceController.text = decoded['startingPrice']?.toString() ?? '';
+      _startingPriceController.text =
+          decoded['startingPrice']?.toString() ?? '';
       _priceDescriptorController.text =
           decoded['priceDescriptor']?.toString() ?? '';
       _bookingDepositController.text =
@@ -157,7 +160,8 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
       final restoredCurrency = _parseCurrency(
         decoded['selectedCurrency']?.toString(),
       );
-      final imagePaths = (decoded['selectedImagePaths'] as List?)
+      final imagePaths =
+          (decoded['selectedImagePaths'] as List?)
               ?.whereType<String>()
               .toList() ??
           const <String>[];
@@ -178,9 +182,8 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
 
       if (!mounted) return;
       setState(() {
-        _selectedLocation = _projectService.defaultLocations.contains(
-          restoredLocation,
-        )
+        _selectedLocation =
+            _projectService.defaultLocations.contains(restoredLocation)
             ? restoredLocation
             : null;
         _selectedProjectStatus = restoredProjectStatus;
@@ -196,7 +199,9 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Draft restored. You can continue where you left off.'),
+              content: Text(
+                'Draft restored. You can continue where you left off.',
+              ),
               duration: Duration(seconds: 3),
             ),
           );
@@ -460,9 +465,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Check your phone and enter your PIN to confirm payment.',
-              ),
+              Text('Check your phone and enter your PIN to confirm payment.'),
               SizedBox(height: 12),
               Text(
                 'Waiting for confirmation...',
@@ -732,6 +735,21 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
       return;
     }
 
+    final accessResult = await _organizationAccessService
+        .checkProjectListingAccess(userId: currentUser.uid);
+    if (!accessResult.allowed) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(accessResult.message ?? 'Permission denied.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    final activeOrganizationId = accessResult.organizationId;
+
     final wantsDeveloperAdvertising =
         await _showDeveloperAdvertisingOfferDialog();
     if (!mounted) return;
@@ -793,6 +811,8 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
         description: _descriptionController.text.trim(),
         imageUrls: imageUrls,
         developerId: user.uid,
+        organizationId: activeOrganizationId,
+        createdByUserId: user.uid,
         developerName: _developerName ?? 'Developer',
         location: _selectedLocation!,
         adTier: AdTier.basic, // Single tier for all

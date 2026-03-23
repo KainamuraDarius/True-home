@@ -24,6 +24,97 @@ service cloud.firestore {
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeRole == 'admin');
     }
 
+    function hasOrganizationId(data) {
+      return data.organizationId is string && data.organizationId.size() > 0;
+    }
+
+    function isEnterpriseOrgActive(orgId) {
+      return exists(/databases/$(database)/documents/organizations/$(orgId)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)).data.status == 'active' &&
+        get(/databases/$(database)/documents/organizations/$(orgId)).data.plan == 'enterprise';
+    }
+
+    function isActiveOrgMember(orgId) {
+      return isSignedIn() &&
+        orgId is string &&
+        orgId.size() > 0 &&
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function isOrgOwnerOrAdmin(orgId) {
+      return isActiveOrgMember(orgId) && (
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'owner' ||
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function canListPropertyForOrg(orgId) {
+      return isEnterpriseOrgActive(orgId) &&
+        isActiveOrgMember(orgId) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.canListProperty == true;
+    }
+
+    function canListProjectForOrg(orgId) {
+      return isEnterpriseOrgActive(orgId) &&
+        isActiveOrgMember(orgId) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.canListProject == true;
+    }
+
+    function currentUserEmail() {
+      return (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.emailLower is string &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.emailLower.size() > 0
+      )
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.emailLower
+        : (
+            (
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email is string &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.size() > 0
+            )
+              ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email
+              : request.auth.token.email
+          );
+    }
+
+    function inviteEmailMatchesCurrentUser(inviteData) {
+      return currentUserEmail() is string &&
+        currentUserEmail().size() > 0 && (
+          (inviteData.email is string && inviteData.email == currentUserEmail()) ||
+          (inviteData.emailLower is string && inviteData.emailLower == currentUserEmail())
+        );
+    }
+
+    function canCreateMemberFromInvite(orgId, memberId) {
+      let inviteId = request.resource.data.sourceInviteId;
+      return isSignedIn() &&
+        request.auth.uid == memberId &&
+        request.resource.data.userId == request.auth.uid &&
+        inviteId is string &&
+        isEnterpriseOrgActive(orgId) &&
+        exists(/databases/$(database)/documents/organizations/$(orgId)/invites/$(inviteId)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/invites/$(inviteId)).data.status == 'pending' &&
+        inviteEmailMatchesCurrentUser(
+          get(/databases/$(database)/documents/organizations/$(orgId)/invites/$(inviteId)).data
+        ) &&
+        request.resource.data.role == get(/databases/$(database)/documents/organizations/$(orgId)/invites/$(inviteId)).data.role;
+    }
+
+    function isInviteResponseUpdateByRecipient() {
+      return isSignedIn() &&
+        inviteEmailMatchesCurrentUser(resource.data) &&
+        resource.data.status == 'pending' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['status', 'acceptedBy', 'acceptedAt', 'declinedBy', 'declinedAt', 'updatedAt']
+        ) &&
+        (
+          (request.resource.data.status == 'accepted' && request.resource.data.acceptedBy == request.auth.uid) ||
+          (request.resource.data.status == 'declined' && request.resource.data.declinedBy == request.auth.uid)
+        );
+    }
+
     // Allow only safe public +1 counter increments on advertised projects
     function isSafeProjectCounterIncrement() {
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
@@ -43,6 +134,13 @@ service cloud.firestore {
         (changedKeys.hasOnly(['clickCount']) && clickCountValid) ||
         (changedKeys.hasOnly(['viewCount', 'clickCount']) && viewCountValid && clickCountValid)
       );
+    }
+
+    // Dedicated recipient read access for collection-group invite queries.
+    // This keeps "Company Invites" readable even when org membership is not active yet.
+    match /{path=**}/invites/{inviteId} {
+      allow read: if isSignedIn() &&
+        inviteEmailMatchesCurrentUser(resource.data);
     }
     
     // Users collection
@@ -70,6 +168,43 @@ service cloud.firestore {
           ['isVerified', 'verifiedAt', 'verificationStatus', 'unverifiedAt']
         ));
     }
+
+    // Organizations collection
+    match /organizations/{orgId} {
+      allow read: if isSignedIn() && (isActiveOrgMember(orgId) || isAdmin());
+      allow create: if isSignedIn() &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isOrgOwnerOrAdmin(orgId) || isAdmin();
+
+      match /members/{memberId} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == memberId ||
+          isActiveOrgMember(orgId) ||
+          isAdmin()
+        );
+        allow create: if isAdmin() ||
+          isOrgOwnerOrAdmin(orgId) ||
+          (
+            isSignedIn() &&
+            request.auth.uid == memberId &&
+            exists(/databases/$(database)/documents/organizations/$(orgId)) &&
+            get(/databases/$(database)/documents/organizations/$(orgId)).data.createdBy == request.auth.uid
+          ) ||
+          canCreateMemberFromInvite(orgId, memberId);
+        allow update, delete: if isOrgOwnerOrAdmin(orgId) || isAdmin();
+      }
+
+      match /invites/{inviteId} {
+        allow read: if isOrgOwnerOrAdmin(orgId) ||
+          isAdmin() ||
+          (isSignedIn() && inviteEmailMatchesCurrentUser(resource.data));
+        allow create: if isOrgOwnerOrAdmin(orgId) || isAdmin();
+        allow update: if isOrgOwnerOrAdmin(orgId) ||
+          isAdmin() ||
+          isInviteResponseUpdateByRecipient();
+        allow delete: if isOrgOwnerOrAdmin(orgId) || isAdmin();
+      }
+    }
     
     // Properties collection
     match /properties/{propertyId} {
@@ -84,11 +219,22 @@ service cloud.firestore {
         )
       );
       // Only property owner can create
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() &&
+        request.resource.data.ownerId == request.auth.uid &&
+        (
+          !hasOrganizationId(request.resource.data) ||
+          canListPropertyForOrg(request.resource.data.organizationId)
+        );
       // Owner can update/delete their own properties, admins can update any property
       // Also allow anyone to update room availability (roomTypes array) or view count
       allow update: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid ||
+        (
+          resource.data.ownerId == request.auth.uid &&
+          (
+            !hasOrganizationId(request.resource.data) ||
+            canListPropertyForOrg(request.resource.data.organizationId)
+          )
+        ) ||
         isAdmin() ||
         // Allow updating roomTypes and updatedAt fields for availability tracking
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomTypes', 'updatedAt']) ||
@@ -109,10 +255,22 @@ service cloud.firestore {
         (isAdmin())
       );
       // Only project owner can write (except view/click counts)
-      allow create: if isSignedIn() && request.resource.data.developerId == request.auth.uid;
+      allow create: if isSignedIn() &&
+        request.resource.data.developerId == request.auth.uid &&
+        (
+          !hasOrganizationId(request.resource.data) ||
+          canListProjectForOrg(request.resource.data.organizationId)
+        );
       // Owner/admin can update full docs. Public can only increment counters safely by +1.
       allow update: if (
-        (isSignedIn() && resource.data.developerId == request.auth.uid) ||
+        (
+          isSignedIn() &&
+          resource.data.developerId == request.auth.uid &&
+          (
+            !hasOrganizationId(request.resource.data) ||
+            canListProjectForOrg(request.resource.data.organizationId)
+          )
+        ) ||
         isAdmin() ||
         isSafeProjectCounterIncrement()
       );

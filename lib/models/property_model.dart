@@ -75,12 +75,13 @@ class RoomType {
 }
 
 class PropertyModel {
-    /// Promotional Add-ons
-    final bool featuredPromotion;
-    final bool developerAdvertising;
+  /// Promotional Add-ons
+  final bool featuredPromotion;
+  final bool developerAdvertising;
   final String id;
   final String title;
-  final String category; // Property category (Flat, Bungalow, Condo, Villa, Apartment, Studio room)
+  final String
+  category; // Property category (Flat, Bungalow, Condo, Villa, Apartment, Studio room)
   final String description;
   final PropertyType type;
   final double price;
@@ -93,6 +94,8 @@ class PropertyModel {
   final String currency; // 'UGX' or 'USD'
   final List<String> imageUrls;
   final String ownerId;
+  final String? organizationId;
+  final String? createdByUserId;
   final String ownerName;
   final String ownerEmail;
   final String companyName;
@@ -110,14 +113,17 @@ class PropertyModel {
   final List<RoomType> roomTypes; // For student hostels
   final String?
   paymentInstructions; // Optional payment instructions for hostels (deposit info, bank account, etc.)
-  final GenderPolicy genderPolicy; // For hostels: male only, female only, or mixed
-  final String? roomStructure; // For hostels: 'Self Contained' or 'Not Self Contained'
+  final GenderPolicy
+  genderPolicy; // For hostels: male only, female only, or mixed
+  final String?
+  roomStructure; // For hostels: 'Self Contained' or 'Not Self Contained'
   final bool isNewProject; // Mark as new project for developers
   final bool hasActivePromotion; // Whether promotion is active
   final DateTime? promotionEndDate; // When promotion ends
   final bool promotionRequested; // Agent requested spotlight promotion
   final double? inspectionFee; // Custom inspection fee for rental properties
-  final bool isActive; // Whether property is active (true) or sold/deactivated (false)
+  final bool
+  isActive; // Whether property is active (true) or sold/deactivated (false)
   final int viewCount; // Number of times this property has been viewed
 
   PropertyModel({
@@ -136,6 +142,8 @@ class PropertyModel {
     this.currency = 'UGX', // Default to UGX for backward compatibility
     required this.imageUrls,
     required this.ownerId,
+    this.organizationId,
+    this.createdByUserId,
     required this.ownerName,
     required this.ownerEmail,
     required this.companyName,
@@ -182,6 +190,8 @@ class PropertyModel {
       'currency': currency,
       'imageUrls': imageUrls,
       'ownerId': ownerId,
+      'organizationId': organizationId,
+      'createdByUserId': createdByUserId,
       'ownerName': ownerName,
       'ownerEmail': ownerEmail,
       'companyName': companyName,
@@ -202,7 +212,9 @@ class PropertyModel {
       'roomStructure': roomStructure,
       'isNewProject': isNewProject,
       'hasActivePromotion': hasActivePromotion,
-      'promotionEndDate': promotionEndDate != null ? Timestamp.fromDate(promotionEndDate!) : null,
+      'promotionEndDate': promotionEndDate != null
+          ? Timestamp.fromDate(promotionEndDate!)
+          : null,
       'promotionRequested': promotionRequested,
       'inspectionFee': inspectionFee,
       'isActive': isActive,
@@ -215,13 +227,13 @@ class PropertyModel {
   // Helper method to safely parse DateTime from various Firestore formats
   static DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
-    
+
     // Already a DateTime object
     if (value is DateTime) return value;
-    
+
     // Firestore Timestamp object
     if (value is Timestamp) return value.toDate();
-    
+
     // Milliseconds since epoch (integer)
     if (value is int) {
       try {
@@ -230,7 +242,7 @@ class PropertyModel {
         return null;
       }
     }
-    
+
     // ISO 8601 string
     if (value is String) {
       try {
@@ -239,24 +251,28 @@ class PropertyModel {
         return null; // Fail gracefully for invalid formats
       }
     }
-    
+
     return null;
   }
 
   // Helper method to safely parse roomTypes from various formats (List or Map)
   static List<RoomType> _parseRoomTypes(dynamic value) {
     if (value == null) return [];
-    
+
     try {
       // If it's already a List
       if (value is List) {
         return value
-            .map((rt) => RoomType.fromJson(rt is Map<String, dynamic> 
-                ? rt 
-                : Map<String, dynamic>.from(rt as Map)))
+            .map(
+              (rt) => RoomType.fromJson(
+                rt is Map<String, dynamic>
+                    ? rt
+                    : Map<String, dynamic>.from(rt as Map),
+              ),
+            )
             .toList();
       }
-      
+
       // If it's a Map (old format), convert to List
       if (value is Map) {
         return value.entries.map((entry) {
@@ -274,7 +290,7 @@ class PropertyModel {
       // Return empty list on error
       return [];
     }
-    
+
     return [];
   }
 
@@ -299,6 +315,8 @@ class PropertyModel {
       currency: json['currency'] ?? 'UGX', // Default to UGX for old data
       imageUrls: List<String>.from(json['imageUrls'] ?? []),
       ownerId: json['ownerId'] ?? '',
+      organizationId: json['organizationId'],
+      createdByUserId: json['createdByUserId'],
       ownerName: json['ownerName'] ?? '',
       ownerEmail: json['ownerEmail'] ?? '',
       companyName: json['companyName'] ?? '',
@@ -351,6 +369,8 @@ class PropertyModel {
     String? currency,
     List<String>? imageUrls,
     String? ownerId,
+    String? organizationId,
+    String? createdByUserId,
     String? ownerName,
     String? ownerEmail,
     String? companyName,
@@ -393,6 +413,8 @@ class PropertyModel {
       currency: currency ?? this.currency,
       imageUrls: imageUrls ?? this.imageUrls,
       ownerId: ownerId ?? this.ownerId,
+      organizationId: organizationId ?? this.organizationId,
+      createdByUserId: createdByUserId ?? this.createdByUserId,
       ownerName: ownerName ?? this.ownerName,
       ownerEmail: ownerEmail ?? this.ownerEmail,
       companyName: companyName ?? this.companyName,

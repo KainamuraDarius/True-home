@@ -48,7 +48,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
   final ImagePicker _picker = ImagePicker();
 
   // Plan screen state
-  bool _showPlanScreen = true;
+  bool _showPlanScreen = false;
   String? _selectedPlan;
   String? _selectedPeriod;
   int? _selectedPlanPrice;
@@ -349,6 +349,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
             : double.parse(_areaSqftController.text.trim()),
         imageUrls: allImageUrls,
         ownerId: widget.property.ownerId,
+        organizationId: widget.property.organizationId,
+        createdByUserId: widget.property.createdByUserId,
         ownerName: widget.property.ownerName,
         ownerEmail: widget.property.ownerEmail,
         companyName: _companyNameController.text.trim(),

@@ -1,24 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum AdTier {
-  basic,
-  premium,
-  firstPlaceRotational,
-}
+enum AdTier { basic, premium, firstPlaceRotational }
 
-enum ProjectStatus {
-  underConstruction,
-  offPlan,
-}
+enum ProjectStatus { underConstruction, offPlan }
 
-enum Currency {
-  UGX,
-  USD,
-  EUR,
-  GBP,
-  ZAR,
-  KES,
-}
+enum Currency { UGX, USD, EUR, GBP, ZAR, KES }
 
 class Project {
   final String id;
@@ -26,6 +12,8 @@ class Project {
   final String description;
   final List<String> imageUrls;
   final String developerId;
+  final String? organizationId;
+  final String? createdByUserId;
   final String developerName;
   final String location;
   final AdTier adTier;
@@ -56,6 +44,8 @@ class Project {
     required this.description,
     required this.imageUrls,
     required this.developerId,
+    this.organizationId,
+    this.createdByUserId,
     required this.developerName,
     required this.location,
     required this.adTier,
@@ -89,6 +79,8 @@ class Project {
       description: data['description'] ?? '',
       imageUrls: List<String>.from(data['imageUrls'] ?? []),
       developerId: data['developerId'] ?? '',
+      organizationId: data['organizationId'],
+      createdByUserId: data['createdByUserId'],
       developerName: data['developerName'] ?? '',
       location: data['location'] ?? '',
       adTier: AdTier.values.firstWhere(
@@ -98,7 +90,9 @@ class Project {
       isFirstPlaceSubscriber: data['isFirstPlaceSubscriber'] ?? false,
       paymentAmount: (data['paymentAmount'] ?? 0).toDouble(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      adExpiresAt: (data['adExpiresAt'] as Timestamp?)?.toDate() ?? DateTime.now().add(const Duration(days: 30)),
+      adExpiresAt:
+          (data['adExpiresAt'] as Timestamp?)?.toDate() ??
+          DateTime.now().add(const Duration(days: 30)),
       isApproved: data['isApproved'] ?? false,
       contactPhone: data['contactPhone'],
       contactEmail: data['contactEmail'],
@@ -130,6 +124,8 @@ class Project {
       'description': description,
       'imageUrls': imageUrls,
       'developerId': developerId,
+      'organizationId': organizationId,
+      'createdByUserId': createdByUserId,
       'developerName': developerName,
       'location': location,
       'adTier': adTier.toString().split('.').last,
@@ -162,6 +158,8 @@ class Project {
     String? description,
     List<String>? imageUrls,
     String? developerId,
+    String? organizationId,
+    String? createdByUserId,
     String? developerName,
     String? location,
     AdTier? adTier,
@@ -192,10 +190,13 @@ class Project {
       description: description ?? this.description,
       imageUrls: imageUrls ?? this.imageUrls,
       developerId: developerId ?? this.developerId,
+      organizationId: organizationId ?? this.organizationId,
+      createdByUserId: createdByUserId ?? this.createdByUserId,
       developerName: developerName ?? this.developerName,
       location: location ?? this.location,
       adTier: adTier ?? this.adTier,
-      isFirstPlaceSubscriber: isFirstPlaceSubscriber ?? this.isFirstPlaceSubscriber,
+      isFirstPlaceSubscriber:
+          isFirstPlaceSubscriber ?? this.isFirstPlaceSubscriber,
       paymentAmount: paymentAmount ?? this.paymentAmount,
       createdAt: createdAt ?? this.createdAt,
       adExpiresAt: adExpiresAt ?? this.adExpiresAt,
@@ -210,7 +211,8 @@ class Project {
       priceDescriptor: priceDescriptor ?? this.priceDescriptor,
       currency: currency ?? this.currency,
       bookingDeposit: bookingDeposit ?? this.bookingDeposit,
-      bookingDepositDescription: bookingDepositDescription ?? this.bookingDepositDescription,
+      bookingDepositDescription:
+          bookingDepositDescription ?? this.bookingDepositDescription,
       developerTagline: developerTagline ?? this.developerTagline,
       operationalAreas: operationalAreas ?? this.operationalAreas,
       companyIconUrl: companyIconUrl ?? this.companyIconUrl,

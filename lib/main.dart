@@ -193,6 +193,10 @@ class AuthenticationWrapper extends StatelessWidget {
                 return const LaunchLoadingScreen();
               }
 
+              if (userSnapshot.hasError) {
+                return const LaunchLoadingScreen();
+              }
+
               if (userSnapshot.hasData && userSnapshot.data!.exists) {
                 final userData = userSnapshot.data!.data() as Map<String, dynamic>;
                 
@@ -205,10 +209,17 @@ class AuthenticationWrapper extends StatelessWidget {
                   activeRole = userData['role'] as String?;
                 }
 
+                // Recover from partially-migrated profiles where activeRole is missing
+                if (activeRole == null || activeRole.trim().isEmpty) {
+                  final roles = userData['roles'];
+                  if (roles is List && roles.isNotEmpty) {
+                    activeRole = roles.first.toString();
+                  }
+                }
+
                 // Check if role exists
-                if (activeRole == null) {
-                  // User has no role assigned, sign out
-                  FirebaseAuth.instance.signOut();
+                if (activeRole == null || activeRole.trim().isEmpty) {
+                  // Keep session alive and route safely to customer flow.
                   return Scaffold(
                     body: Center(
                       child: Column(
@@ -224,10 +235,13 @@ class AuthenticationWrapper extends StatelessWidget {
                           const Text('Your account is missing required information.'),
                           const SizedBox(height: 16),
                           ElevatedButton(
-                            onPressed: () {
-                              // Navigate back to welcome
-                            },
-                            child: const Text('Back to Login'),
+                              onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (context) => const CustomerHomeScreen(),
+                                ),
+                                (route) => false,
+                              ),
+                              child: const Text('Back to Login'),
                           ),
                         ],
                       ),
@@ -244,7 +258,6 @@ class AuthenticationWrapper extends StatelessWidget {
                   default:
                     // Admin users should use the admin portal
                     if (activeRole == 'admin') {
-                      FirebaseAuth.instance.signOut();
                       return Scaffold(
                         body: Center(
                           child: Column(
@@ -277,8 +290,7 @@ class AuthenticationWrapper extends StatelessWidget {
                 }
               }
 
-              // User data not found, log out and show welcome screen
-              FirebaseAuth.instance.signOut();
+              // Keep auth session; profile may still be syncing/being created.
               return const WelcomeScreen();
             },
           );

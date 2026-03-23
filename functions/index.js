@@ -215,6 +215,80 @@ exports.sendVerificationEmailHttp = functions.https.onCall(async (data, context)
   }
 });
 
+// Callable function to send enterprise team invite code emails
+exports.sendTeamInviteCodeEmail = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const email = (data?.email || '').toString().trim().toLowerCase();
+  const code = (data?.code || '').toString().trim();
+  const organizationName = (data?.organizationName || 'Enterprise Workspace').toString().trim();
+  const role = (data?.role || 'viewer').toString().trim();
+
+  if (!email || !code) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email and code are required');
+  }
+
+  const roleLabelMap = {
+    owner: 'Owner',
+    admin: 'Admin',
+    lister: 'Lister',
+    viewer: 'Viewer',
+  };
+  const roleLabel = roleLabelMap[role] || 'Viewer';
+
+  const mailOptions = {
+    from: `True Home <${functions.config().email?.user || 'noreply@truehome.com'}>`,
+    to: email,
+    subject: `Your ${organizationName} Team Invite Code`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #222; margin: 0; padding: 0; }
+          .wrap { max-width: 620px; margin: 0 auto; padding: 20px; }
+          .header { background: #1f5ebf; color: #fff; padding: 22px; border-radius: 10px 10px 0 0; }
+          .content { background: #f8fbff; padding: 24px; border-radius: 0 0 10px 10px; border: 1px solid #e2ebf8; }
+          .code-box { margin: 18px 0; background: #fff; border: 2px dashed #1f5ebf; border-radius: 8px; padding: 14px; text-align: center; }
+          .code { font-size: 34px; font-weight: bold; letter-spacing: 8px; color: #1f5ebf; font-family: 'Courier New', monospace; }
+          .meta { color: #4b5563; font-size: 14px; }
+          .warning { margin-top: 14px; background: #fff7ed; border-left: 4px solid #fb923c; padding: 10px 12px; font-size: 13px; color: #7c2d12; }
+        </style>
+      </head>
+      <body>
+        <div class="wrap">
+          <div class="header">
+            <h2 style="margin: 0;">True Home Team Invite</h2>
+          </div>
+          <div class="content">
+            <p>You have been invited to join <strong>${organizationName}</strong> on True Home.</p>
+            <p class="meta">Assigned role: <strong>${roleLabel}</strong></p>
+            <div class="code-box">
+              <div style="color:#6b7280; font-size: 13px; margin-bottom: 6px;">Invite Verification Code</div>
+              <div class="code">${code}</div>
+            </div>
+            <p>Open <strong>Company Invites</strong> in the app, select this invite, and enter the code to join.</p>
+            <div class="warning">
+              This code is required to accept the invite securely. If you did not expect this invite, ignore this email.
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return { success: true, message: 'Team invite email sent successfully' };
+  } catch (error) {
+    console.error('Error sending team invite email:', error);
+    throw new functions.https.HttpsError('internal', 'Failed to send team invite email');
+  }
+});
+
 // Automatically notify hostel custodians when a new reservation is created.
 exports.onReservationCreatedNotifyCustodian = functions.firestore
   .document('reservations/{reservationId}')
