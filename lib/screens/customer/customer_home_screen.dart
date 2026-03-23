@@ -772,6 +772,85 @@ class _HomeTabState extends State<HomeTab> {
     });
   }
 
+  String _normalizeSearchText(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  bool _matchesSearchTerm(String searchTerm, List<String?> fields) {
+    if (searchTerm.isEmpty) return true;
+    final normalizedSearch = _normalizeSearchText(searchTerm);
+    if (normalizedSearch.isEmpty) return true;
+
+    final terms = normalizedSearch.split(' ').where((t) => t.isNotEmpty).toList();
+    for (final field in fields) {
+      final normalizedField = _normalizeSearchText(field ?? '');
+      if (normalizedField.isEmpty) continue;
+
+      if (normalizedField.contains(normalizedSearch)) {
+        return true;
+      }
+
+      final allTermsMatch = terms.every((term) => normalizedField.contains(term));
+      if (allTermsMatch) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool _isPropertyApproved(Map<String, dynamic> data) {
+    final statusRaw = data['status'];
+    if (statusRaw is String) {
+      final normalizedStatus = statusRaw
+          .toLowerCase()
+          .replaceAll('propertystatus.', '')
+          .trim();
+      if (normalizedStatus == 'approved') return true;
+      if (normalizedStatus == 'pending' ||
+          normalizedStatus == 'rejected' ||
+          normalizedStatus == 'removed') {
+        return false;
+      }
+    }
+
+    final isApprovedRaw = data['isApproved'];
+    if (isApprovedRaw is bool) {
+      return isApprovedRaw;
+    }
+
+    // Keep backward compatibility for older docs without explicit status.
+    return true;
+  }
+
+  bool _isProjectApproved(Map<String, dynamic> data) {
+    final isApprovedRaw = data['isApproved'];
+    if (isApprovedRaw is bool) {
+      return isApprovedRaw;
+    }
+
+    final statusRaw = data['status'];
+    if (statusRaw is String) {
+      final normalizedStatus = statusRaw
+          .toLowerCase()
+          .replaceAll('projectstatus.', '')
+          .trim();
+      if (normalizedStatus == 'approved') return true;
+      if (normalizedStatus == 'pending' ||
+          normalizedStatus == 'rejected' ||
+          normalizedStatus == 'removed') {
+        return false;
+      }
+    }
+
+    // Keep backward compatibility for older docs without explicit status.
+    return true;
+  }
+
   Future<void> _performSearch() async {
     setState(() {
       _isSearchActive = true;
@@ -785,7 +864,7 @@ class _HomeTabState extends State<HomeTab> {
 
     try {
       List<dynamic> results = [];
-      final searchTerm = _searchController.text.toLowerCase().trim();
+      final searchTerm = _searchController.text.trim();
 
       print('🔍 COMPREHENSIVE SEARCH:');
       print('   Search Term: "$searchTerm"');
@@ -796,33 +875,37 @@ class _HomeTabState extends State<HomeTab> {
       try {
         final projectSnapshot = await FirebaseFirestore.instance
             .collection('advertised_projects')
+            .where('isApproved', isEqualTo: true)
             .get();
 
         print('   📦 Total projects in DB: ${projectSnapshot.docs.length}');
 
         for (var doc in projectSnapshot.docs) {
           try {
+            final projectData = doc.data();
+            if (projectData['isDeleted'] == true) {
+              continue;
+            }
+
             final project = Project.fromFirestore(doc);
 
-            // Check approval - be lenient, default to true if not set
-            bool isApproved = doc.get('isApproved') as bool? ?? true;
-
-            if (!isApproved) {
+            if (!_isProjectApproved(projectData)) {
               continue; // Skip unapproved projects
             }
 
             // Match search term
-            bool matchesSearch = true;
-            if (searchTerm.isNotEmpty) {
-              matchesSearch =
-                  project.name.toLowerCase().contains(searchTerm) ||
-                  project.description.toLowerCase().contains(searchTerm) ||
-                  project.location.toLowerCase().contains(searchTerm) ||
-                  project.developerName.toLowerCase().contains(searchTerm) ||
-                  project.customerVisibleDeveloperName
-                      .toLowerCase()
-                      .contains(searchTerm);
-            }
+            final matchesSearch = _matchesSearchTerm(searchTerm, [
+              project.name,
+              project.description,
+              project.location,
+              project.developerName,
+              project.customerVisibleDeveloperName,
+              projectData['operationalAreas'] is List
+                  ? (projectData['operationalAreas'] as List)
+                        .whereType<String>()
+                        .join(' ')
+                  : null,
+            ]);
 
             if (matchesSearch) {
               print(
@@ -846,6 +929,8 @@ class _HomeTabState extends State<HomeTab> {
       try {
         final propertySnapshot = await FirebaseFirestore.instance
             .collection('properties')
+            .where('status', isEqualTo: 'approved')
+            .where('isActive', isEqualTo: true)
             .get();
 
         print('   🏠 Total properties in DB: ${propertySnapshot.docs.length}');
@@ -855,13 +940,11 @@ class _HomeTabState extends State<HomeTab> {
             final data = doc.data();
             data['id'] = doc.id;
 
-            // Check if property should be shown - be lenient with defaults
-            bool isApproved =
-                (data['status'] as String? ?? '').toLowerCase() == 'approved';
+            // Check if property should be shown.
+            final isApproved = _isPropertyApproved(data);
             bool isActive = data['isActive'] as bool? ?? true;
 
-            // Show property if approved OR if we have no status info at all (default to showing)
-            if (!isApproved && (data['status'] != null)) {
+            if (!isApproved) {
               print('   ⏭️ Property not approved (status: ${data['status']})');
               continue;
             }
@@ -874,14 +957,15 @@ class _HomeTabState extends State<HomeTab> {
             final property = PropertyModel.fromJson(data);
 
             // Match search term
-            bool matchesSearch = true;
-            if (searchTerm.isNotEmpty) {
-              matchesSearch =
-                  property.title.toLowerCase().contains(searchTerm) ||
-                  property.description.toLowerCase().contains(searchTerm) ||
-                  property.location.toLowerCase().contains(searchTerm) ||
-                  (property.address.toLowerCase().contains(searchTerm));
-            }
+            final matchesSearch = _matchesSearchTerm(searchTerm, [
+              property.title,
+              property.description,
+              property.location,
+              property.address,
+              property.category,
+              property.type.name,
+              property.university,
+            ]);
 
             // Match filters if any
             if (matchesSearch) {
@@ -5709,22 +5793,28 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
   Future<void> _loadProjectsForLocation(String location) async {
     if (!mounted) return;
 
+    final normalizedLocation = location.trim().toLowerCase();
+    final isAllAreas =
+        normalizedLocation == 'all' || normalizedLocation == 'all areas';
+    final selectedLocation = isAllAreas ? 'All' : location;
+
     // Prevent reload if same location and already has data
-    if (_selectedProjectLocation == location && _locationProjects.isNotEmpty) {
+    if (_selectedProjectLocation == selectedLocation &&
+        _locationProjects.isNotEmpty) {
       return;
     }
 
     // Update selection and set loading state before querying.
     setState(() {
-      _selectedProjectLocation = location;
+      _selectedProjectLocation = selectedLocation;
       _loadingProjects = true;
     });
 
-    final projects = location == 'All'
+    final projects = isAllAreas
         ? await _projectService
               .getAllApprovedProjects() // Get all projects
         : await _projectService.getProjectsByLocation(
-            location,
+            selectedLocation,
           ); // Get projects for specific location
 
     if (mounted) {

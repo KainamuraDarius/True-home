@@ -11,14 +11,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 class MyProjectsScreen extends StatefulWidget {
   final bool isTabView;
-  
+
   const MyProjectsScreen({super.key, this.isTabView = false});
 
   @override
   State<MyProjectsScreen> createState() => _MyProjectsScreenState();
 }
 
-class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerProviderStateMixin {
+class _MyProjectsScreenState extends State<MyProjectsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _projectService = ProjectService();
 
@@ -37,22 +38,24 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: widget.isTabView ? null : AppBar(
-        title: const Text('My Project Advertisements'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: 'Pending'),
-            Tab(text: 'Approved'),
-            Tab(text: 'All'),
-          ],
-        ),
-      ),
+      appBar: widget.isTabView
+          ? null
+          : AppBar(
+              title: const Text('My Project Advertisements'),
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              bottom: TabBar(
+                controller: _tabController,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+                indicatorColor: Colors.white,
+                tabs: const [
+                  Tab(text: 'Pending'),
+                  Tab(text: 'Approved'),
+                  Tab(text: 'All'),
+                ],
+              ),
+            ),
       body: Column(
         children: [
           // Show tabs in body when in tab view mode
@@ -81,20 +84,22 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SubmitProjectScreen(),
-                  ),
-                ).then((_) => setState(() {}));
-              },
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('New Project'),
-              heroTag: 'newProjectFAB',
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SubmitProjectScreen(),
             ),
+          );
+          if (!mounted) return;
+          setState(() {});
+        },
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('New Project'),
+        heroTag: 'newProjectFAB',
+      ),
     );
   }
 
@@ -132,12 +137,9 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
                   status == 'pending'
                       ? 'No pending projects'
                       : status == 'approved'
-                          ? 'No approved projects'
-                          : 'No projects yet',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey.shade600,
-                  ),
+                      ? 'No approved projects'
+                      : 'No projects yet',
+                  style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -166,26 +168,32 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
         .where('developerId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-      final sortedDocs = [...snapshot.docs]
-        ..sort((a, b) {
-          final aData = a.data();
-          final bData = b.data();
-          final aDate = _resolveProjectSortDate(aData, status);
-          final bDate = _resolveProjectSortDate(bData, status);
-          return bDate.compareTo(aDate);
-        });
+          final activeDocs = snapshot.docs
+              .where((doc) => doc.data()['isDeleted'] != true)
+              .toList();
 
-      final projects = sortedDocs.map((doc) => Project.fromFirestore(doc)).toList();
-      
-      // Filter by status
-      if (status == 'pending') {
-        return projects.where((p) => !p.isApproved).toList();
-      } else if (status == 'approved') {
-        return projects.where((p) => p.isApproved).toList();
-      }
-      
-      return projects;
-    });
+          final sortedDocs = [...activeDocs]
+            ..sort((a, b) {
+              final aData = a.data();
+              final bData = b.data();
+              final aDate = _resolveProjectSortDate(aData, status);
+              final bDate = _resolveProjectSortDate(bData, status);
+              return bDate.compareTo(aDate);
+            });
+
+          final projects = sortedDocs
+              .map((doc) => Project.fromFirestore(doc))
+              .toList();
+
+          // Filter by status
+          if (status == 'pending') {
+            return projects.where((p) => !p.isApproved).toList();
+          } else if (status == 'approved') {
+            return projects.where((p) => p.isApproved).toList();
+          }
+
+          return projects;
+        });
   }
 
   DateTime _resolveProjectSortDate(Map<String, dynamic> data, String status) {
@@ -197,7 +205,8 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
       if (updatedDate != null) return updatedDate;
     }
 
-    return _parseFirestoreDate(data['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return _parseFirestoreDate(data['createdAt']) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   DateTime? _parseFirestoreDate(dynamic value) {
@@ -224,7 +233,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
   Widget _buildProjectCard(Project project) {
     final daysRemaining = project.adExpiresAt.difference(DateTime.now()).inDays;
     final isExpired = daysRemaining < 0;
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -233,7 +242,9 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
           // Image
           if (project.imageUrls.isNotEmpty)
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               child: CachedNetworkImage(
                 imageUrl: project.imageUrls.first,
                 height: 240,
@@ -290,7 +301,11 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
                 // Location
                 Row(
                   children: [
-                    Icon(Icons.location_on, size: 16, color: Colors.grey.shade600),
+                    Icon(
+                      Icons.location_on,
+                      size: 16,
+                      color: Colors.grey.shade600,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       project.location,
@@ -322,8 +337,16 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStat(Icons.visibility, 'Views', project.viewCount.toString()),
-                      _buildStat(Icons.touch_app, 'Clicks', project.clickCount.toString()),
+                      _buildStat(
+                        Icons.visibility,
+                        'Views',
+                        project.viewCount.toString(),
+                      ),
+                      _buildStat(
+                        Icons.touch_app,
+                        'Clicks',
+                        project.clickCount.toString(),
+                      ),
                       _buildStat(
                         Icons.calendar_today,
                         isExpired ? 'Expired' : 'Days Left',
@@ -367,7 +390,11 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.orange.shade700,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -394,7 +421,11 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.warning_amber, color: Colors.red.shade700, size: 20),
+                        Icon(
+                          Icons.warning_amber,
+                          color: Colors.red.shade700,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -507,25 +538,25 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isExpired 
-            ? Colors.red.shade100 
-            : isApproved 
-                ? Colors.green.shade100 
-                : Colors.orange.shade100,
+        color: isExpired
+            ? Colors.red.shade100
+            : isApproved
+            ? Colors.green.shade100
+            : Colors.orange.shade100,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isExpired 
-            ? 'EXPIRED' 
-            : isApproved 
-                ? 'APPROVED' 
-                : 'PENDING',
+        isExpired
+            ? 'EXPIRED'
+            : isApproved
+            ? 'APPROVED'
+            : 'PENDING',
         style: TextStyle(
-          color: isExpired 
-              ? Colors.red.shade700 
-              : isApproved 
-                  ? Colors.green.shade700 
-                  : Colors.orange.shade700,
+          color: isExpired
+              ? Colors.red.shade700
+              : isApproved
+              ? Colors.green.shade700
+              : Colors.orange.shade700,
           fontSize: 12,
           fontWeight: FontWeight.bold,
         ),
@@ -581,17 +612,11 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> with SingleTickerPr
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade600,
-          ),
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
       ],
     );

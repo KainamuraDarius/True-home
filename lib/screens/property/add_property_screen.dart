@@ -4,7 +4,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
+import 'dart:convert';
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
@@ -20,7 +23,8 @@ class AddPropertyScreen extends StatefulWidget {
   State<AddPropertyScreen> createState() => _AddPropertyScreenState();
 }
 
-class _AddPropertyScreenState extends State<AddPropertyScreen> {
+class _AddPropertyScreenState extends State<AddPropertyScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   bool _showPlanScreen = true;
   String? _selectedPlan;
@@ -65,14 +69,12 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
   bool _requestSpotlightPromotion = false;
-  // Promotional Add-ons
-  bool _requestFeaturedPromotion = false;
-  bool _requestDeveloperAdvertising = false;
   bool _agreedToAgentTerms = false;
   String _areaUnit = 'sqft';
   String _currency = 'UGX';
   double _uploadProgress = 0.0;
   String _uploadStatus = '';
+  Timer? _autoSaveTimer;
 
   // Amenities
   final List<String> _selectedAmenities = [];
@@ -112,10 +114,179 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         _bathroomsController.clear();
       }
     });
+    _saveDraft();
+  }
+
+  String get _draftKey {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
+    return 'add_property_draft_v1_$uid';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _restoreDraft();
+    _autoSaveTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _saveDraft();
+    });
+  }
+
+  PropertyType _parsePropertyType(String? value) {
+    if (value == null || value.isEmpty) return _selectedType;
+    for (final type in PropertyType.values) {
+      if (type.name == value || type.toString().split('.').last == value) {
+        return type;
+      }
+    }
+    return _selectedType;
+  }
+
+  Future<void> _saveDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final draft = <String, dynamic>{
+        'savedAt': DateTime.now().millisecondsSinceEpoch,
+        'showPlanScreen': _showPlanScreen,
+        'selectedPlan': _selectedPlan,
+        'selectedPeriod': _selectedPeriod,
+        'selectedPlanPrice': _selectedPlanPrice,
+        'title': _titleController.text,
+        'selectedCategory': _selectedCategory,
+        'description': _descriptionController.text,
+        'price': _priceController.text,
+        'location': _locationController.text,
+        'fullAddress': _fullAddressController.text,
+        'bedrooms': _bedroomsController.text,
+        'bathrooms': _bathroomsController.text,
+        'areaSqft': _areaSqftController.text,
+        'contactPhone': _contactPhoneController.text,
+        'whatsappPhone': _whatsappPhoneController.text,
+        'contactEmail': _contactEmailController.text,
+        'companyName': _companyNameController.text,
+        'agentName': _agentNameController.text,
+        'selectedType': _selectedType.name,
+        'requestSpotlightPromotion': _requestSpotlightPromotion,
+        'agreedToAgentTerms': _agreedToAgentTerms,
+        'areaUnit': _areaUnit,
+        'currency': _currency,
+        'selectedAmenities': _selectedAmenities,
+        'selectedImagePaths': _selectedImages.map((e) => e.path).toList(),
+      };
+      await prefs.setString(_draftKey, jsonEncode(draft));
+    } catch (e) {
+      debugPrint('Error saving add property draft: $e');
+    }
+  }
+
+  Future<void> _restoreDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawDraft = prefs.getString(_draftKey);
+      if (rawDraft == null || rawDraft.isEmpty) {
+        return;
+      }
+
+      final decoded = jsonDecode(rawDraft);
+      if (decoded is! Map<String, dynamic>) return;
+
+      _titleController.text = decoded['title']?.toString() ?? '';
+      _descriptionController.text = decoded['description']?.toString() ?? '';
+      _priceController.text = decoded['price']?.toString() ?? '';
+      _locationController.text = decoded['location']?.toString() ?? '';
+      _fullAddressController.text = decoded['fullAddress']?.toString() ?? '';
+      _bedroomsController.text = decoded['bedrooms']?.toString() ?? '';
+      _bathroomsController.text = decoded['bathrooms']?.toString() ?? '';
+      _areaSqftController.text = decoded['areaSqft']?.toString() ?? '';
+      _contactPhoneController.text = decoded['contactPhone']?.toString() ?? '';
+      _whatsappPhoneController.text = decoded['whatsappPhone']?.toString() ?? '';
+      _contactEmailController.text = decoded['contactEmail']?.toString() ?? '';
+      _companyNameController.text = decoded['companyName']?.toString() ?? '';
+      _agentNameController.text = decoded['agentName']?.toString() ?? '';
+
+      final restoredType = _parsePropertyType(
+        decoded['selectedType']?.toString(),
+      );
+      final restoredCategory = decoded['selectedCategory']?.toString();
+      final imagePaths = (decoded['selectedImagePaths'] as List?)
+              ?.whereType<String>()
+              .toList() ??
+          const <String>[];
+      final restoredImages = kIsWeb
+          ? <XFile>[]
+          : imagePaths.map((path) => XFile(path)).toList();
+      final restoredAmenities = (decoded['selectedAmenities'] as List?)
+              ?.whereType<String>()
+              .toList() ??
+          const <String>[];
+
+      if (!mounted) return;
+
+      setState(() {
+        _showPlanScreen = decoded['showPlanScreen'] as bool? ?? _showPlanScreen;
+        _selectedPlan = decoded['selectedPlan']?.toString();
+        _selectedPeriod = decoded['selectedPeriod']?.toString();
+        _selectedPlanPrice = (decoded['selectedPlanPrice'] as num?)?.toInt();
+        _selectedType = restoredType;
+        _selectedCategory = _availableCategories.contains(restoredCategory)
+            ? restoredCategory!
+            : _availableCategories.first;
+        _requestSpotlightPromotion =
+            decoded['requestSpotlightPromotion'] as bool? ??
+            _requestSpotlightPromotion;
+        _agreedToAgentTerms =
+            decoded['agreedToAgentTerms'] as bool? ?? _agreedToAgentTerms;
+        _areaUnit = decoded['areaUnit']?.toString() ?? _areaUnit;
+        _currency = decoded['currency']?.toString() ?? _currency;
+        _selectedAmenities
+          ..clear()
+          ..addAll(restoredAmenities);
+        _selectedImages
+          ..clear()
+          ..addAll(restoredImages);
+      });
+
+      if (_titleController.text.trim().isNotEmpty ||
+          _descriptionController.text.trim().isNotEmpty ||
+          _selectedImages.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Draft restored. You can continue from where you stopped.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint('Error restoring add property draft: $e');
+    }
+  }
+
+  Future<void> _clearDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_draftKey);
+    } catch (e) {
+      debugPrint('Error clearing add property draft: $e');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _saveDraft();
+    }
   }
 
   @override
   void dispose() {
+    _autoSaveTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _saveDraft();
     _titleController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
@@ -156,9 +327,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         );
       }
 
-      final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 95,
-      );
+      final List<XFile> images = await _picker.pickMultiImage(imageQuality: 95);
 
       if (images.isNotEmpty) {
         final totalImages = _selectedImages.length + images.length;
@@ -194,13 +363,16 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
             ),
           );
         }
+        await _saveDraft();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error picking images: $e'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking images: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -209,6 +381,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     setState(() {
       _selectedImages.removeAt(index);
     });
+    _saveDraft();
   }
 
   Future<Uint8List> _getThumbnail(XFile image) async {
@@ -241,7 +414,11 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     final maxHeight = isMobileWeb ? 1600 : 2560;
     final quality = isMobileWeb ? 85 : 92;
 
-    for (int batchStart = 0; batchStart < totalImages; batchStart += batchSize) {
+    for (
+      int batchStart = 0;
+      batchStart < totalImages;
+      batchStart += batchSize
+    ) {
       final batchEnd = (batchStart + batchSize).clamp(0, totalImages);
       final batch = _selectedImages.sublist(batchStart, batchEnd);
 
@@ -260,7 +437,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
             print('Processing image ${index + 1}/$totalImages');
             final bytes = await image.readAsBytes();
             print(
-                'Original size: ${(bytes.length / 1024).toStringAsFixed(1)} KB');
+              'Original size: ${(bytes.length / 1024).toStringAsFixed(1)} KB',
+            );
 
             img.Image? decodedImage = img.decodeImage(bytes);
             if (decodedImage == null) {
@@ -282,7 +460,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
             );
 
             print(
-                'Compressed size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB');
+              'Compressed size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB',
+            );
 
             final imageUrl = await StorageService.uploadImage(
               compressedBytes,
@@ -393,8 +572,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         }
       }
 
-      final propertyRef =
-          FirebaseFirestore.instance.collection('properties').doc();
+      final propertyRef = FirebaseFirestore.instance
+          .collection('properties')
+          .doc();
       final property = PropertyModel(
         id: propertyRef.id,
         title: _titleController.text,
@@ -405,29 +585,33 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         location: _locationController.text
             .trim()
             .split(' ')
-            .map((w) => w.isEmpty
-                ? ''
-                : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
+            .map(
+              (w) => w.isEmpty
+                  ? ''
+                  : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}',
+            )
             .join(' '),
         address: _fullAddressController.text.trim().isNotEmpty
             ? _fullAddressController.text.trim()
             : _locationController.text
-                .trim()
-                .split(' ')
-                .map((w) => w.isEmpty
-                    ? ''
-                    : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
-                .join(' '),
+                  .trim()
+                  .split(' ')
+                  .map(
+                    (w) => w.isEmpty
+                        ? ''
+                        : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}',
+                  )
+                  .join(' '),
         bedrooms: _bedroomsController.text.trim().isEmpty
             ? 0
             : (_selectedType == PropertyType.commercial
-                ? 0
-                : int.parse(_bedroomsController.text.trim())),
+                  ? 0
+                  : int.parse(_bedroomsController.text.trim())),
         bathrooms: _bathroomsController.text.trim().isEmpty
             ? 0
             : (_selectedType == PropertyType.commercial
-                ? 0
-                : int.parse(_bathroomsController.text.trim())),
+                  ? 0
+                  : int.parse(_bathroomsController.text.trim())),
         areaSqft: _areaSqftController.text.trim().isEmpty
             ? 0
             : double.parse(_areaSqftController.text.trim()),
@@ -449,13 +633,14 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         amenities: _selectedAmenities,
         university: null,
         roomTypes: const [],
-        featuredPromotion: _requestFeaturedPromotion,
-        developerAdvertising: _requestDeveloperAdvertising,
-        promotionRequested: _requestFeaturedPromotion,
+        featuredPromotion: false,
+        developerAdvertising: false,
+        promotionRequested: _requestSpotlightPromotion,
         inspectionFee: null,
       );
 
       await propertyRef.set(property.toJson());
+      await _clearDraft();
 
       setState(() {
         _uploadStatus = 'Notifying admins...';
@@ -653,8 +838,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(Icons.payment,
-                      color: Theme.of(context).colorScheme.primary),
+                  Icon(
+                    Icons.payment,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   const SizedBox(width: 12),
                   const Text('Confirm Payment'),
                 ],
@@ -667,10 +854,12 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     Text('Plan: ${_selectedPlan!.toUpperCase()}'),
                     const SizedBox(height: 8),
                     Text(
-                        'Period: ${_selectedPeriod == 'annual' ? 'Annual (Save 20%)' : 'Monthly'}'),
+                      'Period: ${_selectedPeriod == 'annual' ? 'Annual (Save 20%)' : 'Monthly'}',
+                    ),
                     const SizedBox(height: 8),
                     Text(
-                        'Amount: UGX ${_selectedPlanPrice!.toString().replaceAllMapped(RegExp(r"\B(?=(\d{3})+(?!\d))"), (match) => ",")}'),
+                      'Amount: UGX ${_selectedPlanPrice!.toString().replaceAllMapped(RegExp(r"\B(?=(\d{3})+(?!\d))"), (match) => ",")}',
+                    ),
                     const SizedBox(height: 16),
                     Form(
                       key: formKey,
@@ -708,13 +897,13 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                               'Agent Plan: ${_selectedPlan!.toUpperCase()} (${_selectedPeriod == 'annual' ? 'Annual' : 'Monthly'})';
 
                           try {
-                            final response =
-                                await _pandoraService.initiatePayment(
-                              phoneNumber: phoneController.text.trim(),
-                              amount: _selectedPlanPrice!.toDouble(),
-                              transactionRef: transactionRef,
-                              narrative: narrative,
-                            );
+                            final response = await _pandoraService
+                                .initiatePayment(
+                                  phoneNumber: phoneController.text.trim(),
+                                  amount: _selectedPlanPrice!.toDouble(),
+                                  transactionRef: transactionRef,
+                                  narrative: narrative,
+                                );
                             if (!response.success) {
                               throw PaymentException(response.message);
                             }
@@ -730,7 +919,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                       CircularProgressIndicator(),
                                       SizedBox(height: 16),
                                       Text(
-                                          'Check your phone to complete payment...'),
+                                        'Check your phone to complete payment...',
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -747,8 +937,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                    content: Text('Payment Error: $e'),
-                                    backgroundColor: Colors.red),
+                                  content: Text('Payment Error: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
                               );
                             }
                           } finally {
@@ -756,6 +947,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             if (paymentSuccess && context.mounted) {
                               Navigator.pop(context); // close payment dialog
                               setState(() => _showPlanScreen = false);
+                              _saveDraft();
                             }
                           }
                         },
@@ -782,6 +974,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         onCancel: () => Navigator.of(context).pop(),
         onSkip: () {
           setState(() => _showPlanScreen = false);
+          _saveDraft();
         },
         onPlanSelected: (plan, period, price) async {
           setState(() {
@@ -789,6 +982,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
             _selectedPeriod = period;
             _selectedPlanPrice = price;
           });
+          _saveDraft();
           await _showAgentPlanPaymentDialog(); // ✅ now safely callable
         },
       );
@@ -818,7 +1012,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             color: AppColors.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: AppColors.primary.withOpacity(0.3)),
+                              color: AppColors.primary.withOpacity(0.3),
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -843,15 +1038,20 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                               ),
                               const SizedBox(height: 12),
                               _buildInstructionItem(
-                                  'Fields marked with * are required'),
+                                'Fields marked with * are required',
+                              ),
                               _buildInstructionItem(
-                                  'Fields without * are optional'),
+                                'Fields without * are optional',
+                              ),
                               _buildInstructionItem(
-                                  'Provide accurate contact information'),
+                                'Provide accurate contact information',
+                              ),
                               _buildInstructionItem(
-                                  'Ensure phone numbers are active and correct'),
+                                'Ensure phone numbers are active and correct',
+                              ),
                               _buildInstructionItem(
-                                  'Add clear, high-quality property images'),
+                                'Add clear, high-quality property images',
+                              ),
                               const SizedBox(height: 8),
                               Container(
                                 padding: const EdgeInsets.all(12),
@@ -938,8 +1138,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           decoration: BoxDecoration(
                             color: Colors.purple.shade50,
                             borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: Colors.purple.shade200),
+                            border: Border.all(color: Colors.purple.shade200),
                           ),
                           child: Row(
                             children: [
@@ -985,10 +1184,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         DropdownButtonFormField<String>(
                           initialValue: _selectedCategory,
                           decoration: InputDecoration(
-                            labelText:
-                                _selectedType == PropertyType.commercial
-                                    ? 'Commercial Category *'
-                                    : 'Property Category *',
+                            labelText: _selectedType == PropertyType.commercial
+                                ? 'Commercial Category *'
+                                : 'Property Category *',
                             border: const OutlineInputBorder(),
                           ),
                           items: _availableCategories
@@ -1040,10 +1238,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                               child: TextFormField(
                                 controller: _priceController,
                                 decoration: InputDecoration(
-                                  labelText:
-                                      _selectedType == PropertyType.rent
-                                          ? 'Monthly Rent *'
-                                          : 'Price *',
+                                  labelText: _selectedType == PropertyType.rent
+                                      ? 'Monthly Rent *'
+                                      : 'Price *',
                                   border: const OutlineInputBorder(),
                                 ),
                                 keyboardType: TextInputType.number,
@@ -1069,9 +1266,13 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                 ),
                                 items: const [
                                   DropdownMenuItem(
-                                      value: 'UGX', child: Text('UGX')),
+                                    value: 'UGX',
+                                    child: Text('UGX'),
+                                  ),
                                   DropdownMenuItem(
-                                      value: 'USD', child: Text('USD')),
+                                    value: 'USD',
+                                    child: Text('USD'),
+                                  ),
                                 ],
                                 onChanged: (value) {
                                   setState(() {
@@ -1198,9 +1399,13 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                 ),
                                 items: const [
                                   DropdownMenuItem(
-                                      value: 'sqft', child: Text('sq ft')),
+                                    value: 'sqft',
+                                    child: Text('sq ft'),
+                                  ),
                                   DropdownMenuItem(
-                                      value: 'sqm', child: Text('sq m')),
+                                    value: 'sqm',
+                                    child: Text('sq m'),
+                                  ),
                                 ],
                                 onChanged: (String? value) {
                                   if (value != null) {
@@ -1280,7 +1485,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                               child: const Text(
                                 'Optional',
                                 style: TextStyle(
-                                    fontSize: 12, color: Colors.grey),
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
                               ),
                             ),
                           ],
@@ -1288,16 +1495,16 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         const SizedBox(height: 8),
                         const Text(
                           'Select amenities available at this property',
-                          style:
-                              TextStyle(fontSize: 14, color: Colors.grey),
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                         const SizedBox(height: 16),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: _availableAmenities.map((amenity) {
-                            final isSelected =
-                                _selectedAmenities.contains(amenity);
+                            final isSelected = _selectedAmenities.contains(
+                              amenity,
+                            );
                             return FilterChip(
                               label: Text(amenity),
                               selected: isSelected,
@@ -1310,8 +1517,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                   }
                                 });
                               },
-                              selectedColor:
-                                  AppColors.primary.withOpacity(0.2),
+                              selectedColor: AppColors.primary.withOpacity(0.2),
                               checkmarkColor: AppColors.primary,
                               labelStyle: TextStyle(
                                 color: isSelected
@@ -1430,21 +1636,19 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                 return Stack(
                                   children: [
                                     Container(
-                                      margin:
-                                          const EdgeInsets.only(right: 8),
+                                      margin: const EdgeInsets.only(right: 8),
                                       width: 120,
                                       height: 120,
                                       decoration: BoxDecoration(
-                                        borderRadius:
-                                            BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(8),
                                         color: Colors.grey.shade200,
                                       ),
                                       child: ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(8),
                                         child: FutureBuilder<Uint8List>(
                                           future: _getThumbnail(
-                                              _selectedImages[index]),
+                                            _selectedImages[index],
+                                          ),
                                           builder: (context, snapshot) {
                                             if (snapshot.hasData) {
                                               return Image.memory(
@@ -1465,8 +1669,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                                 height: 24,
                                                 child:
                                                     CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                ),
+                                                      strokeWidth: 2,
+                                                    ),
                                               ),
                                             );
                                           },
@@ -1507,12 +1711,11 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             _selectedImages.isEmpty
                                 ? 'Add Images (Up to 12)'
                                 : _selectedImages.length >= 12
-                                    ? 'Maximum 12 images reached'
-                                    : 'Add More Images (${12 - _selectedImages.length} remaining)',
+                                ? 'Maximum 12 images reached'
+                                : 'Add More Images (${12 - _selectedImages.length} remaining)',
                           ),
                           style: OutlinedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -1523,8 +1726,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           decoration: BoxDecoration(
                             color: Colors.orange.shade50,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.orange.shade200),
+                            border: Border.all(color: Colors.orange.shade200),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1559,14 +1761,12 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                 value: _requestSpotlightPromotion,
                                 onChanged: (value) {
                                   setState(() {
-                                    _requestSpotlightPromotion =
-                                        value ?? false;
+                                    _requestSpotlightPromotion = value ?? false;
                                   });
                                 },
                                 title: const Text(
                                   'Request Spotlight Promotion',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w600),
+                                  style: TextStyle(fontWeight: FontWeight.w600),
                                 ),
                                 subtitle: const Text(
                                   'Subject to admin approval',
@@ -1580,63 +1780,26 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        // Promotional Add-ons Section
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
+                            color: Colors.blue.shade50,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.orange.shade200),
+                            border: Border.all(color: Colors.blue.shade200),
                           ),
-                          child: Column(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.campaign,
-                                    color: Colors.orange.shade700,
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Promotional Add-ons',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.blue.shade700,
+                                size: 20,
                               ),
-                              const SizedBox(height: 8),
-                              CheckboxListTile(
-                                value: _requestFeaturedPromotion,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _requestFeaturedPromotion =
-                                        value ?? false;
-                                  });
-                                },
-                                title: const Text(
-                                    'Featured Property Promotion'),
-                                subtitle: const Text(
-                                  'UGX 200,000 / month · per property\nPin your listing to the top of search results in its area and category. Ideal for high-value properties or listings that need faster visibility.',
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              CheckboxListTile(
-                                value: _requestDeveloperAdvertising,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _requestDeveloperAdvertising =
-                                        value ?? false;
-                                  });
-                                },
-                                title: const Text(
-                                    'Developer Project Advertising'),
-                                subtitle: const Text(
-                                  'UGX 400,000 / month · per project\nShowcase an active construction or development project with dedicated exposure to buyers. Includes rich media display, full project description, and a direct call-to-action link to your sales team.',
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'Featured Property Promotion is available after approval from the My Properties page.',
+                                  style: TextStyle(fontSize: 13),
                                 ),
                               ),
                             ],
@@ -1673,15 +1836,13 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                       color: AppColors.textPrimary,
                                     ),
                                     children: [
-                                      const TextSpan(
-                                          text: 'I agree to the '),
+                                      const TextSpan(text: 'I agree to the '),
                                       TextSpan(
                                         text: 'Agent & Listing Agreement',
                                         style: TextStyle(
                                           color: Colors.orange.shade800,
                                           fontWeight: FontWeight.bold,
-                                          decoration:
-                                              TextDecoration.underline,
+                                          decoration: TextDecoration.underline,
                                         ),
                                       ),
                                     ],
@@ -1709,8 +1870,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                     ),
                                   );
                                 },
-                                icon: const Icon(Icons.article_outlined,
-                                    size: 18),
+                                icon: const Icon(
+                                  Icons.article_outlined,
+                                  size: 18,
+                                ),
                                 label: const Text('Read Agreement'),
                                 style: TextButton.styleFrom(
                                   foregroundColor: Colors.orange.shade800,
@@ -1727,13 +1890,13 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                             value: _uploadProgress,
                             backgroundColor: Colors.grey.shade200,
                             valueColor: const AlwaysStoppedAnimation<Color>(
-                                AppColors.primary),
+                              AppColors.primary,
+                            ),
                             minHeight: 6,
                           ),
                           const SizedBox(height: 8),
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Flexible(
                                 child: Text(
@@ -1762,21 +1925,17 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed:
-                                (_agreedToAgentTerms && !_isLoading)
-                                    ? _submitProperty
-                                    : null,
+                            onPressed: (_agreedToAgentTerms && !_isLoading)
+                                ? _submitProperty
+                                : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 16),
-                              disabledBackgroundColor:
-                                  Colors.grey.shade300,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              disabledBackgroundColor: Colors.grey.shade300,
                             ),
                             child: _isLoading
                                 ? Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       const SizedBox(
                                         height: 20,
@@ -1785,7 +1944,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                                           strokeWidth: 2,
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
-                                                  Colors.white),
+                                                Colors.white,
+                                              ),
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -1844,9 +2004,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                               value: _uploadProgress,
                               strokeWidth: 12,
                               backgroundColor: Colors.grey.shade200,
-                              valueColor:
-                                  const AlwaysStoppedAnimation<Color>(
-                                      AppColors.primary),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.primary,
+                              ),
                             ),
                           ),
                           Column(
@@ -1904,11 +2064,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.check_circle_outline,
-            color: AppColors.primary,
-            size: 18,
-          ),
+          Icon(Icons.check_circle_outline, color: AppColors.primary, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

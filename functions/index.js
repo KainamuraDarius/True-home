@@ -8,11 +8,13 @@ const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const fetch = require('node-fetch');
 const pandoraPayment = require('./pandora_payment');
+const pandoraPaymentStatus = require('./pandora_payment_status');
 
 admin.initializeApp();
 
 // Register the payment function
 exports.pandoraPayment = pandoraPayment.pandoraPayment;
+exports.pandoraPaymentStatus = pandoraPaymentStatus.pandoraPaymentStatus;
 
 // Configure email transporter
 // For Gmail: Enable 2FA and create an App Password

@@ -16,10 +16,7 @@ import '../../services/pandora_payment_service.dart';
 class EditPropertyScreen extends StatefulWidget {
   final PropertyModel property;
 
-  const EditPropertyScreen({
-    super.key,
-    required this.property,
-  });
+  const EditPropertyScreen({super.key, required this.property});
 
   @override
   State<EditPropertyScreen> createState() => _EditPropertyScreenState();
@@ -49,11 +46,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
   final List<String> _existingImageUrls = [];
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
-
-  // Promotional Add-ons
-  bool _requestSpotlightPromotion = false;
-  bool _requestFeaturedPromotion = false;
-  bool _requestDeveloperAdvertising = false;
 
   // Plan screen state
   bool _showPlanScreen = true;
@@ -94,12 +86,15 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
     _priceController.text = widget.property.price.toString();
     _locationController.text = widget.property.location;
     _addressController.text = widget.property.address;
-    _bedroomsController.text =
-        widget.property.bedrooms > 0 ? widget.property.bedrooms.toString() : '';
-    _bathroomsController.text =
-        widget.property.bathrooms > 0 ? widget.property.bathrooms.toString() : '';
-    _areaSqftController.text =
-        widget.property.areaSqft > 0 ? widget.property.areaSqft.toString() : '';
+    _bedroomsController.text = widget.property.bedrooms > 0
+        ? widget.property.bedrooms.toString()
+        : '';
+    _bathroomsController.text = widget.property.bathrooms > 0
+        ? widget.property.bathrooms.toString()
+        : '';
+    _areaSqftController.text = widget.property.areaSqft > 0
+        ? widget.property.areaSqft.toString()
+        : '';
     _contactPhoneController.text = widget.property.contactPhone;
     _whatsappPhoneController.text = widget.property.whatsappPhone;
     _contactEmailController.text = widget.property.contactEmail;
@@ -110,9 +105,6 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
     _currency = widget.property.currency;
     _existingImageUrls.addAll(widget.property.imageUrls);
     _selectedAmenities.addAll(widget.property.amenities);
-    _requestSpotlightPromotion = widget.property.promotionRequested;
-    _requestFeaturedPromotion = widget.property.featuredPromotion ?? false;
-    _requestDeveloperAdvertising = widget.property.developerAdvertising ?? false;
   }
 
   @override
@@ -137,9 +129,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 95,
-      );
+      final List<XFile> images = await _picker.pickMultiImage(imageQuality: 95);
       if (images.isNotEmpty) {
         final totalImages = _totalImageCount + images.length;
         if (totalImages > 20) {
@@ -147,7 +137,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                    'You can only upload up to 20 images. Currently: $_totalImageCount, Selected: ${images.length}'),
+                  'You can only upload up to 20 images. Currently: $_totalImageCount, Selected: ${images.length}',
+                ),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -166,9 +157,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking images: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error picking images: $e')));
       }
     }
   }
@@ -195,7 +186,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
     for (int i = 0; i < _newImages.length; i++) {
       try {
-        print('Uploading image ${i + 1}/${_newImages.length} to Firebase Storage');
+        print(
+          'Uploading image ${i + 1}/${_newImages.length} to Firebase Storage',
+        );
         final file = File(_newImages[i].path);
         final bytes = await file.readAsBytes();
         print('Original image size: ${bytes.length} bytes');
@@ -230,13 +223,16 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
         print('Compressed image size: ${compressedBytes.length} bytes');
 
-        final imageUrl =
-            await StorageService.uploadImage(compressedBytes, folder: 'properties');
+        final imageUrl = await StorageService.uploadImage(
+          compressedBytes,
+          folder: 'properties',
+        );
 
         if (imageUrl != null) {
           imageUrls.add(imageUrl);
           print(
-              'Successfully uploaded image ${i + 1} to Firebase Storage: $imageUrl');
+            'Successfully uploaded image ${i + 1} to Firebase Storage: $imageUrl',
+          );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -272,7 +268,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
     }
 
     print(
-        'Successfully uploaded ${imageUrls.length}/${_newImages.length} images to Firebase Storage');
+      'Successfully uploaded ${imageUrls.length}/${_newImages.length} images to Firebase Storage',
+    );
     return imageUrls;
   }
 
@@ -313,7 +310,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                  '${newlyUploadedUrls.length} of ${_newImages.length} new images uploaded successfully'),
+                '${newlyUploadedUrls.length} of ${_newImages.length} new images uploaded successfully',
+              ),
               backgroundColor: Colors.orange,
             ),
           );
@@ -333,9 +331,11 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         location: _locationController.text
             .trim()
             .split(' ')
-            .map((w) => w.isEmpty
-                ? ''
-                : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
+            .map(
+              (w) => w.isEmpty
+                  ? ''
+                  : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}',
+            )
             .join(' '),
         address: _addressController.text.trim(),
         bedrooms: _bedroomsController.text.trim().isEmpty
@@ -363,9 +363,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         amenities: _selectedAmenities,
         university: widget.property.university,
         roomTypes: widget.property.roomTypes,
-        featuredPromotion: _requestFeaturedPromotion,
-        developerAdvertising: _requestDeveloperAdvertising,
-        promotionRequested: _requestFeaturedPromotion,
+        featuredPromotion: widget.property.featuredPromotion,
+        developerAdvertising: widget.property.developerAdvertising,
+        promotionRequested: widget.property.promotionRequested,
       );
 
       await FirebaseFirestore.instance
@@ -418,8 +418,10 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(Icons.payment,
-                      color: Theme.of(context).colorScheme.primary),
+                  Icon(
+                    Icons.payment,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   const SizedBox(width: 12),
                   const Text('Confirm Payment'),
                 ],
@@ -432,10 +434,12 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     Text('Plan: ${_selectedPlan!.toUpperCase()}'),
                     const SizedBox(height: 8),
                     Text(
-                        'Period: ${_selectedPeriod == 'annual' ? 'Annual (Save 20%)' : 'Monthly'}'),
+                      'Period: ${_selectedPeriod == 'annual' ? 'Annual (Save 20%)' : 'Monthly'}',
+                    ),
                     const SizedBox(height: 8),
                     Text(
-                        'Amount: UGX ${_selectedPlanPrice!.toString().replaceAllMapped(RegExp(r"\B(?=(\d{3})+(?!\d))"), (match) => ",")}'),
+                      'Amount: UGX ${_selectedPlanPrice!.toString().replaceAllMapped(RegExp(r"\B(?=(\d{3})+(?!\d))"), (match) => ",")}',
+                    ),
                     const SizedBox(height: 16),
                     Form(
                       key: formKey,
@@ -457,8 +461,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      _isPaying ? null : () => Navigator.pop(context),
+                  onPressed: _isPaying ? null : () => Navigator.pop(context),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -474,13 +477,13 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                               'Agent Plan: ${_selectedPlan!.toUpperCase()} (${_selectedPeriod == 'annual' ? 'Annual' : 'Monthly'})';
 
                           try {
-                            final response =
-                                await _pandoraService.initiatePayment(
-                              phoneNumber: phoneController.text.trim(),
-                              amount: _selectedPlanPrice!.toDouble(),
-                              transactionRef: transactionRef,
-                              narrative: narrative,
-                            );
+                            final response = await _pandoraService
+                                .initiatePayment(
+                                  phoneNumber: phoneController.text.trim(),
+                                  amount: _selectedPlanPrice!.toDouble(),
+                                  transactionRef: transactionRef,
+                                  narrative: narrative,
+                                );
                             if (!response.success) {
                               throw PaymentException(response.message);
                             }
@@ -496,7 +499,8 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                                       CircularProgressIndicator(),
                                       SizedBox(height: 16),
                                       Text(
-                                          'Check your phone to complete payment...'),
+                                        'Check your phone to complete payment...',
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -513,8 +517,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                    content: Text('Payment Error: $e'),
-                                    backgroundColor: Colors.red),
+                                  content: Text('Payment Error: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
                               );
                             }
                           } finally {
@@ -577,8 +582,10 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     // Property Type
                     const Text(
                       'Property Type',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -619,8 +626,11 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline,
-                              color: Colors.purple.shade700, size: 20),
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.purple.shade700,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -706,9 +716,13 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             ),
                             items: const [
                               DropdownMenuItem(
-                                  value: 'UGX', child: Text('UGX')),
+                                value: 'UGX',
+                                child: Text('UGX'),
+                              ),
                               DropdownMenuItem(
-                                  value: 'USD', child: Text('USD')),
+                                value: 'USD',
+                                child: Text('USD'),
+                              ),
                             ],
                             onChanged: (value) {
                               setState(() {
@@ -822,8 +836,10 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     const Divider(height: 32),
                     const Text(
                       'Agent Information',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -868,20 +884,23 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                         const Text(
                           'Amenities',
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Text(
                             'Optional',
-                            style:
-                                TextStyle(fontSize: 12, color: Colors.grey),
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
                           ),
                         ),
                       ],
@@ -896,8 +915,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: _availableAmenities.map((amenity) {
-                        final isSelected =
-                            _selectedAmenities.contains(amenity);
+                        final isSelected = _selectedAmenities.contains(amenity);
                         return FilterChip(
                           label: Text(amenity),
                           selected: isSelected,
@@ -910,8 +928,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                               }
                             });
                           },
-                          selectedColor:
-                              AppColors.primary.withOpacity(0.2),
+                          selectedColor: AppColors.primary.withOpacity(0.2),
                           checkmarkColor: AppColors.primary,
                           labelStyle: TextStyle(
                             color: isSelected
@@ -930,8 +947,10 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     const Divider(height: 32),
                     const Text(
                       'Contact Information',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -998,7 +1017,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                         const Text(
                           'Property Images',
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
                           '$_totalImageCount/12',
@@ -1019,9 +1040,10 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       const Text(
                         'Existing Images',
                         style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       SizedBox(
@@ -1033,16 +1055,15 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             return Stack(
                               children: [
                                 Container(
-                                  margin:
-                                      const EdgeInsets.only(right: 8),
+                                  margin: const EdgeInsets.only(right: 8),
                                   width: 120,
                                   height: 120,
                                   decoration: BoxDecoration(
-                                    borderRadius:
-                                        BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(8),
                                     image: DecorationImage(
                                       image: NetworkImage(
-                                          _existingImageUrls[index]),
+                                        _existingImageUrls[index],
+                                      ),
                                       fit: BoxFit.cover,
                                     ),
                                   ),
@@ -1051,8 +1072,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                                   top: 4,
                                   right: 12,
                                   child: GestureDetector(
-                                    onTap: () =>
-                                        _removeExistingImage(index),
+                                    onTap: () => _removeExistingImage(index),
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: const BoxDecoration(
@@ -1080,9 +1100,10 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                       const Text(
                         'New Images to Upload',
                         style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       SizedBox(
@@ -1094,16 +1115,15 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                             return Stack(
                               children: [
                                 Container(
-                                  margin:
-                                      const EdgeInsets.only(right: 8),
+                                  margin: const EdgeInsets.only(right: 8),
                                   width: 120,
                                   height: 120,
                                   decoration: BoxDecoration(
-                                    borderRadius:
-                                        BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(8),
                                     image: DecorationImage(
                                       image: FileImage(
-                                          File(_newImages[index].path)),
+                                        File(_newImages[index].path),
+                                      ),
                                       fit: BoxFit.cover,
                                     ),
                                   ),
@@ -1136,77 +1156,42 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     ],
 
                     OutlinedButton.icon(
-                      onPressed:
-                          _totalImageCount >= 12 ? null : _pickImages,
+                      onPressed: _totalImageCount >= 12 ? null : _pickImages,
                       icon: const Icon(Icons.add_photo_alternate),
-                      label: Text(_totalImageCount == 0
-                          ? 'Add Images (Up to 12)'
-                          : _totalImageCount >= 12
-                              ? 'Maximum 12 images reached'
-                              : 'Add More Images (${12 - _totalImageCount} remaining)'),
+                      label: Text(
+                        _totalImageCount == 0
+                            ? 'Add Images (Up to 12)'
+                            : _totalImageCount >= 12
+                            ? 'Maximum 12 images reached'
+                            : 'Add More Images (${12 - _totalImageCount} remaining)',
+                      ),
                       style: OutlinedButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Promotional Add-ons Section
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
+                        color: Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: Colors.orange.shade200),
+                        border: Border.all(color: Colors.blue.shade200),
                       ),
-                      child: Column(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.campaign,
-                                color: Colors.orange.shade700,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Promotional Add-ons',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.blue.shade700,
+                            size: 20,
                           ),
-                          const SizedBox(height: 8),
-                          CheckboxListTile(
-                            value: _requestFeaturedPromotion,
-                            onChanged: (value) {
-                              setState(() {
-                                _requestFeaturedPromotion =
-                                    value ?? false;
-                              });
-                            },
-                            title:
-                                const Text('Featured Property Promotion'),
-                            subtitle: const Text(
-                                'UGX 200,000 / month · per property\nPin your listing to the top of search results in its area and category. Ideal for high-value properties or listings that need faster visibility.'),
-                          ),
-                          const SizedBox(height: 8),
-                          CheckboxListTile(
-                            value: _requestDeveloperAdvertising,
-                            onChanged: (value) {
-                              setState(() {
-                                _requestDeveloperAdvertising =
-                                    value ?? false;
-                              });
-                            },
-                            title: const Text(
-                                'Developer Project Advertising'),
-                            subtitle: const Text(
-                                'UGX 400,000 / month · per project\nShowcase an active construction or development project with dedicated exposure to buyers. Includes rich media display, full project description, and a direct call-to-action link to your sales team.'),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Featured Property Promotion can be activated from the My Properties page after payment.',
+                              style: TextStyle(fontSize: 13),
+                            ),
                           ),
                         ],
                       ),
@@ -1220,8 +1205,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                         onPressed: _updateProperty,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                         child: const Text(
                           'Update Property',

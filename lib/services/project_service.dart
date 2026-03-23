@@ -75,6 +75,7 @@ class ProjectService {
 
       // Filter approved and non-expired projects in memory
       List<Project> projects = querySnapshot.docs
+          .where((doc) => doc.data()['isDeleted'] != true)
           .map((doc) => Project.fromFirestore(doc))
           .where(
           (p) =>
@@ -114,6 +115,10 @@ class ProjectService {
       
       for (var doc in querySnapshot.docs) {
         final data = doc.data();
+
+        if (data['isDeleted'] == true) {
+          continue;
+        }
         
         // Filter by expiry date in memory
         if (data['location'] != null && data['adExpiresAt'] != null) {
@@ -207,7 +212,39 @@ class ProjectService {
 
   // Get all approved projects
   Future<List<Project>> getAllApprovedProjects() async {
-    return getAllProjects(isApproved: true);
+    try {
+      final querySnapshot = await _firestore
+          .collection('advertised_projects')
+          .where('isApproved', isEqualTo: true)
+          .get();
+
+      final now = DateTime.now();
+      final projects = querySnapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            if (data['isDeleted'] == true) {
+              return false;
+            }
+
+            final expiresAtRaw = data['adExpiresAt'];
+            if (expiresAtRaw is Timestamp) {
+              return expiresAtRaw.toDate().isAfter(now);
+            }
+
+            return true;
+          })
+          .map((doc) => Project.fromFirestore(doc))
+          .toList();
+
+      projects.shuffle(_random);
+      return projects;
+    } catch (e) {
+      if (_isNetworkFirestoreError(e)) {
+        throw ProjectServiceException.network();
+      }
+      print('Error fetching approved projects: $e');
+      return [];
+    }
   }
 
   // Admin: Approve/reject project
