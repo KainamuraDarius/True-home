@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -38,7 +39,7 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
 
   String? _selectedUniversity;
   PricingPeriod _pricingPeriod = PricingPeriod.month;
-  
+
   // Existing images from database
   List<String> _existingImages = [];
   // New images to upload
@@ -46,19 +47,36 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
   final Map<String, Uint8List> _newImageBytes = {};
   // Images to delete
   final List<String> _imagesToDelete = [];
-  
+
   bool _isLoading = false;
   bool _isAvailable = true;
   String _uploadStatus = '';
   double _uploadProgress = 0.0;
   final ImagePicker _picker = ImagePicker();
+  static const int _webMaxImageDimension = 1920;
+  static const int _mobileMaxImageDimension = 1400;
+  static const int _webJpegQuality = 92;
+  static const int _mobileJpegQuality = 86;
 
   // Amenities
   List<String> _selectedAmenities = [];
   final List<String> _availableAmenities = [
-    'Swimming Pool', 'Gym', 'Parking', 'Security', 'Garden', 'Balcony',
-    'Air Conditioning', 'Heating', 'Wi-Fi', 'Elevator', 'Backup Generator',
-    'Water Tank', 'CCTV', 'Playground', 'Laundry', 'Pets Allowed',
+    'Swimming Pool',
+    'Gym',
+    'Parking',
+    'Security',
+    'Garden',
+    'Balcony',
+    'Air Conditioning',
+    'Heating',
+    'Wi-Fi',
+    'Elevator',
+    'Backup Generator',
+    'Water Tank',
+    'CCTV',
+    'Playground',
+    'Laundry',
+    'Pets Allowed',
   ];
 
   // Room types
@@ -77,6 +95,25 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
     'Triple Room': false,
     'Shared Room': false,
   };
+
+  img.Image _resizeImageForUpload(img.Image image) {
+    final maxDimension = kIsWeb
+        ? _webMaxImageDimension
+        : _mobileMaxImageDimension;
+    final currentMaxDimension = image.width > image.height
+        ? image.width
+        : image.height;
+
+    if (currentMaxDimension <= maxDimension) {
+      return image;
+    }
+
+    if (image.width >= image.height) {
+      return img.copyResize(image, width: maxDimension);
+    }
+
+    return img.copyResize(image, height: maxDimension);
+  }
 
   @override
   void initState() {
@@ -111,9 +148,11 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
     _locationController.text = data['location'] ?? '';
     _addressController.text = data['address'] ?? '';
     _contactPhoneController.text = data['contactPhone'] ?? '';
-    _whatsappPhoneController.text = data['contactWhatsApp'] ?? data['whatsappPhone'] ?? '';
+    _whatsappPhoneController.text =
+        data['contactWhatsApp'] ?? data['whatsappPhone'] ?? '';
     _contactEmailController.text = data['contactEmail'] ?? '';
-    _hostelManagerNameController.text = data['hostelManagerName'] ?? data['agentName'] ?? '';
+    _hostelManagerNameController.text =
+        data['hostelManagerName'] ?? data['agentName'] ?? '';
     _paymentInstructionsController.text = data['paymentInstructions'] ?? '';
 
     _selectedUniversity = data['nearbyUniversity'] ?? data['university'];
@@ -137,8 +176,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
           final roomName = roomMap['name']?.toString();
           if (roomName != null && _selectedRoomTypes.containsKey(roomName)) {
             _selectedRoomTypes[roomName] = true;
-            _roomPriceControllers[roomName]?.text = (roomMap['price'] ?? 0).toString();
-            _roomCountControllers[roomName]?.text = (roomMap['totalRooms'] ?? roomMap['count'] ?? 0).toString();
+            _roomPriceControllers[roomName]?.text = (roomMap['price'] ?? 0)
+                .toString();
+            _roomCountControllers[roomName]?.text =
+                (roomMap['totalRooms'] ?? roomMap['count'] ?? 0).toString();
           }
         }
       }
@@ -149,11 +190,13 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
         final roomType = entry.key.toString();
         if (entry.value is Map) {
           final roomDataMap = Map<String, dynamic>.from(entry.value as Map);
-          
+
           if (_selectedRoomTypes.containsKey(roomType)) {
             _selectedRoomTypes[roomType] = true;
-            _roomPriceControllers[roomType]?.text = (roomDataMap['price'] ?? 0).toString();
-            _roomCountControllers[roomType]?.text = (roomDataMap['count'] ?? 0).toString();
+            _roomPriceControllers[roomType]?.text = (roomDataMap['price'] ?? 0)
+                .toString();
+            _roomCountControllers[roomType]?.text = (roomDataMap['count'] ?? 0)
+                .toString();
           }
         }
       }
@@ -186,7 +229,11 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
     try {
       final images = await _picker.pickMultiImage();
       if (images.isNotEmpty) {
-        final totalImages = _existingImages.length - _imagesToDelete.length + _newImages.length + images.length;
+        final totalImages =
+            _existingImages.length -
+            _imagesToDelete.length +
+            _newImages.length +
+            images.length;
         if (totalImages > 12) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -205,9 +252,9 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking images: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error picking images: $e')));
     }
   }
 
@@ -247,18 +294,16 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
         img.Image? image = img.decodeImage(bytes);
         if (image == null) continue;
 
-        // Resize if too large
-        if (image.width > 600 || image.height > 900) {
-          if (image.width > image.height) {
-            image = img.copyResize(image, width: 600);
-          } else {
-            image = img.copyResize(image, height: 900);
-          }
-        }
+        final processedImage = _resizeImageForUpload(image);
+        final jpegQuality = kIsWeb ? _webJpegQuality : _mobileJpegQuality;
+        final compressedBytes = Uint8List.fromList(
+          img.encodeJpg(processedImage, quality: jpegQuality),
+        );
+        final url = await StorageService.uploadImage(
+          compressedBytes,
+          folder: 'properties',
+        );
 
-        final compressedBytes = Uint8List.fromList(img.encodeJpg(image, quality: 55));
-        final url = await StorageService.uploadImage(compressedBytes, folder: 'properties');
-        
         if (url != null) {
           uploadedUrls.add(url);
           setState(() {
@@ -312,8 +357,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
       final List<Map<String, dynamic>> roomTypesList = [];
       for (final entry in _selectedRoomTypes.entries) {
         if (entry.value) {
-          final price = int.tryParse(_roomPriceControllers[entry.key]?.text ?? '0') ?? 0;
-          final count = int.tryParse(_roomCountControllers[entry.key]?.text ?? '0') ?? 0;
+          final price =
+              int.tryParse(_roomPriceControllers[entry.key]?.text ?? '0') ?? 0;
+          final count =
+              int.tryParse(_roomCountControllers[entry.key]?.text ?? '0') ?? 0;
           roomTypesList.add({
             'name': entry.key,
             'price': price,
@@ -385,7 +432,8 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeImageCount = _existingImages.length - _imagesToDelete.length + _newImages.length;
+    final activeImageCount =
+        _existingImages.length - _imagesToDelete.length + _newImages.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -463,11 +511,16 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                       items: universities.map((university) {
                         return DropdownMenuItem<String>(
                           value: university,
-                          child: Text(university, overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            university,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         );
                       }).toList(),
-                      onChanged: (value) => setState(() => _selectedUniversity = value),
-                      validator: (value) => value == null ? 'Please select a university' : null,
+                      onChanged: (value) =>
+                          setState(() => _selectedUniversity = value),
+                      validator: (value) =>
+                          value == null ? 'Please select a university' : null,
                     ),
                     const SizedBox(height: 16),
 
@@ -479,7 +532,9 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.home),
                       ),
-                      validator: (value) => value?.isEmpty == true ? 'Please enter hostel name' : null,
+                      validator: (value) => value?.isEmpty == true
+                          ? 'Please enter hostel name'
+                          : null,
                     ),
                     const SizedBox(height: 16),
 
@@ -492,7 +547,9 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                         alignLabelWithHint: true,
                       ),
                       maxLines: 4,
-                      validator: (value) => value?.isEmpty == true ? 'Please enter description' : null,
+                      validator: (value) => value?.isEmpty == true
+                          ? 'Please enter description'
+                          : null,
                     ),
                     const SizedBox(height: 16),
 
@@ -507,7 +564,8 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                               border: OutlineInputBorder(),
                               prefixIcon: Icon(Icons.location_on),
                             ),
-                            validator: (value) => value?.isEmpty == true ? 'Required' : null,
+                            validator: (value) =>
+                                value?.isEmpty == true ? 'Required' : null,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -528,7 +586,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                     const Divider(),
                     const Text(
                       'Contact Information',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -553,7 +614,8 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                               prefixIcon: Icon(Icons.phone),
                             ),
                             keyboardType: TextInputType.phone,
-                            validator: (value) => value?.isEmpty == true ? 'Required' : null,
+                            validator: (value) =>
+                                value?.isEmpty == true ? 'Required' : null,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -587,7 +649,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                     const Divider(),
                     const Text(
                       'Room Types & Pricing',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
 
@@ -600,7 +665,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                           label: const Text('Month'),
                           selected: _pricingPeriod == PricingPeriod.month,
                           onSelected: (selected) {
-                            if (selected) setState(() => _pricingPeriod = PricingPeriod.month);
+                            if (selected)
+                              setState(
+                                () => _pricingPeriod = PricingPeriod.month,
+                              );
                           },
                         ),
                         const SizedBox(width: 8),
@@ -608,7 +676,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                           label: const Text('Semester'),
                           selected: _pricingPeriod == PricingPeriod.semester,
                           onSelected: (selected) {
-                            if (selected) setState(() => _pricingPeriod = PricingPeriod.semester);
+                            if (selected)
+                              setState(
+                                () => _pricingPeriod = PricingPeriod.semester,
+                              );
                           },
                         ),
                       ],
@@ -623,7 +694,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                           title: Text(roomType),
                           value: _selectedRoomTypes[roomType],
                           onChanged: (value) {
-                            setState(() => _selectedRoomTypes[roomType] = value ?? false);
+                            setState(
+                              () =>
+                                  _selectedRoomTypes[roomType] = value ?? false,
+                            );
                           },
                           subtitle: _selectedRoomTypes[roomType] == true
                               ? Padding(
@@ -632,7 +706,8 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                     children: [
                                       Expanded(
                                         child: TextFormField(
-                                          controller: _roomPriceControllers[roomType],
+                                          controller:
+                                              _roomPriceControllers[roomType],
                                           decoration: const InputDecoration(
                                             labelText: 'Price (UGX)',
                                             border: OutlineInputBorder(),
@@ -644,7 +719,8 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: TextFormField(
-                                          controller: _roomCountControllers[roomType],
+                                          controller:
+                                              _roomCountControllers[roomType],
                                           decoration: const InputDecoration(
                                             labelText: 'Room Count',
                                             border: OutlineInputBorder(),
@@ -666,7 +742,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                     const Divider(),
                     const Text(
                       'Amenities',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
@@ -696,7 +775,8 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                       controller: _paymentInstructionsController,
                       decoration: const InputDecoration(
                         labelText: 'Payment Instructions (optional)',
-                        hintText: 'e.g., Mobile money number, bank details, etc.',
+                        hintText:
+                            'e.g., Mobile money number, bank details, etc.',
                         border: OutlineInputBorder(),
                         alignLabelWithHint: true,
                       ),
@@ -710,7 +790,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                       children: [
                         const Text(
                           'Hostel Photos',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const Spacer(),
                         Text(
@@ -731,16 +814,19 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
                         itemCount: _existingImages.length,
                         itemBuilder: (context, index) {
                           final url = _existingImages[index];
-                          final isMarkedForDeletion = _imagesToDelete.contains(url);
-                          
+                          final isMarkedForDeletion = _imagesToDelete.contains(
+                            url,
+                          );
+
                           return Stack(
                             fit: StackFit.expand,
                             children: [
@@ -748,14 +834,24 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: ColorFiltered(
                                   colorFilter: isMarkedForDeletion
-                                      ? const ColorFilter.mode(Colors.grey, BlendMode.saturation)
-                                      : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+                                      ? const ColorFilter.mode(
+                                          Colors.grey,
+                                          BlendMode.saturation,
+                                        )
+                                      : const ColorFilter.mode(
+                                          Colors.transparent,
+                                          BlendMode.multiply,
+                                        ),
                                   child: CachedNetworkImage(
                                     imageUrl: url,
                                     fit: BoxFit.cover,
                                     placeholder: (_, __) => Container(
                                       color: Colors.grey.shade200,
-                                      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
                                     ),
                                     errorWidget: (_, __, ___) => Container(
                                       color: Colors.grey.shade200,
@@ -772,8 +868,12 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                   ),
                                   child: Center(
                                     child: IconButton(
-                                      icon: const Icon(Icons.undo, color: Colors.white),
-                                      onPressed: () => _restoreExistingImage(url),
+                                      icon: const Icon(
+                                        Icons.undo,
+                                        color: Colors.white,
+                                      ),
+                                      onPressed: () =>
+                                          _restoreExistingImage(url),
                                     ),
                                   ),
                                 )
@@ -786,8 +886,13 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                     backgroundColor: Colors.red,
                                     child: IconButton(
                                       padding: EdgeInsets.zero,
-                                      icon: const Icon(Icons.close, size: 16, color: Colors.white),
-                                      onPressed: () => _removeExistingImage(url),
+                                      icon: const Icon(
+                                        Icons.close,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
+                                      onPressed: () =>
+                                          _removeExistingImage(url),
                                     ),
                                   ),
                                 ),
@@ -808,11 +913,12 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
                         itemCount: _newImages.length,
                         itemBuilder: (context, index) {
                           final bytes = _newImageBytes[_newImages[index].path];
@@ -823,7 +929,9 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: bytes != null
                                     ? Image.memory(bytes, fit: BoxFit.cover)
-                                    : const Center(child: CircularProgressIndicator()),
+                                    : const Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
                               ),
                               Positioned(
                                 top: 4,
@@ -833,7 +941,11 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                   backgroundColor: Colors.red,
                                   child: IconButton(
                                     padding: EdgeInsets.zero,
-                                    icon: const Icon(Icons.close, size: 16, color: Colors.white),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
                                     onPressed: () => _removeNewImage(index),
                                   ),
                                 ),
@@ -842,14 +954,20 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                 bottom: 4,
                                 left: 4,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.green,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: const Text(
                                     'NEW',
-                                    style: TextStyle(color: Colors.white, fontSize: 10),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -880,15 +998,24 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             children: [
-                              Text(_uploadStatus, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              Text(
+                                _uploadStatus,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                               const SizedBox(height: 12),
                               LinearProgressIndicator(
                                 value: _uploadProgress,
                                 backgroundColor: Colors.purple.shade100,
-                                valueColor: const AlwaysStoppedAnimation<Color>(Colors.purple),
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Colors.purple,
+                                ),
                               ),
                               const SizedBox(height: 8),
-                              Text('${(_uploadProgress * 100).toStringAsFixed(0)}%'),
+                              Text(
+                                '${(_uploadProgress * 100).toStringAsFixed(0)}%',
+                              ),
                             ],
                           ),
                         ),
@@ -911,11 +1038,17 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const Text(
                               'Save Changes',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                     ),
                     const SizedBox(height: 32),
