@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/property_model.dart';
 import '../../models/user_model.dart';
+import '../../widgets/agent_name_with_badge.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../auth/login_screen.dart';
@@ -140,7 +141,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       case GenderPolicy.femaleOnly:
         return Colors.pink;
       case GenderPolicy.mixed:
-        return Colors.purple;
+        return Colors.blue;
     }
   }
 
@@ -898,7 +899,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           ),
                                           label: const Text('Reserve Room'),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.purple,
+                                            backgroundColor: Colors.blue,
                                             foregroundColor: Colors.white,
                                             padding: const EdgeInsets.symmetric(
                                               vertical: 8,
@@ -1193,25 +1194,22 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                       const SizedBox(height: 8),
                                     },
                                     if (widget.property.agentName.isNotEmpty)
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.person_outline,
-                                            color: Colors.blue.shade600,
-                                            size: 18,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Text(
-                                              widget.property.agentName,
-                                              style: TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.blue.shade700,
-                                              ),
+                                      FutureBuilder<bool>(
+                                        future: _checkAgentVerificationStatus(),
+                                        builder: (context, snapshot) {
+                                          final isVerified = snapshot.data ?? false;
+                                          return AgentNameWithBadge(
+                                            name: widget.property.agentName,
+                                            isVerified: isVerified,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.blue.shade700,
                                             ),
-                                          ),
-                                        ],
+                                            iconColor: Colors.blue.shade600,
+                                            iconSize: 18,
+                                          );
+                                        },
                                       ),
                                     const SizedBox(height: 4),
                                     // Verified Badge - Only show if agent is verified
@@ -1280,29 +1278,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Show contact info for all properties
-                  if (widget.property.contactPhone.isNotEmpty)
-                    _buildContactCard(
-                      icon: Icons.phone,
-                      title: 'Phone',
-                      value: widget.property.contactPhone,
-                      onTap: () => _makePhoneCall(widget.property.contactPhone),
-                    ),
-                  if (widget.property.whatsappPhone.isNotEmpty)
-                    _buildContactCard(
-                      icon: Icons.chat,
-                      title: 'WhatsApp',
-                      value: widget.property.whatsappPhone,
-                      color: Colors.green,
-                      onTap: () => _openWhatsApp(widget.property.whatsappPhone),
-                    ),
-                  if (widget.property.contactEmail.isNotEmpty)
-                    _buildContactCard(
-                      icon: Icons.email,
-                      title: 'Email',
-                      value: widget.property.contactEmail,
-                      onTap: () => _sendEmail(widget.property.contactEmail),
-                    ),
+                  // Only show 'Contact Support' tab here. Custodian contact info is shown after reservation.
                   const SizedBox(height: 24),
 
                   // Inspection Fee Section (show if inspection fee is set and greater than 0)

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/property_model.dart';
 import '../../utils/app_theme.dart';
+import '../../widgets/agent_name_with_badge.dart';
 import '../property/property_details_screen.dart';
 
 class AgentProfileScreen extends StatefulWidget {
@@ -198,15 +199,18 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // Agent Name
-                        Text(
-                          widget.agentName,
+                        // Agent Name with Verification Badge
+                        AgentNameWithBadge(
+                          name: widget.agentName,
+                          isVerified: agentData?['isVerified'] == true,
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
-                          textAlign: TextAlign.center,
+                          iconColor: Colors.lightBlueAccent,
+                          iconSize: 26,
+                          alignment: MainAxisAlignment.center,
                         ),
                         const SizedBox(height: 8),
                         // Company Name

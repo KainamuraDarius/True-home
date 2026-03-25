@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/app_theme.dart';
+import '../../widgets/agent_name_with_badge.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   final bool embedded;
@@ -13,39 +14,57 @@ class AdminUsersScreen extends StatefulWidget {
 class _AdminUsersScreenState extends State<AdminUsersScreen> {
   final _firestore = FirebaseFirestore.instance;
   String _selectedFilter = 'all';
+  // Key to force StreamBuilder to rebuild
+  Key _userListKey = UniqueKey();
 
   @override
   Widget build(BuildContext context) {
     final content = Column(
-        children: [
-          // Filter Tabs
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('All Users', 'all'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Customers', 'customer'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Property Agents', 'propertyAgent'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Admins', 'admin'),
-                ],
+      children: [
+        // Filter Tabs and Refresh Button
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip('All Users', 'all'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Customers', 'customer'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Property Agents', 'propertyAgent'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Admins', 'admin'),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh user list',
+                onPressed: () {
+                  setState(() {
+                    _userListKey = UniqueKey();
+                  });
+                },
+              ),
+            ],
           ),
-          // Users List
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _selectedFilter == 'all'
-                  ? _firestore.collection('users').orderBy('createdAt', descending: true).snapshots()
-                  : _firestore
-                      .collection('users')
-                      .where('role', isEqualTo: _selectedFilter)
-                      .snapshots(),
-              builder: (context, snapshot) {
+        ),
+        // Users List
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            key: _userListKey,
+            stream: _selectedFilter == 'all'
+                ? _firestore.collection('users').orderBy('createdAt', descending: true).snapshots()
+                : _firestore
+                    .collection('users')
+                    .where('role', isEqualTo: _selectedFilter)
+                    .snapshots(),
+            builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(
                     child: Column(
@@ -192,12 +211,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           backgroundColor: roleColor.withOpacity(0.1),
           child: Icon(roleIcon, color: roleColor, size: 24),
         ),
-        title: Text(
-          data['name'] ?? 'Unknown',
+        title: AgentNameWithBadge(
+          name: data['name'] ?? 'Unknown',
+          isVerified: data['isVerified'] == true,
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
           ),
+          iconColor: Colors.lightBlueAccent,
+          iconSize: 18,
         ),
         subtitle: Text(
           data['email'] ?? '',

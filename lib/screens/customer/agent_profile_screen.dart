@@ -188,15 +188,32 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Agent Name
-                  Text(
-                    widget.agent.name,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    textAlign: TextAlign.center,
+                  // Agent Name with Verification Badge
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.agent.name,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (widget.agent.isVerified) ...[
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'Verified Agent',
+                          child: Icon(
+                            Icons.verified,
+                            color: Colors.lightBlueAccent,
+                            size: 26,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   
                   // Company Name

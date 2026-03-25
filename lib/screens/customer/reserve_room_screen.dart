@@ -732,14 +732,14 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                         const Icon(
                           Icons.school,
                           size: 16,
-                          color: Colors.purple,
+                          color: Colors.blue,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             widget.property.university ?? '',
                             style: TextStyle(
-                              color: Colors.purple.shade700,
+                              color: Colors.blue,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -910,49 +910,26 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
 
 
               // Phone Field with toggle
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _phoneController,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number for Payment *',
-                        prefixIcon: Icon(Icons.phone),
-                        border: OutlineInputBorder(),
-                        hintText: '+256...',
-                        helperText: 'This is your default number. You can use a different number for payment if needed.',
-                      ),
-                      readOnly: FirebaseAuth.instance.currentUser != null && !_useDifferentPaymentNumber,
-                      keyboardType: TextInputType.phone,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your phone number';
-                        }
-                        if (value.trim().length < 10) {
-                          return 'Please enter a valid phone number';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  if (FirebaseAuth.instance.currentUser != null)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: Column(
-                        children: [
-                          Switch(
-                            value: _useDifferentPaymentNumber,
-                            onChanged: (val) {
-                              setState(() {
-                                _useDifferentPaymentNumber = val;
-                              });
-                            },
-                          ),
-                          const Text('Change?'),
-                        ],
-                      ),
-                    ),
-                ],
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Phone Number for Payment *',
+                  prefixIcon: Icon(Icons.phone),
+                  border: OutlineInputBorder(),
+                  hintText: '+256...',
+                  helperText: 'Enter the number to receive the payment prompt.',
+                ),
+                readOnly: false,
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter your phone number';
+                  }
+                  if (value.trim().length < 10) {
+                    return 'Please enter a valid phone number';
+                  }
+                  return null;
+                },
               ),
 
               const SizedBox(height: 16),

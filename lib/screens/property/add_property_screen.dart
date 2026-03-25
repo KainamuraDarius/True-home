@@ -38,6 +38,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   final OrganizationAccessService _organizationAccessService =
       OrganizationAccessService();
   final _titleController = TextEditingController();
+  // Custom additions for commercial property flexibility
+  String? _customCategory;
+  String _rentalUnit = 'per day';
   String _selectedCategory = 'Flat';
   final List<String> _residentialCategories = const [
     'Flat',
@@ -419,91 +422,35 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
     final List<String> imageUrls = [];
     final totalImages = _selectedImages.length;
 
-    final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
-    final batchSize = isMobileWeb ? 1 : 3;
-    final maxWidth = isMobileWeb ? 1200 : 1920;
-    final maxHeight = isMobileWeb ? 1600 : 2560;
-    final quality = isMobileWeb ? 85 : 92;
-
-    for (
-      int batchStart = 0;
-      batchStart < totalImages;
-      batchStart += batchSize
-    ) {
-      final batchEnd = (batchStart + batchSize).clamp(0, totalImages);
-      final batch = _selectedImages.sublist(batchStart, batchEnd);
-
+    for (int i = 0; i < totalImages; i++) {
       setState(() {
-        _uploadProgress = (batchStart / totalImages);
-        _uploadStatus =
-            'Uploading images ${batchStart + 1}-$batchEnd of $totalImages...';
+        _uploadProgress = (i / totalImages);
+        _uploadStatus = 'Uploading image ${i + 1} of $totalImages...';
       });
 
-      final batchResults = await Future.wait(
-        batch.asMap().entries.map((entry) async {
-          final index = batchStart + entry.key;
-          final image = entry.value;
-
-          try {
-            print('Processing image ${index + 1}/$totalImages');
-            final bytes = await image.readAsBytes();
-            print(
-              'Original size: ${(bytes.length / 1024).toStringAsFixed(1)} KB',
-            );
-
-            img.Image? decodedImage = img.decodeImage(bytes);
-            if (decodedImage == null) {
-              print('Failed to decode image ${index + 1}');
-              return null;
-            }
-
-            if (decodedImage.width > maxWidth ||
-                decodedImage.height > maxHeight) {
-              if (decodedImage.width > decodedImage.height) {
-                decodedImage = img.copyResize(decodedImage, width: maxWidth);
-              } else {
-                decodedImage = img.copyResize(decodedImage, height: maxHeight);
-              }
-            }
-
-            final compressedBytes = Uint8List.fromList(
-              img.encodeJpg(decodedImage, quality: quality),
-            );
-
-            print(
-              'Compressed size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB',
-            );
-
-            final imageUrl = await StorageService.uploadImage(
-              compressedBytes,
-              folder: 'properties',
-            );
-
-            if (imageUrl != null) {
-              print('✅ Uploaded image ${index + 1}');
-              return imageUrl;
-            } else {
-              print('❌ Failed to upload image ${index + 1}');
-              return null;
-            }
-          } catch (e) {
-            print('❌ Error with image ${index + 1}: $e');
-            return null;
-          }
-        }),
-      );
-
-      for (var url in batchResults) {
-        if (url != null) {
-          imageUrls.add(url);
+      try {
+        final image = _selectedImages[i];
+        final bytes = await image.readAsBytes();
+        print('Uploading original image ${i + 1} (${(bytes.length / 1024).toStringAsFixed(1)} KB)');
+        final imageUrl = await StorageService.uploadImage(
+          bytes,
+          folder: 'properties',
+        );
+        if (imageUrl != null) {
+          print('✅ Uploaded image ${i + 1}');
+          imageUrls.add(imageUrl);
+        } else {
+          print('❌ Failed to upload image ${i + 1}');
         }
+      } catch (e) {
+        print('❌ Error with image ${i + 1}: $e');
       }
-
-      setState(() {
-        _uploadProgress = (batchEnd / totalImages);
-        _uploadStatus = 'Uploaded ${imageUrls.length} of $totalImages images';
-      });
     }
+
+    setState(() {
+      _uploadProgress = 1.0;
+      _uploadStatus = 'Uploaded ${imageUrls.length} of $totalImages images';
+    });
 
     print('✅ Upload complete: ${imageUrls.length}/$totalImages images');
     return imageUrls;
@@ -1274,37 +1221,68 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                         ),
                         const SizedBox(height: 16),
 
-                        // Category
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedCategory,
-                          decoration: InputDecoration(
-                            labelText: _selectedType == PropertyType.commercial
-                                ? 'Commercial Category *'
-                                : 'Property Category *',
-                            border: const OutlineInputBorder(),
-                          ),
-                          items: _availableCategories
-                              .map(
+                        // Category and custom category (if needed)
+                        ...[
+                          DropdownButtonFormField<String>(
+                            value: _selectedCategory,
+                            decoration: InputDecoration(
+                              labelText: _selectedType == PropertyType.commercial
+                                  ? 'Commercial Category *'
+                                  : 'Property Category *',
+                              border: const OutlineInputBorder(),
+                            ),
+                            style: const TextStyle(color: Colors.black),
+                            items: [
+                              ..._availableCategories.map(
                                 (category) => DropdownMenuItem<String>(
                                   value: category,
-                                  child: Text(category),
+                                  child: Text(category, style: const TextStyle(color: Colors.black)),
                                 ),
-                              )
-                              .toList(),
-                          onChanged: (value) {
-                            if (value != null) {
+                              ),
+                              if (_selectedType == PropertyType.commercial)
+                                const DropdownMenuItem<String>(
+                                  value: 'Other',
+                                  child: Text('Other', style: TextStyle(color: Colors.black)),
+                                ),
+                            ],
+                            onChanged: (value) {
                               setState(() {
-                                _selectedCategory = value;
+                                _selectedCategory = value!;
+                                if (value != 'Other') _customCategory = null;
                               });
-                            }
-                          },
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please select a category';
-                            }
-                            return null;
-                          },
-                        ),
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please select a category';
+                              }
+                              if (value == 'Other' && (_customCategory == null || _customCategory!.isEmpty)) {
+                                return 'Please enter a custom category';
+                              }
+                              return null;
+                            },
+                          ),
+                          if (_selectedType == PropertyType.commercial && _selectedCategory == 'Other')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: TextFormField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Custom Category',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _customCategory = val;
+                                  });
+                                },
+                                validator: (val) {
+                                  if (_selectedCategory == 'Other' && (val == null || val.isEmpty)) {
+                                    return 'Please enter a custom category';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                        ],
                         const SizedBox(height: 16),
 
                         // Description
@@ -1325,56 +1303,91 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                         const SizedBox(height: 16),
 
                         // Price with currency selector
-                        Row(
+                        Column(
                           children: [
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: _priceController,
-                                decoration: InputDecoration(
-                                  labelText: _selectedType == PropertyType.rent
-                                      ? 'Monthly Rent *'
-                                      : 'Price *',
-                                  border: const OutlineInputBorder(),
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: TextFormField(
+                                    controller: _priceController,
+                                    decoration: InputDecoration(
+                                      labelText: _selectedType == PropertyType.rent
+                                          ? 'Monthly Rent *'
+                                          : 'Price *',
+                                      border: const OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(fontSize: 14),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter price';
+                                      }
+                                      if (double.tryParse(value) == null) {
+                                        return 'Please enter a valid number';
+                                      }
+                                      return null;
+                                    },
+                                  ),
                                 ),
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter price';
-                                  }
-                                  if (double.tryParse(value) == null) {
-                                    return 'Please enter a valid number';
-                                  }
-                                  return null;
-                                },
-                              ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: DropdownButtonFormField<String>(
+                                    value: _currency,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Currency',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    style: const TextStyle(fontSize: 14),
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: 'UGX',
+                                        child: Text('UGX', style: TextStyle(fontSize: 14)),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'USD',
+                                        child: Text('USD', style: TextStyle(fontSize: 14)),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _currency = value!;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 1,
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _currency,
+                            if (_selectedType == PropertyType.commercial) ...[
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                value: _rentalUnit,
                                 decoration: const InputDecoration(
-                                  labelText: 'Currency',
+                                  labelText: 'Rental Unit',
                                   border: OutlineInputBorder(),
+                                  isDense: true,
                                 ),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'UGX',
-                                    child: Text('UGX'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'USD',
-                                    child: Text('USD'),
-                                  ),
-                                ],
+                                style: const TextStyle(fontSize: 14, color: Colors.black),
+                                items: [
+                                  'per hour',
+                                  'per day',
+                                  'per week',
+                                  'per month',
+                                  'per year',
+                                ].map((unit) => DropdownMenuItem(
+                                      value: unit,
+                                      child: Text(unit, style: const TextStyle(fontSize: 14, color: Colors.black)),
+                                    )).toList(),
                                 onChanged: (value) {
                                   setState(() {
-                                    _currency = value!;
+                                    _rentalUnit = value!;
                                   });
                                 },
                               ),
-                            ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 16),

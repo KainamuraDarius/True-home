@@ -19,6 +19,10 @@ class AgentRatingService {
         throw Exception('You must be logged in to rate an agent');
       }
 
+      if (currentUser.uid == agentId) {
+        throw Exception('You cannot rate yourself as an agent.');
+      }
+
       // Get customer info
       final customerDoc = await _firestore.collection('users').doc(currentUser.uid).get();
       final customerName = customerDoc.data()?['name'] ?? 'Anonymous';
@@ -51,13 +55,18 @@ class AgentRatingService {
         // Create new rating
         ratingData['id'] = '';
         ratingData['createdAt'] = now.toIso8601String();
-        
         final docRef = await _firestore.collection('agent_ratings').add(ratingData);
         await docRef.update({'id': docRef.id});
       }
 
       // Recalculate agent's average rating
       await _updateAgentRatingStats(agentId);
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        throw Exception('You do not have permission to rate this agent.');
+      } else {
+        throw Exception('Failed to submit rating: ${e.message}');
+      }
     } catch (e) {
       throw Exception('Failed to submit rating: $e');
     }
