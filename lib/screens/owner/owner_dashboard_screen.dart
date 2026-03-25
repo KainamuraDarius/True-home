@@ -17,6 +17,7 @@ import '../property/choose_plan_screen.dart';
 import '../common/submit_project_screen.dart';
 import '../common/my_projects_screen.dart';
 import 'verification_benefits_screen.dart';
+import '../plan/plan_benefits_screen.dart';
 import '../organization/enterprise_setup_screen.dart';
 import '../organization/team_management_screen.dart';
 import '../organization/plan_team_management_screen.dart';
@@ -32,13 +33,22 @@ class OwnerDashboardScreen extends StatefulWidget {
 }
 
 class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
+    // Returns true for agent or enterprise plan (active)
+    bool _hasActivePaidOrEnterprisePlan(Map<String, dynamic> userData) {
+      final selectedPlan = _resolveEffectivePlanId(userData);
+      final planStatus = _resolvePlanStatus(userData);
+      final isStatusActive = planStatus != 'inactive' &&
+          planStatus != 'expired' &&
+          planStatus != 'cancelled';
+      return (selectedPlan == 'agent' || selectedPlan == 'enterprise') && isStatusActive;
+    }
   final NotificationService _notificationService = NotificationService();
   final RoleService _roleService = RoleService();
   final PandoraPaymentService _pandoraService = PandoraPaymentService();
   int _unreadCount = 0;
   UserModel? _currentUser;
-  int _refreshKey = 0; // Used to force rebuild of verification banner
-  Map<String, int>? _cachedCounts; // Cache counts to avoid reloading
+  int _refreshKey = 0;
+  Map<String, int>? _cachedCounts;
   bool _isLoadingCounts = false;
   bool _isPayingPlan = false;
   bool _hasManagePlanAndTeamAccess = false;
@@ -46,8 +56,6 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Load counts immediately in background
     Future.microtask(() {
       _loadUnreadCount();
       _loadCurrentUser();
@@ -58,11 +66,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 
   Future<void> _loadCounts() async {
     if (_isLoadingCounts) return;
-
-    setState(() {
-      _isLoadingCounts = true;
-    });
-
+    setState(() => _isLoadingCounts = true);
     try {
       final counts = await _getCounts();
       if (mounted) {
@@ -73,11 +77,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       }
     } catch (e) {
       debugPrint('Error loading counts: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingCounts = false;
-        });
-      }
+      if (mounted) setState(() => _isLoadingCounts = false);
     }
   }
 
@@ -87,7 +87,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       if (mounted) {
         setState(() {
           _currentUser = user;
-          _refreshKey++; // Increment to force rebuild
+          _refreshKey++;
         });
       }
     } catch (e) {
@@ -99,31 +99,24 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
       final count = await _notificationService.getUnreadCount(userId);
-      if (mounted) {
-        setState(() {
-          _unreadCount = count;
-        });
-      }
+      if (mounted) setState(() => _unreadCount = count);
     }
   }
 
   Future<Map<String, int>> _getCounts() async {
     final userId = FirebaseAuth.instance.currentUser!.uid;
 
-    // Get total properties count and calculate total views
     final propertiesSnapshot = await FirebaseFirestore.instance
         .collection('properties')
         .where('ownerId', isEqualTo: userId)
         .get();
 
-    // Calculate total views across all properties
     int totalViews = 0;
     for (var doc in propertiesSnapshot.docs) {
       final data = doc.data();
       totalViews += (data['viewCount'] ?? 0) as int;
     }
 
-    // Get pending submissions count
     final pendingSnapshot = await FirebaseFirestore.instance
         .collection('properties')
         .where('ownerId', isEqualTo: userId)
@@ -225,9 +218,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   }
 
   String _resolveEffectivePlanId(Map<String, dynamic> userData) {
-    final activeOrganizationId = (userData['activeOrganizationId'] ?? '')
-        .toString()
-        .trim();
+    final activeOrganizationId =
+        (userData['activeOrganizationId'] ?? '').toString().trim();
     final rawPlan = _readString(userData, [
       'selectedPlan',
       'plan',
@@ -241,9 +233,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       rawPlan: rawPlan,
       activeOrganizationId: activeOrganizationId,
     );
-    if (normalized == 'agent' || normalized == 'enterprise') {
-      return normalized;
-    }
+    if (normalized == 'agent' || normalized == 'enterprise') return normalized;
 
     final explicitPaid = _readBool(userData, ['hasPaidPlan', 'isPlanActive']);
     final price = _readInt(userData, [
@@ -278,14 +268,12 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   bool _hasActivePaidPlan(Map<String, dynamic> userData) {
     final selectedPlan = _resolveEffectivePlanId(userData);
     final planStatus = _resolvePlanStatus(userData);
-
-    final isStatusActive =
-        planStatus != 'inactive' &&
-        planStatus != 'expired' &&
-        planStatus != 'cancelled';
-    final isPaidPlan = selectedPlan == 'agent' || selectedPlan == 'enterprise';
-
-    return isPaidPlan && isStatusActive;
+    final isStatusActive = planStatus != 'inactive' &&
+      planStatus != 'expired' &&
+      planStatus != 'cancelled';
+    // Only enterprise plan unlocks team features
+    final isEnterprisePlan = selectedPlan == 'enterprise';
+    return isEnterprisePlan && isStatusActive;
   }
 
   Future<bool> _loadPlanAccess() async {
@@ -298,9 +286,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           .doc(uid)
           .get();
       final userData = userDoc.data() ?? <String, dynamic>{};
-      final hasAccess = _hasActivePaidPlan(userData);
+      final hasEnterpriseAccess = _hasActivePaidPlan(userData);
+      final hasPaidAccess = _hasActivePaidOrEnterprisePlan(userData);
 
-      if (hasAccess && userData['isVerified'] != true) {
+      if (hasPaidAccess && userData['isVerified'] != true) {
         await FirebaseFirestore.instance.collection('users').doc(uid).update({
           'isVerified': true,
           'verificationStatus': 'approved',
@@ -309,12 +298,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         });
       }
 
-      if (mounted) {
-        setState(() {
-          _hasManagePlanAndTeamAccess = hasAccess;
-        });
-      }
-      return hasAccess;
+      if (mounted) setState(() => _hasManagePlanAndTeamAccess = hasEnterpriseAccess);
+      // Return paid access for agent/enterprise
+      return hasPaidAccess;
     } catch (e) {
       debugPrint('Error loading plan access: $e');
       return _hasManagePlanAndTeamAccess;
@@ -368,6 +354,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     if (action == 'openPlanChooser') {
       await _openPlanManagement();
       await _loadPlanAccess();
+    } else if (action == 'planCancelled') {
+      await _loadPlanAccess();
     }
   }
 
@@ -389,10 +377,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(
-                    Icons.payment,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+                  Icon(Icons.payment,
+                      color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: 12),
                   const Text('Confirm Payment'),
                 ],
@@ -432,9 +418,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: _isPayingPlan
-                      ? null
-                      : () => Navigator.pop(context),
+                  onPressed:
+                      _isPayingPlan ? null : () => Navigator.pop(context),
                   child: const Text('Cancel'),
                 ),
                 TextButton(
@@ -459,13 +444,13 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                               'Agent Plan: ${plan.toUpperCase()} (${(period == 'annual' || period == 'yearly') ? 'Yearly' : 'Monthly'})';
 
                           try {
-                            final response = await _pandoraService
-                                .initiatePayment(
-                                  phoneNumber: phoneController.text.trim(),
-                                  amount: price.toDouble(),
-                                  transactionRef: transactionRef,
-                                  narrative: narrative,
-                                );
+                            final response =
+                                await _pandoraService.initiatePayment(
+                              phoneNumber: phoneController.text.trim(),
+                              amount: price.toDouble(),
+                              transactionRef: transactionRef,
+                              narrative: narrative,
+                            );
                             if (!response.success) {
                               throw PaymentException(response.message);
                             }
@@ -481,8 +466,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                       CircularProgressIndicator(),
                                       SizedBox(height: 16),
                                       Text(
-                                        'Check your phone to complete payment...',
-                                      ),
+                                          'Check your phone to complete payment...'),
                                     ],
                                   ),
                                 ),
@@ -492,9 +476,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                             await Future.delayed(const Duration(seconds: 3));
                             paymentSuccess = true;
 
-                            if (context.mounted) {
-                              Navigator.pop(context); // Close waiting dialog
-                            }
+                            if (context.mounted) Navigator.pop(context);
                           } catch (e) {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -507,7 +489,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                           } finally {
                             setDialogState(() => _isPayingPlan = false);
                             if (paymentSuccess && context.mounted) {
-                              Navigator.pop(context); // Close payment dialog
+                              Navigator.pop(context);
                             }
                           }
                         },
@@ -529,101 +511,26 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     return paymentSuccess;
   }
 
+  // FIX: Properly closed method — _openEnterpriseWorkspace is no longer nested inside it.
   Future<void> _openPlanManagement() async {
-    await Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChoosePlanScreen(
-          onCancel: () => Navigator.of(context).pop(),
-          onSkip: () => Navigator.of(context).pop(),
-          onPlanSelected: (plan, period, price) async {
-            final alreadyActive = await _isPlanAlreadyActive(plan);
-            if (alreadyActive) {
-              if (!mounted) return;
-              Navigator.of(this.context).pop();
-
-              if (plan == 'enterprise') {
-                await _openEnterpriseWorkspace(requireSetupCompletion: false);
-              }
-
-              if (!mounted) return;
-              ScaffoldMessenger.of(this.context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '${plan.toUpperCase()} plan is already active.',
-                  ),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              return;
-            }
-
-            if (plan == 'free') {
-              await _saveSelectedPlan(plan: plan, period: period, price: price);
-              if (!mounted) return;
-              Navigator.of(this.context).pop();
-              ScaffoldMessenger.of(this.context).showSnackBar(
-                const SnackBar(
-                  content: Text('Starter plan selected.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              return;
-            }
-
-            if (plan == 'enterprise') {
-              if (!mounted) return;
-              Navigator.of(this.context).pop();
-
-              final workspaceReady = await _openEnterpriseWorkspace(
-                requireSetupCompletion: true,
-              );
-              if (!workspaceReady || !mounted) return;
-
-              final paymentSuccess = await _showPlanPaymentDialog(
-                plan: plan,
-                period: period,
-                price: price,
-              );
-              if (!paymentSuccess || !mounted) return;
-
-              await _saveSelectedPlan(plan: plan, period: period, price: price);
-              if (!mounted) return;
-
-              ScaffoldMessenger.of(this.context).showSnackBar(
-                const SnackBar(
-                  content: Text('Enterprise plan activated successfully.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              return;
-            }
-
-            final paymentSuccess = await _showPlanPaymentDialog(
-              plan: plan,
-              period: period,
-              price: price,
-            );
-            if (!paymentSuccess || !mounted) return;
-
-            await _saveSelectedPlan(plan: plan, period: period, price: price);
-            if (!mounted) return;
-
-            Navigator.of(this.context).pop();
-
-            ScaffoldMessenger.of(this.context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '${plan.toUpperCase()} plan activated successfully.',
-                ),
-                backgroundColor: Colors.green,
-              ),
-            );
-          },
-        ),
+        builder: (_) => PlanBenefitsScreen(),
       ),
     );
-  }
+    if (result == 'openPlanChooser') {
+      await _openPlanManagement();
+    }
+    // If plan was cancelled, reload plan access instantly
+    if (result == 'planCancelled') {
+      await _loadPlanAccess();
+      return;
+    }
+    // Wait briefly to ensure Firestore update propagates, then reload plan access
+    await Future.delayed(const Duration(milliseconds: 500));
+    await _loadPlanAccess();
+  } // ← FIX: closing brace that was missing
 
   Future<bool> _openEnterpriseWorkspace({
     required bool requireSetupCompletion,
@@ -635,9 +542,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         .collection('users')
         .doc(uid)
         .get();
-    final orgId = (userDoc.data()?['activeOrganizationId'] ?? '')
-        .toString()
-        .trim();
+    final orgId =
+        (userDoc.data()?['activeOrganizationId'] ?? '').toString().trim();
+
     if (orgId.isEmpty) {
       if (!mounted) return false;
       if (requireSetupCompletion) {
@@ -647,9 +554,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             builder: (_) => const EnterpriseSetupScreen(completeInFlow: true),
           ),
         );
-        if (setupFinished != true) {
-          return false;
-        }
+        if (setupFinished != true) return false;
       } else {
         await Navigator.push(
           context,
@@ -667,12 +572,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           final setupFinished = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
-              builder: (_) => const EnterpriseSetupScreen(completeInFlow: true),
+              builder: (_) =>
+                  const EnterpriseSetupScreen(completeInFlow: true),
             ),
           );
-          if (setupFinished != true) {
-            return false;
-          }
+          if (setupFinished != true) return false;
         } else {
           await Navigator.push(
             context,
@@ -680,9 +584,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           );
         }
       } else {
-        final orgName = (orgDoc.data()?['name'] ?? 'Enterprise Workspace')
-            .toString()
-            .trim();
+        final orgName =
+            (orgDoc.data()?['name'] ?? 'Enterprise Workspace').toString().trim();
         if (!mounted) return false;
         if (requireSetupCompletion) {
           final setupFinished = await Navigator.push<bool>(
@@ -690,25 +593,21 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             MaterialPageRoute(
               builder: (_) => TeamManagementScreen(
                 organizationId: orgId,
-                organizationName: orgName.isEmpty
-                    ? 'Enterprise Workspace'
-                    : orgName,
+                organizationName:
+                    orgName.isEmpty ? 'Enterprise Workspace' : orgName,
                 showFinishButton: true,
               ),
             ),
           );
-          if (setupFinished != true) {
-            return false;
-          }
+          if (setupFinished != true) return false;
         } else {
           await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) => TeamManagementScreen(
                 organizationId: orgId,
-                organizationName: orgName.isEmpty
-                    ? 'Enterprise Workspace'
-                    : orgName,
+                organizationName:
+                    orgName.isEmpty ? 'Enterprise Workspace' : orgName,
               ),
             ),
           );
@@ -716,9 +615,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       }
     }
 
-    if (!requireSetupCompletion) {
-      return true;
-    }
+    if (!requireSetupCompletion) return true;
 
     final refreshedUserDoc = await FirebaseFirestore.instance
         .collection('users')
@@ -732,7 +629,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Complete enterprise workspace setup before payment.'),
+          content:
+              Text('Complete enterprise workspace setup before payment.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -740,133 +638,6 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     }
 
     return true;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bodyContent = _cachedCounts == null && _isLoadingCounts
-        ? const Center(child: CircularProgressIndicator())
-        : LayoutBuilder(
-            builder: (context, constraints) {
-              final counts =
-                  _cachedCounts ??
-                  {'properties': 0, 'submissions': 0, 'totalViews': 0};
-
-              if (kIsWeb && widget.isTabView) {
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight - 40,
-                    ),
-                    child: IntrinsicHeight(
-                      child: _buildDashboardContent(counts),
-                    ),
-                  ),
-                );
-              }
-
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: _buildDashboardContent(counts),
-              );
-            },
-          );
-
-    return Scaffold(
-      appBar: widget.isTabView
-          ? null
-          : AppBar(
-              title: const Text('Agent Dashboard'),
-              actions: [
-                // Show role switcher when user data is loaded
-                StreamBuilder<UserModel?>(
-                  stream: _roleService.currentUserStream,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData && snapshot.data != null) {
-                      return RoleSwitcher(
-                        user: snapshot.data!,
-                        onRoleChanged: () => _loadCurrentUser(),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_outlined),
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const NotificationsScreen(),
-                          ),
-                        );
-                        _loadUnreadCount(); // Refresh count after returning
-                      },
-                    ),
-                    if (_unreadCount > 0)
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 18,
-                            minHeight: 18,
-                          ),
-                          child: Text(
-                            _unreadCount > 9 ? '9+' : '$_unreadCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.person_outline),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const ProfileScreen(showWebFooter: false),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: bodyContent),
-          if (!_hasManagePlanAndTeamAccess)
-            Positioned(
-              top: 12,
-              right: 12,
-              child: FloatingActionButton.extended(
-                heroTag: 'upgrade_plan_fab',
-                tooltip: 'Upgrade to Entreprise',
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                onPressed: _openPlanManagement,
-                icon: const Icon(Icons.rocket_launch_outlined),
-                label: const Text('Upgrade to Entreprise'),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 
   Widget _buildDashboardContent(Map<String, int> counts) {
@@ -887,7 +658,6 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 24),
-        // Add Property Button
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -908,24 +678,62 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        if (_hasManagePlanAndTeamAccess)
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _openManagePlanAndTeam,
-              icon: const Icon(Icons.workspace_premium_outlined),
-              label: const Text('Manage Plan & Team'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                side: BorderSide(
-                  color: AppColors.primary.withValues(alpha: 0.4),
-                ),
-              ),
-            ),
-          ),
+        // Show 'Manage Plan' for agent and enterprise, and 'Manage Plan & Team' only for enterprise
+        FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          future: FirebaseAuth.instance.currentUser != null
+              ? FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(FirebaseAuth.instance.currentUser!.uid)
+                  .get()
+              : Future.value(null),
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data() ?? {};
+            final planId = (data['selectedPlan'] ?? data['plan'] ?? '').toString().toLowerCase();
+            final isAgent = planId == 'agent';
+            final isEnterprise = planId == 'enterprise';
+            if (isAgent || isEnterprise) {
+              return Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _openPlanManagement,
+                      icon: const Icon(Icons.settings_outlined),
+                      label: const Text('Manage Plan'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(
+                          color: AppColors.primary.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (isEnterprise) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _openManagePlanAndTeam,
+                        icon: const Icon(Icons.workspace_premium_outlined),
+                        label: const Text('Manage Plan & Team'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(
+                            color: AppColors.primary.withValues(alpha: 0.4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
         const SizedBox(height: 24),
-        // Statistics
         Row(
           children: [
             Expanded(
@@ -957,16 +765,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           ],
         ),
         const SizedBox(height: 24),
-
-        // Verification Status Banner - Always show
         FutureBuilder<UserModel?>(
           key: ValueKey('verification_banner_$_refreshKey'),
           future: _roleService.getCurrentUser(),
           builder: (context, snapshot) {
-            // Get user from future or fallback to state
             final user = snapshot.data ?? _currentUser;
-
-            // Don't show if no user data
             if (user == null) return const SizedBox.shrink();
 
             final isVerified = user.isVerified == true;
@@ -1064,7 +867,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF10B981),
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -1086,10 +890,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             );
           },
         ),
-
         const SizedBox(height: 24),
-
-        // Quick Actions - Only show if not in tab view
         if (!widget.isTabView) ...[
           const SizedBox(height: 8),
           const Text(
@@ -1149,8 +950,6 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             },
           ),
         ],
-
-        // Admin Only: Verification Requests
         if (!widget.isTabView &&
             (_currentUser?.roles.contains(UserRole.admin) ?? false)) ...[
           const SizedBox(height: 12),
@@ -1164,7 +963,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const AdminVerificationRequestsScreen(),
+                  builder: (context) =>
+                      const AdminVerificationRequestsScreen(),
                 ),
               );
             },
@@ -1174,12 +974,134 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     );
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final bodyContent = _cachedCounts == null && _isLoadingCounts
+        ? const Center(child: CircularProgressIndicator())
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              final counts = _cachedCounts ??
+                  {'properties': 0, 'submissions': 0, 'totalViews': 0};
+
+              if (kIsWeb && widget.isTabView) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight - 40,
+                    ),
+                    child: IntrinsicHeight(
+                      child: _buildDashboardContent(counts),
+                    ),
+                  ),
+                );
+              }
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: _buildDashboardContent(counts),
+              );
+            },
+          );
+
+    return Scaffold(
+      appBar: widget.isTabView
+          ? null
+          : AppBar(
+              title: const Text('Agent Dashboard'),
+              actions: [
+                StreamBuilder<UserModel?>(
+                  stream: _roleService.currentUserStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data != null) {
+                      return RoleSwitcher(
+                        user: snapshot.data!,
+                        onRoleChanged: () => _loadCurrentUser(),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications_outlined),
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationsScreen(),
+                          ),
+                        );
+                        _loadUnreadCount();
+                      },
+                    ),
+                    if (_unreadCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          child: Text(
+                            _unreadCount > 9 ? '9+' : '$_unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.person_outline),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const ProfileScreen(showWebFooter: false),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+      body: Stack(
+        children: [
+          Positioned.fill(child: bodyContent),
+          if (!_hasManagePlanAndTeamAccess)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: FloatingActionButton.extended(
+                heroTag: 'upgrade_plan_fab',
+                tooltip:
+                    'Upgrade to Agent or Enterprise plan to manage your team and access premium features',
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                onPressed: _openPlanManagement,
+                icon: const Icon(Icons.rocket_launch_outlined),
+                label: const Text('Upgrade'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+      String title, String value, IconData icon, Color color) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1270,6 +1192,108 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 Icons.arrow_forward_ios,
                 size: 18,
                 color: AppColors.textLight,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── _PlanCard ── clean StatelessWidget with no state dependencies ───────────
+class _PlanCard extends StatelessWidget {
+  final String title;
+  final String description;
+  final String price;
+  final bool highlight;
+  final VoidCallback onSelect;
+
+  const _PlanCard({
+    required this.title,
+    required this.description,
+    required this.price,
+    required this.highlight,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: highlight ? 8 : 2,
+      borderRadius: BorderRadius.circular(16),
+      color: highlight ? Colors.blue.shade50 : Colors.white,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onSelect,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: highlight
+                          ? Colors.blue.shade700
+                          : Colors.black87,
+                    ),
+                  ),
+                  if (highlight)
+                    Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade700,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Popular',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                description,
+                style: TextStyle(fontSize: 14, color: Colors.grey[800]),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                price,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: highlight ? Colors.blue.shade700 : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onSelect,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: highlight
+                        ? Colors.blue.shade700
+                        : Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text('Select $title'),
+                ),
               ),
             ],
           ),

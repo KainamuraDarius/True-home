@@ -116,11 +116,28 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
   }
 
   List<String> _availableRoleOptions(String targetRole) {
+    // Only owner can assign owner role, admin can assign admin/lister/viewer
     if (_isOwner) {
       return const ['owner', 'admin', 'lister', 'viewer'];
     }
     if (targetRole == 'owner') return const <String>[];
     return const ['admin', 'lister', 'viewer'];
+  }
+
+  Future<void> _logAuditAction(String action, Map<String, dynamic> details) async {
+    try {
+      await _firestore
+          .collection('organizations')
+          .doc(widget.organizationId)
+          .collection('audit_logs')
+          .add({
+        'action': action,
+        'details': details,
+        'actorId': FirebaseAuth.instance.currentUser?.uid,
+        'actorRole': _myRole,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
   }
 
   Future<void> _sendInvite() async {
@@ -166,6 +183,10 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
         role: _selectedRole,
       );
       _inviteEmailController.clear();
+      await _logAuditAction('invite_sent', {
+        'invitee': email,
+        'role': _selectedRole,
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -387,6 +408,12 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
           userRolePromoted = false;
         }
       }
+
+      await _logAuditAction('role_changed', {
+        'memberId': memberId,
+        'oldRole': currentRole,
+        'newRole': newRole,
+      });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
