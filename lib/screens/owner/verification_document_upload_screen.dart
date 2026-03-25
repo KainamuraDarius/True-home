@@ -5,21 +5,92 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
+import '../plan/plan_benefits_screen.dart';
 
 class VerificationDocumentUploadScreen extends StatefulWidget {
   const VerificationDocumentUploadScreen({super.key});
 
   @override
-  State<VerificationDocumentUploadScreen> createState() => _VerificationDocumentUploadScreenState();
+  State<VerificationDocumentUploadScreen> createState() =>
+      _VerificationDocumentUploadScreenState();
 }
 
-class _VerificationDocumentUploadScreenState extends State<VerificationDocumentUploadScreen> {
+class _VerificationDocumentUploadScreenState
+    extends State<VerificationDocumentUploadScreen> {
   File? _nationalIdImage;
   File? _businessLicenseImage;
   final ImagePicker _picker = ImagePicker();
   bool _isSubmitting = false;
   double _uploadProgress = 0.0;
   String _uploadStatus = '';
+
+  String _readString(
+    Map<String, dynamic> data,
+    List<String> keys, {
+    String fallback = '',
+  }) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return fallback;
+  }
+
+  int _readInt(
+    Map<String, dynamic> data,
+    List<String> keys, {
+    int fallback = 0,
+  }) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value != null) {
+        final parsed = int.tryParse(value.toString().trim());
+        if (parsed != null) return parsed;
+      }
+    }
+    return fallback;
+  }
+
+  String _resolvePlanId(Map<String, dynamic> data) {
+    final rawPlan = _readString(data, [
+      'selectedPlan',
+      'plan',
+      'planType',
+      'subscriptionPlan',
+    ]).toLowerCase();
+    if (rawPlan.contains('enterprise')) return 'enterprise';
+    if (rawPlan.contains('agent')) return 'agent';
+    return 'starter';
+  }
+
+  bool _hasCompletedVerificationPayment(Map<String, dynamic> data) {
+    final paymentStatus = _readString(data, [
+      'verificationPaymentStatus',
+      'planPaymentStatus',
+      'latestPlanPaymentStatus',
+    ]).toLowerCase();
+    if (paymentStatus == 'paid' ||
+        paymentStatus == 'completed' ||
+        paymentStatus == 'success') {
+      return true;
+    }
+
+    final planId = _resolvePlanId(data);
+    final planStatus = _readString(data, [
+      'selectedPlanStatus',
+      'planStatus',
+      'subscriptionStatus',
+    ], fallback: 'active').toLowerCase();
+
+    return (planId == 'agent' || planId == 'enterprise') &&
+        planStatus != 'inactive' &&
+        planStatus != 'expired' &&
+        planStatus != 'cancelled';
+  }
 
   Future<void> _pickImage(bool isNationalId) async {
     try {
@@ -51,22 +122,29 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
     }
   }
 
-  Future<String?> _uploadImageToFirebase(File image, String fileName, String docType) async {
+  Future<String?> _uploadImageToFirebase(
+    File image,
+    String fileName,
+    String docType,
+  ) async {
     try {
       debugPrint('📤 Starting upload for $fileName');
-      
+
       setState(() {
         _uploadStatus = 'Uploading $docType...';
       });
-      
+
       // Read image bytes
       final bytes = await image.readAsBytes();
       final sizeInKB = bytes.length / 1024;
       debugPrint('📊 Image size: ${sizeInKB.toStringAsFixed(2)} KB');
-      
+
       // Upload to Firebase Storage
-      final url = await StorageService.uploadImage(bytes, folder: 'verification_documents');
-      
+      final url = await StorageService.uploadImage(
+        bytes,
+        folder: 'verification_documents',
+      );
+
       if (url != null) {
         debugPrint('✅ Image uploaded successfully: $url');
         return url;
@@ -75,15 +153,15 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
       }
     } catch (e) {
       debugPrint('❌ Error uploading image: $e');
-      
+
       // Check for network errors
       String errorMsg = 'Failed to upload $docType';
-      if (e.toString().contains('SocketException') || 
+      if (e.toString().contains('SocketException') ||
           e.toString().contains('NetworkException') ||
           e.toString().contains('timeout')) {
         errorMsg = 'Network error: Please check your internet connection';
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -119,16 +197,29 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
       if (user == null) {
         throw Exception('User not logged in');
       }
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final currentUserData = userDoc.data() ?? <String, dynamic>{};
+      final hasCompletedPayment = _hasCompletedVerificationPayment(
+        currentUserData,
+      );
+      final paymentCompletedAt =
+          currentUserData['verificationPaymentCompletedAt'] ??
+          currentUserData['planPaymentCompletedAt'];
 
       // Calculate total steps
-      int totalSteps = _businessLicenseImage != null ? 4 : 3; // uploads + firestore updates
+      int totalSteps = _businessLicenseImage != null
+          ? 4
+          : 3; // uploads + firestore updates
       int currentStep = 0;
 
       // Upload National ID to Firebase Storage
       setState(() {
         _uploadProgress = (currentStep / totalSteps);
       });
-      
+
       final nationalIdUrl = await _uploadImageToFirebase(
         _nationalIdImage!,
         'national_id_${DateTime.now().millisecondsSinceEpoch}.jpg',
@@ -138,7 +229,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
       if (nationalIdUrl == null) {
         throw Exception('Failed to upload National ID');
       }
-      
+
       currentStep++;
       setState(() {
         _uploadProgress = (currentStep / totalSteps);
@@ -162,21 +253,49 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
       setState(() {
         _uploadStatus = 'Saving verification request...';
       });
-      
+
       await FirebaseFirestore.instance
           .collection('verification_requests')
           .doc(user.uid)
           .set({
-        'userId': user.uid,
-        'nationalIdUrl': nationalIdUrl,
-        'businessLicenseUrl': businessLicenseUrl,
-        'status': 'pending',
-        'submittedAt': FieldValue.serverTimestamp(),
-        'reviewedAt': null,
-        'reviewedBy': null,
-        'rejectionReason': null,
-      });
-      
+            'userId': user.uid,
+            'nationalIdUrl': nationalIdUrl,
+            'businessLicenseUrl': businessLicenseUrl,
+            'status': 'pending',
+            'submittedAt': FieldValue.serverTimestamp(),
+            'paymentStatus': hasCompletedPayment ? 'paid' : 'pending',
+            'paymentCompletedAt': hasCompletedPayment
+                ? (paymentCompletedAt ?? FieldValue.serverTimestamp())
+                : null,
+            'paymentPlanId': hasCompletedPayment
+                ? _readString(currentUserData, [
+                    'verificationPaymentPlanId',
+                    'planPaymentPlanId',
+                    'selectedPlan',
+                    'plan',
+                  ], fallback: _resolvePlanId(currentUserData))
+                : null,
+            'paymentBillingPeriod': hasCompletedPayment
+                ? _readString(currentUserData, [
+                    'verificationPaymentPeriod',
+                    'planPaymentPeriod',
+                    'selectedPlanPeriod',
+                    'planPeriod',
+                  ], fallback: 'monthly')
+                : null,
+            'paymentAmount': hasCompletedPayment
+                ? _readInt(currentUserData, [
+                    'verificationPaymentAmount',
+                    'planPaymentAmount',
+                    'selectedPlanPrice',
+                    'planPrice',
+                  ])
+                : 0,
+            'reviewedAt': null,
+            'reviewedBy': null,
+            'rejectionReason': null,
+          });
+
       currentStep++;
       setState(() {
         _uploadProgress = (currentStep / totalSteps);
@@ -186,15 +305,16 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
       setState(() {
         _uploadStatus = 'Updating profile...';
       });
-      
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .update({
-        'verificationStatus': 'pending',
-        'verificationRequestedAt': FieldValue.serverTimestamp(),
-      });
-      
+            'verificationStatus': 'pending',
+            'verificationRequestedAt': FieldValue.serverTimestamp(),
+            'verificationDocumentsSubmittedAt': FieldValue.serverTimestamp(),
+          });
+
       currentStep++;
       setState(() {
         _uploadProgress = 1.0;
@@ -210,7 +330,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
         await showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => Dialog.fullscreen(
+          builder: (dialogContext) => Dialog.fullscreen(
             backgroundColor: Colors.white,
             child: Container(
               decoration: BoxDecoration(
@@ -218,7 +338,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    const Color(0xFF10B981).withOpacity(0.1),
+                    const Color(0xFF10B981).withValues(alpha: 0.1),
                     Colors.white,
                   ],
                 ),
@@ -229,7 +349,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                   Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withOpacity(0.1),
+                      color: const Color(0xFF10B981).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -252,7 +372,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 48),
                     child: Text(
-                      'Waiting for Admin Approval',
+                      'Next Step: Upgrade Plan',
                       style: TextStyle(
                         fontSize: 20,
                         color: Color(0xFF10B981),
@@ -265,7 +385,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 48),
                     child: Text(
-                      'Your verification documents have been submitted successfully. Our admin team will review them and get back to you within 1-2 business days.',
+                      'Documents are now with admin. Complete plan payment to finish your verification process. Admin approval is granted only after both documents and payment are complete.',
                       style: TextStyle(
                         fontSize: 16,
                         color: AppColors.textSecondary,
@@ -281,9 +401,15 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop(); // Close dialog
-                          Navigator.of(context).pop(); // Go back
+                        onPressed: () async {
+                          Navigator.of(dialogContext).pop();
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const PlanBenefitsScreen(),
+                            ),
+                          );
+                          if (!mounted) return;
+                          Navigator.of(context).pop();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF10B981),
@@ -294,7 +420,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                           elevation: 0,
                         ),
                         child: const Text(
-                          'Back to Dashboard',
+                          'Proceed to Upgrade Plan',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
@@ -316,13 +442,14 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
           _uploadProgress = 0.0;
           _uploadStatus = '';
         });
-        
+
         String errorMsg = 'Error submitting verification';
-        if (e.toString().contains('SocketException') || 
+        if (e.toString().contains('SocketException') ||
             e.toString().contains('NetworkException') ||
             e.toString().contains('timeout') ||
             e.toString().contains('connection')) {
-          errorMsg = 'Network error: Please check your internet connection and try again';
+          errorMsg =
+              'Network error: Please check your internet connection and try again';
         } else {
           errorMsg = 'Error: ${e.toString()}';
         }
@@ -341,7 +468,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    
+
     if (user == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Verification')),
@@ -359,224 +486,277 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
             backgroundColor: Colors.white,
           ),
           body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text('User data not found'));
-          }
+              if (!snapshot.hasData || !snapshot.data!.exists) {
+                return const Center(child: Text('User data not found'));
+              }
 
-          final userData = snapshot.data!.data() as Map<String, dynamic>;
-          final isVerified = userData['isVerified'] ?? false;
-          final verificationStatus = userData['verificationStatus'] ?? '';
+              final userData = snapshot.data!.data() as Map<String, dynamic>;
+              final isVerified = userData['isVerified'] ?? false;
+              final verificationStatus = userData['verificationStatus'] ?? '';
+              final hasCompletedPayment = _hasCompletedVerificationPayment(
+                userData,
+              );
 
-          // If already verified, show verified status
-          if (isVerified) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.verified_user,
-                        size: 80,
-                        color: Colors.green.shade700,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Account Verified!',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Your account has been successfully verified by our admin team.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+              // If already verified, show verified status
+              if (isVerified) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.verified_user,
+                            size: 80,
+                            color: Colors.green.shade700,
+                          ),
                         ),
-                      ),
-                      child: const Text('Go Back to Dashboard'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          // If verification is pending, show pending status
-          if (verificationStatus == 'pending') {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.pending_outlined,
-                        size: 80,
-                        color: Colors.orange.shade700,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Verification Pending',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Your documents have been submitted and are currently under review. We\'ll notify you once the verification is complete.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Go Back to Dashboard'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          // If unverified by admin, show message and allow reapplication
-          if (verificationStatus == 'unverified') {
-            final unverifiedAt = userData['unverifiedAt'] != null
-                ? (userData['unverifiedAt'] as Timestamp).toDate()
-                : null;
-            
-            return Column(
-              children: [
-                // Warning banner at top
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    border: Border(
-                      bottom: BorderSide(color: Colors.red.shade200, width: 1),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        size: 48,
-                        color: Colors.red.shade700,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Account Unverified by Admin',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red.shade900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        unverifiedAt != null
-                            ? 'Your verification was removed on ${_formatDate(unverifiedAt)}'
-                            : 'Your verification has been removed by the admin',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.red.shade700,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Text(
-                          'You can reapply for verification by submitting your documents below.',
-                          textAlign: TextAlign.center,
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Account Verified!',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Show upload form below
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: _buildUploadForm(),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Your account has been successfully verified by our admin team.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Go Back to Dashboard'),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            );
-          }
+                );
+              }
 
-          // Show upload form if not verified and not pending
-          return _buildUploadForm();
-        },
-      ),
+              // If verification is pending, show pending status
+              if (verificationStatus == 'pending') {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            color: hasCompletedPayment
+                                ? Colors.green.shade50
+                                : Colors.orange.shade50,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            hasCompletedPayment
+                                ? Icons.admin_panel_settings_outlined
+                                : Icons.pending_outlined,
+                            size: 80,
+                            color: hasCompletedPayment
+                                ? Colors.green.shade700
+                                : Colors.orange.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          hasCompletedPayment
+                              ? 'Verification Under Review'
+                              : 'Documents Submitted',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          hasCompletedPayment
+                              ? 'Your documents and payment are complete. Admin will review and approve your verification shortly.'
+                              : 'Your documents are submitted. Complete your upgrade plan payment to continue verification.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        if (!hasCompletedPayment) ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const PlanBenefitsScreen(),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Proceed to Upgrade Plan'),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.primary),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Go Back to Dashboard'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // If unverified by admin, show message and allow reapplication
+              if (verificationStatus == 'unverified') {
+                final unverifiedAt = userData['unverifiedAt'] != null
+                    ? (userData['unverifiedAt'] as Timestamp).toDate()
+                    : null;
+
+                return Column(
+                  children: [
+                    // Warning banner at top
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Colors.red.shade200,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 48,
+                            color: Colors.red.shade700,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Account Unverified by Admin',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red.shade900,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            unverifiedAt != null
+                                ? 'Your verification was removed on ${_formatDate(unverifiedAt)}'
+                                : 'Your verification has been removed by the admin',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.red.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.red.shade200),
+                            ),
+                            child: Text(
+                              'You can reapply for verification by submitting your documents below.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Show upload form below
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: _buildUploadForm(),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              // Show upload form if not verified and not pending
+              return _buildUploadForm();
+            },
+          ),
         ),
         // Circular progress overlay
         if (_isSubmitting)
           Container(
-            color: Colors.black.withOpacity(0.7),
+            color: Colors.black.withValues(alpha: 0.7),
             child: Center(
               child: Container(
                 padding: const EdgeInsets.all(32),
@@ -600,7 +780,9 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                               value: _uploadProgress,
                               strokeWidth: 12,
                               backgroundColor: Colors.grey.shade200,
-                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.primary,
+                              ),
                             ),
                           ),
                           Column(
@@ -668,9 +850,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                     decoration: BoxDecoration(
                       color: Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.blue.shade100,
-                      ),
+                      border: Border.all(color: Colors.blue.shade100),
                     ),
                     child: Row(
                       children: [
@@ -706,9 +886,9 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Section Title
                   const Text(
                     'Required Documents',
@@ -718,9 +898,9 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 8),
-                  
+
                   Text(
                     'Upload clear photos of your documents',
                     style: TextStyle(
@@ -728,9 +908,9 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // National ID Upload
                   _buildDocumentUploadCard(
                     title: 'National ID',
@@ -745,9 +925,9 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                       });
                     },
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Business License Upload
                   _buildDocumentUploadCard(
                     title: 'Business License',
@@ -762,14 +942,14 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                       });
                     },
                   ),
-                  
+
                   const SizedBox(height: 20),
                 ],
               ),
             ),
           ),
         ),
-        
+
         // Bottom Submit Button
         Container(
           padding: const EdgeInsets.all(24),
@@ -777,7 +957,7 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, -5),
               ),
@@ -791,7 +971,9 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                 LinearProgressIndicator(
                   value: _uploadProgress,
                   backgroundColor: Colors.grey.shade200,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    AppColors.primary,
+                  ),
                   minHeight: 6,
                 ),
                 const SizedBox(height: 8),
@@ -840,7 +1022,9 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
                               width: 24,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -871,8 +1055,18 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
 
   String _formatDate(DateTime date) {
     final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -905,14 +1099,16 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isRequired 
-                      ? AppColors.primary.withOpacity(0.1)
+                  color: isRequired
+                      ? AppColors.primary.withValues(alpha: 0.1)
                       : Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   icon,
-                  color: isRequired ? AppColors.primary : Colors.orange.shade700,
+                  color: isRequired
+                      ? AppColors.primary
+                      : Colors.orange.shade700,
                   size: 24,
                 ),
               ),
@@ -969,9 +1165,9 @@ class _VerificationDocumentUploadScreenState extends State<VerificationDocumentU
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Upload Area
           if (image == null)
             InkWell(

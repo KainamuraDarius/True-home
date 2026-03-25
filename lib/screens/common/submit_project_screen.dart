@@ -58,6 +58,9 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
   Timer? _autoSaveTimer;
 
   static const double _developerProjectAdvertisingPrice = 400000;
+  String? _developerAdvertisingAccessMode; // 'paid' or 'testing'
+  String? _developerAdvertisingPaymentReference;
+  bool _isProcessingAdvertisingPlan = false;
 
   @override
   void initState() {
@@ -397,32 +400,169 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
     }
   }
 
-  Future<bool?> _showDeveloperAdvertisingOfferDialog() async {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Developer Project Advertising'),
+  bool get _hasSelectedAdvertisingAccessMode =>
+      _developerAdvertisingAccessMode == 'paid' ||
+      _developerAdvertisingAccessMode == 'testing';
+
+  Future<void> _continueAdvertisingInTesting() async {
+    if (!mounted) return;
+    setState(() {
+      _developerAdvertisingAccessMode = 'testing';
+      _developerAdvertisingPaymentReference = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
         content: Text(
-          'Promote this project for UGX ${CurrencyFormatter.format(_developerProjectAdvertisingPrice)} / month.\n\n'
-          'You can skip if you are not interested right now.',
+          'Testing mode selected. You can submit project advertising without charging.',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(null),
-            child: const Text('Cancel'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  Future<void> _startDeveloperAdvertisingPaymentPlan() async {
+    if (_isProcessingAdvertisingPlan) return;
+
+    setState(() => _isProcessingAdvertisingPlan = true);
+    try {
+      final paymentReference = await _payForDeveloperProjectAdvertising();
+      if (!mounted || paymentReference == null) return;
+
+      setState(() {
+        _developerAdvertisingAccessMode = 'paid';
+        _developerAdvertisingPaymentReference = paymentReference;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Developer Project Advertising plan payment confirmed.',
           ),
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Skip'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingAdvertisingPlan = false);
+      }
+    }
+  }
+
+  Widget _buildDeveloperAdvertisingPlanCard() {
+    final isPaid = _developerAdvertisingAccessMode == 'paid';
+    final isTesting = _developerAdvertisingAccessMode == 'testing';
+    final statusText = isPaid
+        ? 'Payment confirmed for this submission.'
+        : isTesting
+        ? 'Testing mode enabled for this submission.'
+        : 'Choose payment or testing mode to continue.';
+    final statusColor = isPaid
+        ? const Color(0xFF0A8F77)
+        : isTesting
+        ? Colors.orange.shade800
+        : AppColors.textSecondary;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF2F9FF), Color(0xFFE5F2FF)],
+        ),
+        border: Border.all(color: const Color(0xFFB3D8FF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.campaign, color: AppColors.primary),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Developer Project Advertising',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+          const SizedBox(height: 10),
+          const Text(
+            'UGX 400,000 / month · per project',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
             ),
-            child: const Text('Pay & Continue'),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Showcase an active construction or development project with dedicated exposure to buyers in a specific location. Includes rich media display, full project description, and a direct call-to-action link to your sales team.',
+            style: TextStyle(color: AppColors.textSecondary, height: 1.3),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            statusText,
+            style: TextStyle(
+              color: statusColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isProcessingAdvertisingPlan
+                      ? null
+                      : _startDeveloperAdvertisingPaymentPlan,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: _isProcessingAdvertisingPlan
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.payment),
+                  label: Text(isPaid ? 'Paid' : 'Pay & Continue'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isProcessingAdvertisingPlan
+                      ? null
+                      : _continueAdvertisingInTesting,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange.shade800,
+                    side: BorderSide(color: Colors.orange.shade600),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: const Icon(Icons.science_outlined),
+                  label: const Text('Continue In Testing'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -737,6 +877,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
 
     final accessResult = await _organizationAccessService
         .checkProjectListingAccess(userId: currentUser.uid);
+    if (!mounted) return;
     if (!accessResult.allowed) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -750,23 +891,36 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
     }
     final activeOrganizationId = accessResult.organizationId;
 
-    final wantsDeveloperAdvertising =
-        await _showDeveloperAdvertisingOfferDialog();
-    if (!mounted) return;
-    if (wantsDeveloperAdvertising == null) {
+    if (!_hasSelectedAdvertisingAccessMode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Choose Developer Project Advertising access first: Pay & Continue or Continue In Testing.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return;
     }
 
-    String? paymentReference;
-    if (wantsDeveloperAdvertising) {
-      paymentReference = await _payForDeveloperProjectAdvertising();
-      if (!mounted) return;
-      if (paymentReference == null) {
-        return;
-      }
+    final bool usesPaidAdvertising = _developerAdvertisingAccessMode == 'paid';
+    final bool usesTestingBypass = _developerAdvertisingAccessMode == 'testing';
+    final String? paymentReference = _developerAdvertisingPaymentReference;
+
+    if (usesPaidAdvertising &&
+        (paymentReference == null || paymentReference.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Payment record missing. Please tap Pay & Continue again.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
 
-    final totalCost = wantsDeveloperAdvertising
+    final totalCost = usesPaidAdvertising
         ? _developerProjectAdvertisingPrice
         : 0.0;
     final now = DateTime.now();
@@ -857,13 +1011,18 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
 
       final projectId = await _projectService.createProject(project);
       await _projectService.updateProject(projectId, {
-        'developerAdvertisingSelected': wantsDeveloperAdvertising,
-        'developerAdvertisingPaid': wantsDeveloperAdvertising,
-        'paymentStatus': wantsDeveloperAdvertising ? 'paid' : 'skipped',
+        'developerAdvertisingSelected': true,
+        'developerAdvertisingPaid': usesPaidAdvertising,
+        'developerAdvertisingTestingBypass': usesTestingBypass,
+        'developerAdvertisingAccessMode': usesPaidAdvertising
+            ? 'paid'
+            : 'testing',
+        'paymentStatus': usesPaidAdvertising ? 'paid' : 'testing_bypass',
         if (paymentReference != null)
           'developerAdvertisingPaymentRef': paymentReference,
-        if (wantsDeveloperAdvertising)
-          'developerAdvertisingPaidAt': Timestamp.now(),
+        if (usesPaidAdvertising) 'developerAdvertisingPaidAt': Timestamp.now(),
+        if (usesTestingBypass)
+          'developerAdvertisingTestingBypassAt': Timestamp.now(),
       });
       await _clearDraft();
 
@@ -934,9 +1093,9 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 48),
                     child: Text(
-                      wantsDeveloperAdvertising
+                      usesPaidAdvertising
                           ? 'Total Cost: UGX ${CurrencyFormatter.format(totalCost)}\n\nYour project has been submitted and is awaiting admin approval.'
-                          : 'You skipped Developer Project Advertising for now.\n\nYour project has been submitted and is awaiting admin approval.',
+                          : 'Submitted in testing mode (no charge).\n\nYour project has been submitted and is awaiting admin approval.',
                       style: TextStyle(
                         fontSize: 16,
                         color: AppColors.textSecondary,
@@ -1053,6 +1212,8 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        _buildDeveloperAdvertisingPlanCard(),
+
                         // Project Name
                         TextFormField(
                           controller: _nameController,
@@ -1448,6 +1609,25 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                           ),
                         ),
                         const SizedBox(height: 24),
+
+                        if (!_hasSelectedAdvertisingAccessMode)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.orange.shade200),
+                            ),
+                            child: Text(
+                              'Complete Developer Project Advertising step above before submitting.',
+                              style: TextStyle(
+                                color: Colors.orange.shade900,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
 
                         // Submit Button
                         SizedBox(

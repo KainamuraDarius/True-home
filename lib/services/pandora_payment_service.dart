@@ -33,7 +33,8 @@ class PandoraPaymentService {
       // Validate phone number format
       if (!_isValidUgandanPhoneNumber(phoneNumber)) {
         throw PaymentException(
-            'Invalid phone number. Use format: 256XXXXXXXXX, +256XXXXXXXXX, or 0XXXXXXXXX');
+          'Invalid phone number. Use format: 256XXXXXXXXX, +256XXXXXXXXX, or 0XXXXXXXXX',
+        );
       }
 
       final normalizedPhone = _normalizePhoneNumber(phoneNumber);
@@ -58,13 +59,13 @@ class PandoraPaymentService {
       };
 
       // Make API request with longer timeout (60 seconds)
-      final response = await http.post(
-        Uri.parse(_cloudFunctionUrl),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(requestBody),
-      ).timeout(const Duration(seconds: 60));
+      final response = await http
+          .post(
+            Uri.parse(_cloudFunctionUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 60));
 
       debugPrint('📡 Response Status: ${response.statusCode}');
       debugPrint('📡 Response Body: ${response.body}\n');
@@ -74,14 +75,15 @@ class PandoraPaymentService {
       // Check if API call was successful
       if (response.statusCode == 200 && jsonResponse['success'] == true) {
         // Extract transaction data from response
-        final transactionData = (jsonResponse['data'] as List?)?.first
-            as Map<String, dynamic>?;
+        final transactionData =
+            (jsonResponse['data'] as List?)?.first as Map<String, dynamic>?;
 
         if (transactionData != null) {
           return PaymentInitResponse(
             success: true,
             transactionId: transactionRef, // Use our transaction ref as ID
-            transactionReference: transactionData['transaction_reference'] ?? transactionRef,
+            transactionReference:
+                transactionData['transaction_reference'] ?? transactionRef,
             status: transactionData['status'] ?? 'processing',
             amount: amount,
             message:
@@ -94,7 +96,8 @@ class PandoraPaymentService {
 
       // Handle errors
       final errorMessage = jsonResponse['messages'] != null
-          ? (jsonResponse['messages'] as List?)?.first ?? 'Payment initialization failed'
+          ? (jsonResponse['messages'] as List?)?.first ??
+                'Payment initialization failed'
           : 'Payment initialization failed';
 
       throw PaymentException(errorMessage);
@@ -102,21 +105,25 @@ class PandoraPaymentService {
       rethrow;
     } catch (e) {
       debugPrint('❌ ERROR: $e\n');
-      
+
       // Provide more specific error messages based on the error type
       String userMessage = e.toString();
       if (userMessage.contains('Failed host lookup')) {
-        userMessage = 'Cannot reach Pandora servers. Check your internet connection or try using a VPN.';
+        userMessage =
+            'Cannot reach Pandora servers. Check your internet connection or try using a VPN.';
       } else if (userMessage.contains('SocketException')) {
         userMessage = 'Network error. Please check your WiFi/data connection.';
       } else if (userMessage.contains('timeout')) {
-        userMessage = 'Request timed out. Pandora servers may be slow. Try again.';
-      } else if (userMessage.contains('401') || userMessage.contains('Unauthorized')) {
+        userMessage =
+            'Request timed out. Pandora servers may be slow. Try again.';
+      } else if (userMessage.contains('401') ||
+          userMessage.contains('Unauthorized')) {
         userMessage = 'API key invalid. Check your Pandora credentials.';
-      } else if (userMessage.contains('400') || userMessage.contains('Bad Request')) {
+      } else if (userMessage.contains('400') ||
+          userMessage.contains('Bad Request')) {
         userMessage = 'Invalid payment parameters. Contact support.';
       }
-      
+
       throw PaymentException(userMessage);
     }
   }
@@ -127,38 +134,63 @@ class PandoraPaymentService {
     required String transactionRef,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('https://us-central1-truehome-9a244.cloudfunctions.net/pandoraPaymentStatus'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({ 'transaction_ref': transactionRef }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            Uri.parse(
+              'https://us-central1-truehome-9a244.cloudfunctions.net/pandoraPaymentStatus',
+            ),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'transaction_ref': transactionRef}),
+          )
+          .timeout(const Duration(seconds: 30));
 
-      // Check for HTML or non-JSON response (e.g., 404, 500, or Firebase error page)
-      if (!response.headers['content-type']!.contains('application/json')) {
-        throw PaymentException('Payment status service unavailable. Please try again later.');
+      debugPrint('🔎 Payment status HTTP ${response.statusCode}');
+      debugPrint('🔎 Payment status headers: ${response.headers}');
+
+      // Some proxies may return JSON payloads with non-JSON content-type headers.
+      final contentType = (response.headers['content-type'] ?? '')
+          .toLowerCase();
+      final bodyText = response.body.trimLeft();
+      final looksLikeJson =
+          bodyText.startsWith('{') || bodyText.startsWith('[');
+      if (!contentType.contains('application/json') && !looksLikeJson) {
+        final bodyPreview = response.body.length > 240
+            ? '${response.body.substring(0, 240)}...'
+            : response.body;
+        debugPrint('⚠️ Payment status non-JSON body: $bodyPreview');
+        throw PaymentException(
+          'Payment status service unavailable. Please try again later.',
+        );
       }
 
       final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (response.statusCode == 200 && jsonResponse['success'] == true) {
-        final data = (jsonResponse['data'] as List?)?.first as Map<String, dynamic>?;
+        final data =
+            (jsonResponse['data'] as List?)?.first as Map<String, dynamic>?;
         if (data != null) {
           return PaymentStatusResponse(
-            success: data['status'] == 'completed' || data['status'] == 'success' || data['status'] == 'paid',
+            success:
+                data['status'] == 'completed' ||
+                data['status'] == 'success' ||
+                data['status'] == 'paid',
             transactionId: transactionRef,
             status: data['status'] ?? 'processing',
             message: _getStatusMessage(data['status'] ?? ''),
             amount: double.tryParse(data['amount']?.toString() ?? '0') ?? 0,
-            transactionCharge: double.tryParse(data['transaction_charge']?.toString() ?? '0') ?? 0,
+            transactionCharge:
+                double.tryParse(
+                  data['transaction_charge']?.toString() ?? '0',
+                ) ??
+                0,
             completedOn: data['completed_on'],
           );
         }
       }
 
       final errorMessage = jsonResponse['messages'] != null
-          ? (jsonResponse['messages'] as List?)?.first ?? 'Failed to check payment status'
+          ? (jsonResponse['messages'] as List?)?.first ??
+                'Failed to check payment status'
           : 'Failed to check payment status';
       throw PaymentException(errorMessage);
     } on PaymentException {
@@ -176,7 +208,9 @@ class PandoraPaymentService {
       debugPrint('Reference: $transactionRef\n');
 
       // Not supported via the proxy Cloud Function yet
-      throw PaymentException('Canceling payment is not supported via the Cloud Function.');
+      throw PaymentException(
+        'Canceling payment is not supported via the Cloud Function.',
+      );
     } catch (e) {
       debugPrint('❌ ERROR: $e\n');
       return false;
@@ -191,7 +225,7 @@ class PandoraPaymentService {
   /// Accepts: 256XXXXXXXXX, +256XXXXXXXXX, 0XXXXXXXXX
   bool _isValidUgandanPhoneNumber(String phoneNumber) {
     final cleaned = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
-    
+
     // Must be Uganda number (starting with 256 or 0) and have 10-13 total digits
     return RegExp(r'^(\+256|256|0)\d{9}$').hasMatch(cleaned);
   }

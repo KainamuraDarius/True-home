@@ -13,10 +13,9 @@ import '../common/profile_screen.dart';
 import '../common/notifications_screen.dart';
 import '../property/add_property_screen.dart';
 import '../property/my_properties_screen.dart';
-import '../property/choose_plan_screen.dart';
 import '../common/submit_project_screen.dart';
 import '../common/my_projects_screen.dart';
-import 'verification_benefits_screen.dart';
+import 'verification_document_upload_screen.dart';
 import '../plan/plan_benefits_screen.dart';
 import '../organization/enterprise_setup_screen.dart';
 import '../organization/team_management_screen.dart';
@@ -33,15 +32,18 @@ class OwnerDashboardScreen extends StatefulWidget {
 }
 
 class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
-    // Returns true for agent or enterprise plan (active)
-    bool _hasActivePaidOrEnterprisePlan(Map<String, dynamic> userData) {
-      final selectedPlan = _resolveEffectivePlanId(userData);
-      final planStatus = _resolvePlanStatus(userData);
-      final isStatusActive = planStatus != 'inactive' &&
-          planStatus != 'expired' &&
-          planStatus != 'cancelled';
-      return (selectedPlan == 'agent' || selectedPlan == 'enterprise') && isStatusActive;
-    }
+  // Returns true for agent or enterprise plan (active)
+  bool _hasActivePaidOrEnterprisePlan(Map<String, dynamic> userData) {
+    final selectedPlan = _resolveEffectivePlanId(userData);
+    final planStatus = _resolvePlanStatus(userData);
+    final isStatusActive =
+        planStatus != 'inactive' &&
+        planStatus != 'expired' &&
+        planStatus != 'cancelled';
+    return (selectedPlan == 'agent' || selectedPlan == 'enterprise') &&
+        isStatusActive;
+  }
+
   final NotificationService _notificationService = NotificationService();
   final RoleService _roleService = RoleService();
   final PandoraPaymentService _pandoraService = PandoraPaymentService();
@@ -143,6 +145,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       'selectedPlanPeriod': period,
       'selectedPlanPrice': price,
       'selectedPlanStatus': 'active',
+      'plan': plan,
+      'planPeriod': period,
+      'planPrice': price,
+      'planStatus': 'active',
+      'subscriptionStatus': 'active',
       'selectedPlanActivatedAt': DateTime.now().toIso8601String(),
       'planUpdatedAt': DateTime.now().toIso8601String(),
     };
@@ -150,9 +157,16 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     final normalizedPlan = plan.trim().toLowerCase();
     if (normalizedPlan == 'agent' || normalizedPlan == 'enterprise') {
       updates.addAll({
-        'isVerified': true,
-        'verificationStatus': 'approved',
-        'verifiedAt': FieldValue.serverTimestamp(),
+        'planPaymentStatus': 'paid',
+        'planPaymentCompletedAt': FieldValue.serverTimestamp(),
+        'planPaymentPlanId': normalizedPlan,
+        'planPaymentPeriod': period,
+        'planPaymentAmount': price,
+        'verificationPaymentStatus': 'paid',
+        'verificationPaymentCompletedAt': FieldValue.serverTimestamp(),
+        'verificationPaymentPlanId': normalizedPlan,
+        'verificationPaymentPeriod': period,
+        'verificationPaymentAmount': price,
       });
     }
 
@@ -160,6 +174,25 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         .collection('users')
         .doc(uid)
         .update(updates);
+
+    if (normalizedPlan == 'agent' || normalizedPlan == 'enterprise') {
+      final verificationRequestRef = FirebaseFirestore.instance
+          .collection('verification_requests')
+          .doc(uid);
+      final verificationRequest = await verificationRequestRef.get();
+      if (verificationRequest.exists) {
+        await verificationRequestRef.set({
+          'paymentStatus': 'paid',
+          'paymentCompletedAt': FieldValue.serverTimestamp(),
+          'paymentPlanId': normalizedPlan,
+          'paymentPlanTitle': normalizedPlan == 'enterprise'
+              ? 'Enterprise Plan'
+              : 'Agent Plan',
+          'paymentBillingPeriod': period,
+          'paymentAmount': price,
+        }, SetOptions(merge: true));
+      }
+    }
 
     await _loadPlanAccess();
   }
@@ -218,8 +251,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   }
 
   String _resolveEffectivePlanId(Map<String, dynamic> userData) {
-    final activeOrganizationId =
-        (userData['activeOrganizationId'] ?? '').toString().trim();
+    final activeOrganizationId = (userData['activeOrganizationId'] ?? '')
+        .toString()
+        .trim();
     final rawPlan = _readString(userData, [
       'selectedPlan',
       'plan',
@@ -268,9 +302,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   bool _hasActivePaidPlan(Map<String, dynamic> userData) {
     final selectedPlan = _resolveEffectivePlanId(userData);
     final planStatus = _resolvePlanStatus(userData);
-    final isStatusActive = planStatus != 'inactive' &&
-      planStatus != 'expired' &&
-      planStatus != 'cancelled';
+    final isStatusActive =
+        planStatus != 'inactive' &&
+        planStatus != 'expired' &&
+        planStatus != 'cancelled';
     // Only enterprise plan unlocks team features
     final isEnterprisePlan = selectedPlan == 'enterprise';
     return isEnterprisePlan && isStatusActive;
@@ -289,16 +324,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       final hasEnterpriseAccess = _hasActivePaidPlan(userData);
       final hasPaidAccess = _hasActivePaidOrEnterprisePlan(userData);
 
-      if (hasPaidAccess && userData['isVerified'] != true) {
-        await FirebaseFirestore.instance.collection('users').doc(uid).update({
-          'isVerified': true,
-          'verificationStatus': 'approved',
-          'verifiedAt': FieldValue.serverTimestamp(),
-          'updatedAt': DateTime.now().toIso8601String(),
-        });
-      }
-
-      if (mounted) setState(() => _hasManagePlanAndTeamAccess = hasEnterpriseAccess);
+      if (mounted)
+        setState(() => _hasManagePlanAndTeamAccess = hasEnterpriseAccess);
       // Return paid access for agent/enterprise
       return hasPaidAccess;
     } catch (e) {
@@ -336,9 +363,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Activate Agent or Enterprise plan using Upgrade to Entreprise.',
-          ),
+          content: Text('Activate Agent or Enterprise plan using Upgrade.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -377,8 +402,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(Icons.payment,
-                      color: Theme.of(context).colorScheme.primary),
+                  Icon(
+                    Icons.payment,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   const SizedBox(width: 12),
                   const Text('Confirm Payment'),
                 ],
@@ -418,8 +445,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      _isPayingPlan ? null : () => Navigator.pop(context),
+                  onPressed: _isPayingPlan
+                      ? null
+                      : () => Navigator.pop(context),
                   child: const Text('Cancel'),
                 ),
                 TextButton(
@@ -444,13 +472,13 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                               'Agent Plan: ${plan.toUpperCase()} (${(period == 'annual' || period == 'yearly') ? 'Yearly' : 'Monthly'})';
 
                           try {
-                            final response =
-                                await _pandoraService.initiatePayment(
-                              phoneNumber: phoneController.text.trim(),
-                              amount: price.toDouble(),
-                              transactionRef: transactionRef,
-                              narrative: narrative,
-                            );
+                            final response = await _pandoraService
+                                .initiatePayment(
+                                  phoneNumber: phoneController.text.trim(),
+                                  amount: price.toDouble(),
+                                  transactionRef: transactionRef,
+                                  narrative: narrative,
+                                );
                             if (!response.success) {
                               throw PaymentException(response.message);
                             }
@@ -466,7 +494,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                       CircularProgressIndicator(),
                                       SizedBox(height: 16),
                                       Text(
-                                          'Check your phone to complete payment...'),
+                                        'Check your phone to complete payment...',
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -515,9 +544,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   Future<void> _openPlanManagement() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => PlanBenefitsScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => PlanBenefitsScreen()),
     );
     if (result == 'openPlanChooser') {
       await _openPlanManagement();
@@ -542,8 +569,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         .collection('users')
         .doc(uid)
         .get();
-    final orgId =
-        (userDoc.data()?['activeOrganizationId'] ?? '').toString().trim();
+    final orgId = (userDoc.data()?['activeOrganizationId'] ?? '')
+        .toString()
+        .trim();
 
     if (orgId.isEmpty) {
       if (!mounted) return false;
@@ -572,8 +600,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           final setupFinished = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  const EnterpriseSetupScreen(completeInFlow: true),
+              builder: (_) => const EnterpriseSetupScreen(completeInFlow: true),
             ),
           );
           if (setupFinished != true) return false;
@@ -584,8 +611,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           );
         }
       } else {
-        final orgName =
-            (orgDoc.data()?['name'] ?? 'Enterprise Workspace').toString().trim();
+        final orgName = (orgDoc.data()?['name'] ?? 'Enterprise Workspace')
+            .toString()
+            .trim();
         if (!mounted) return false;
         if (requireSetupCompletion) {
           final setupFinished = await Navigator.push<bool>(
@@ -593,8 +621,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             MaterialPageRoute(
               builder: (_) => TeamManagementScreen(
                 organizationId: orgId,
-                organizationName:
-                    orgName.isEmpty ? 'Enterprise Workspace' : orgName,
+                organizationName: orgName.isEmpty
+                    ? 'Enterprise Workspace'
+                    : orgName,
                 showFinishButton: true,
               ),
             ),
@@ -606,8 +635,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             MaterialPageRoute(
               builder: (_) => TeamManagementScreen(
                 organizationId: orgId,
-                organizationName:
-                    orgName.isEmpty ? 'Enterprise Workspace' : orgName,
+                organizationName: orgName.isEmpty
+                    ? 'Enterprise Workspace'
+                    : orgName,
               ),
             ),
           );
@@ -629,8 +659,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content:
-              Text('Complete enterprise workspace setup before payment.'),
+          content: Text('Complete enterprise workspace setup before payment.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -682,13 +711,15 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           future: FirebaseAuth.instance.currentUser != null
               ? FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(FirebaseAuth.instance.currentUser!.uid)
-                  .get()
+                    .collection('users')
+                    .doc(FirebaseAuth.instance.currentUser!.uid)
+                    .get()
               : Future.value(null),
           builder: (context, snapshot) {
             final data = snapshot.data?.data() ?? {};
-            final planId = (data['selectedPlan'] ?? data['plan'] ?? '').toString().toLowerCase();
+            final planId = (data['selectedPlan'] ?? data['plan'] ?? '')
+                .toString()
+                .toLowerCase();
             final isAgent = planId == 'agent';
             final isEnterprise = planId == 'enterprise';
             if (isAgent || isEnterprise) {
@@ -860,15 +891,14 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
-                                      const VerificationBenefitsScreen(),
+                                      const VerificationDocumentUploadScreen(),
                                 ),
                               );
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF10B981),
                               foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -963,8 +993,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      const AdminVerificationRequestsScreen(),
+                  builder: (context) => const AdminVerificationRequestsScreen(),
                 ),
               );
             },
@@ -980,7 +1009,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         ? const Center(child: CircularProgressIndicator())
         : LayoutBuilder(
             builder: (context, constraints) {
-              final counts = _cachedCounts ??
+              final counts =
+                  _cachedCounts ??
                   {'properties': 0, 'submissions': 0, 'totalViews': 0};
 
               if (kIsWeb && widget.isTabView) {
@@ -1101,7 +1131,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   }
 
   Widget _buildStatCard(
-      String title, String value, IconData icon, Color color) {
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1238,16 +1272,16 @@ class _PlanCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: highlight
-                          ? Colors.blue.shade700
-                          : Colors.black87,
+                      color: highlight ? Colors.blue.shade700 : Colors.black87,
                     ),
                   ),
                   if (highlight)
                     Container(
                       margin: const EdgeInsets.only(left: 8),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade700,
                         borderRadius: BorderRadius.circular(8),

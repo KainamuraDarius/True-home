@@ -21,86 +21,82 @@ class _AdminVerificationRequestsScreenState
   @override
   Widget build(BuildContext context) {
     final content = Column(
-        children: [
-          // Filter Tabs
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                _buildFilterChip('Pending', 'pending'),
-                const SizedBox(width: 12),
-                _buildFilterChip('Approved', 'approved'),
-                const SizedBox(width: 12),
-                _buildFilterChip('Rejected', 'rejected'),
-              ],
-            ),
+      children: [
+        // Filter Tabs
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              _buildFilterChip('Pending', 'pending'),
+              const SizedBox(width: 12),
+              _buildFilterChip('Approved', 'approved'),
+              const SizedBox(width: 12),
+              _buildFilterChip('Rejected', 'rejected'),
+            ],
           ),
-          
-          // Requests List
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('verification_requests')
-                  .where('status', isEqualTo: _selectedFilter)
-                  .orderBy('submittedAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+        ),
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
+        // Requests List
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('verification_requests')
+                .where('status', isEqualTo: _selectedFilter)
+                .orderBy('submittedAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-                final requests = snapshot.data?.docs ?? [];
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
 
-                if (requests.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.inbox_outlined,
-                          size: 80,
-                          color: Colors.grey.shade400,
+              final requests = snapshot.data?.docs ?? [];
+
+              if (requests.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 80,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No $_selectedFilter requests',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.textSecondary,
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No $_selectedFilter requests',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: requests.length,
-                  itemBuilder: (context, index) {
-                    final request = requests[index];
-                    return _buildRequestCard(request);
-                  },
+                      ),
+                    ],
+                  ),
                 );
-              },
-            ),
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: requests.length,
+                itemBuilder: (context, index) {
+                  final request = requests[index];
+                  return _buildRequestCard(request);
+                },
+              );
+            },
           ),
-        ],
-      );
+        ),
+      ],
+    );
 
     if (widget.embedded) {
       return content;
     }
-    
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -139,6 +135,69 @@ class _AdminVerificationRequestsScreenState
     );
   }
 
+  String _normalizePaymentStatus(String status) {
+    final normalized = status.trim().toLowerCase();
+    if (normalized == 'paid' ||
+        normalized == 'completed' ||
+        normalized == 'success') {
+      return 'paid';
+    }
+    if (normalized == 'failed' ||
+        normalized == 'declined' ||
+        normalized == 'cancelled') {
+      return 'failed';
+    }
+    return 'pending';
+  }
+
+  bool _isPaymentCompleted(String status) {
+    return _normalizePaymentStatus(status) == 'paid';
+  }
+
+  Widget _buildPaymentBadge(String paymentStatus) {
+    final normalized = _normalizePaymentStatus(paymentStatus);
+    Color color;
+    IconData icon;
+    String label;
+
+    if (normalized == 'paid') {
+      color = const Color(0xFF10B981);
+      icon = Icons.check_circle_outline;
+      label = 'Payment Complete';
+    } else if (normalized == 'failed') {
+      color = Colors.red;
+      icon = Icons.cancel_outlined;
+      label = 'Payment Failed';
+    } else {
+      color = Colors.orange.shade700;
+      icon = Icons.pending_outlined;
+      label = 'Payment Pending';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRequestCard(QueryDocumentSnapshot request) {
     final data = request.data() as Map<String, dynamic>;
     final userId = (data['userId'] ?? '').toString();
@@ -146,13 +205,26 @@ class _AdminVerificationRequestsScreenState
     final businessLicenseUrl = data['businessLicenseUrl'] as String?;
     final status = (data['status'] ?? 'pending').toString();
     final submittedAt = (data['submittedAt'] as Timestamp?)?.toDate();
+    final paymentStatus = _normalizePaymentStatus(
+      (data['paymentStatus'] ?? 'pending').toString(),
+    );
+    final paymentPlanTitle = (data['paymentPlanTitle'] ?? '').toString();
+    final paymentBillingPeriod = (data['paymentBillingPeriod'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final paymentAmount = (data['paymentAmount'] is num)
+        ? (data['paymentAmount'] as num).toInt()
+        : int.tryParse((data['paymentAmount'] ?? '').toString()) ?? 0;
+    final paymentCompletedAt = (data['paymentCompletedAt'] as Timestamp?)
+        ?.toDate();
+    final canApprove =
+        status == 'pending' && _isPaymentCompleted(paymentStatus);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -170,7 +242,8 @@ class _AdminVerificationRequestsScreenState
                 );
               }
 
-              final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+              final userData =
+                  userSnapshot.data!.data() as Map<String, dynamic>?;
               final userName = userData?['name'] ?? 'Unknown User';
               final userEmail = userData?['email'] ?? '';
               final userPhone = userData?['phoneNumber'] ?? '';
@@ -230,36 +303,89 @@ class _AdminVerificationRequestsScreenState
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Icon(Icons.email_outlined, size: 16, color: Colors.grey.shade600),
+                        Icon(
+                          Icons.email_outlined,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           userEmail,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.phone_outlined, size: 16, color: Colors.grey.shade600),
+                        Icon(
+                          Icons.phone_outlined,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           userPhone,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                        Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Submitted: ${submittedAt != null ? _formatDate(submittedAt) : 'Unknown'}',
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.account_balance_wallet_outlined,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(child: _buildPaymentBadge(paymentStatus)),
+                      ],
+                    ),
+                    if (paymentCompletedAt != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.event_available_outlined,
+                            size: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Paid: ${_formatDate(paymentCompletedAt)}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -303,14 +429,89 @@ class _AdminVerificationRequestsScreenState
                     false,
                   ),
 
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Payment Status',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildPaymentBadge(paymentStatus),
+                      if (paymentPlanTitle.isNotEmpty ||
+                          paymentBillingPeriod.isNotEmpty ||
+                          paymentAmount > 0) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Plan: ${paymentPlanTitle.isEmpty ? 'Not specified' : paymentPlanTitle}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        if (paymentBillingPeriod.isNotEmpty)
+                          Text(
+                            'Billing: ${paymentBillingPeriod == 'annual' ? 'Yearly' : 'Monthly'}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        if (paymentAmount > 0)
+                          Text(
+                            'Amount: UGX ${paymentAmount.toString().replaceAllMapped(RegExp(r"\B(?=(\d{3})+(?!\d))"), (match) => ",")}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+
                 // Action Buttons (only for pending)
                 if (status == 'pending') ...[
+                  if (!canApprove) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Text(
+                        'Approval is disabled until this agent completes plan payment.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade900,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _showRejectDialog(request.id, userId),
+                          onPressed: () =>
+                              _showRejectDialog(request.id, userId),
                           icon: const Icon(Icons.close),
                           label: const Text('Reject'),
                           style: OutlinedButton.styleFrom(
@@ -326,7 +527,9 @@ class _AdminVerificationRequestsScreenState
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () => _approveVerification(request.id, userId),
+                          onPressed: canApprove
+                              ? () => _approveVerification(request.id, userId)
+                              : null,
                           icon: const Icon(Icons.check),
                           label: const Text('Approve'),
                           style: ElevatedButton.styleFrom(
@@ -365,7 +568,8 @@ class _AdminVerificationRequestsScreenState
                 ],
 
                 // Rejection Reason (if rejected)
-                if (status == 'rejected' && data['rejectionReason'] != null) ...[
+                if (status == 'rejected' &&
+                    data['rejectionReason'] != null) ...[
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -377,7 +581,11 @@ class _AdminVerificationRequestsScreenState
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline, color: Colors.red.shade700, size: 20),
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.red.shade700,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -435,7 +643,7 @@ class _AdminVerificationRequestsScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -478,7 +686,7 @@ class _AdminVerificationRequestsScreenState
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(icon, color: AppColors.primary),
@@ -545,11 +753,7 @@ class _AdminVerificationRequestsScreenState
                     ),
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 24,
-                  color: Colors.grey.shade300,
-                ),
+                Container(width: 1, height: 24, color: Colors.grey.shade300),
                 Expanded(
                   child: TextButton.icon(
                     onPressed: () => _downloadDocument(imageUrl, title),
@@ -599,7 +803,12 @@ class _AdminVerificationRequestsScreenState
                   child: InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 4.0,
-                    child: _buildImageWidget(imageUrl, null, null, BoxFit.contain),
+                    child: _buildImageWidget(
+                      imageUrl,
+                      null,
+                      null,
+                      BoxFit.contain,
+                    ),
                   ),
                 ),
               ),
@@ -617,7 +826,10 @@ class _AdminVerificationRequestsScreenState
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   OutlinedButton.icon(
@@ -627,7 +839,10 @@ class _AdminVerificationRequestsScreenState
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -643,22 +858,43 @@ class _AdminVerificationRequestsScreenState
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
+      final requestDoc = await FirebaseFirestore.instance
+          .collection('verification_requests')
+          .doc(requestId)
+          .get();
+      if (!requestDoc.exists) return;
+
+      final requestData = requestDoc.data() ?? <String, dynamic>{};
+      final paymentStatus = _normalizePaymentStatus(
+        (requestData['paymentStatus'] ?? 'pending').toString(),
+      );
+      if (!_isPaymentCompleted(paymentStatus)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Cannot approve yet. Agent must complete plan payment first.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
 
       // Update verification request
       await FirebaseFirestore.instance
           .collection('verification_requests')
           .doc(requestId)
           .update({
-        'status': 'approved',
-        'reviewedAt': FieldValue.serverTimestamp(),
-        'reviewedBy': currentUser.uid,
-      });
+            'status': 'approved',
+            'reviewedAt': FieldValue.serverTimestamp(),
+            'reviewedBy': currentUser.uid,
+            'paymentVerifiedByAdmin': true,
+          });
 
       // Update user document - set isVerified to true
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .update({
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
         'isVerified': true,
         'verificationStatus': 'approved',
         'verifiedAt': FieldValue.serverTimestamp(),
@@ -755,17 +991,14 @@ class _AdminVerificationRequestsScreenState
           .collection('verification_requests')
           .doc(requestId)
           .update({
-        'status': 'rejected',
-        'reviewedAt': FieldValue.serverTimestamp(),
-        'reviewedBy': currentUser.uid,
-        'rejectionReason': reason,
-      });
+            'status': 'rejected',
+            'reviewedAt': FieldValue.serverTimestamp(),
+            'reviewedBy': currentUser.uid,
+            'rejectionReason': reason,
+          });
 
       // Update user document
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .update({
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
         'verificationStatus': 'rejected',
         'verificationRejectedAt': FieldValue.serverTimestamp(),
       });
@@ -829,10 +1062,7 @@ class _AdminVerificationRequestsScreenState
   Future<void> _unverifyAgent(String userId) async {
     try {
       // Update user document - set isVerified to false
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .update({
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
         'isVerified': false,
         'verificationStatus': 'unverified',
         'unverifiedAt': FieldValue.serverTimestamp(),
@@ -841,7 +1071,9 @@ class _AdminVerificationRequestsScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Agent unverified successfully. They can resubmit documents.'),
+            content: Text(
+              'Agent unverified successfully. They can resubmit documents.',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -863,7 +1095,7 @@ class _AdminVerificationRequestsScreenState
       // For web, we'll open in a new tab with download attribute
       // For mobile, we'll use url_launcher to open the URL
       await _openInNewTab(imageUrl);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -888,10 +1120,7 @@ class _AdminVerificationRequestsScreenState
     try {
       final uri = Uri.parse(url);
       if (await canLaunchUrl(uri)) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         throw 'Could not launch $url';
       }
@@ -911,13 +1140,18 @@ class _AdminVerificationRequestsScreenState
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
-  Widget _buildImageWidget(String imageUrl, double? width, double? height, BoxFit fit) {
+  Widget _buildImageWidget(
+    String imageUrl,
+    double? width,
+    double? height,
+    BoxFit fit,
+  ) {
     // Check if it's a base64 data URL
     if (imageUrl.startsWith('data:image')) {
       try {
         final base64String = imageUrl.split(',')[1];
         final bytes = base64Decode(base64String);
-        
+
         return Image.memory(
           bytes,
           width: width,
@@ -942,7 +1176,7 @@ class _AdminVerificationRequestsScreenState
         );
       }
     }
-    
+
     // Otherwise treat it as a network URL
     return Image.network(
       imageUrl,

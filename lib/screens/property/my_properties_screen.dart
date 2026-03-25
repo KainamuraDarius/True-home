@@ -24,6 +24,10 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
   final PandoraPaymentService _pandoraService = PandoraPaymentService();
   static const double _featuredPromotionPrice = 200000;
   String? _promotingPropertyId;
+  bool _isFeaturedPromotionFlowBusy = false;
+  String? _pendingFeaturedPaymentRef;
+  String? _pendingFeaturedPaymentPhone;
+  String? _availableFeaturedPaymentRef;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +94,11 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildFeaturedPromotionPlanCard(userId),
+          ),
+          const SizedBox(height: 12),
 
           // Properties List
           Expanded(
@@ -565,6 +574,209 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
     );
   }
 
+  Widget _buildFeaturedPromotionPlanCard(String userId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('properties')
+          .where('ownerId', isEqualTo: userId)
+          .where('status', isEqualTo: PropertyStatus.approved.name)
+          .snapshots(),
+      builder: (context, snapshot) {
+        int approvedCount = 0;
+        int activeFeaturedCount = 0;
+        if (snapshot.hasData) {
+          final docs = snapshot.data!.docs;
+          approvedCount = docs.length;
+          final now = DateTime.now();
+          for (final doc in docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final hasActivePromotion = data['hasActivePromotion'] == true;
+            final endDate = _parseDateTime(data['promotionEndDate']);
+            final isActive =
+                hasActivePromotion && (endDate == null || endDate.isAfter(now));
+            if (isActive) {
+              activeFeaturedCount++;
+            }
+          }
+        }
+
+        final hasPaidButNotApplied = _availableFeaturedPaymentRef != null;
+        final isBusy = _isFeaturedPromotionFlowBusy;
+
+        final buttonLabel = isBusy
+            ? 'Opening promotion flow...'
+            : hasPaidButNotApplied
+            ? 'Choose Property To Activate'
+            : 'Pay & Choose Property';
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [const Color(0xFFFFF8E8), const Color(0xFFFFEFD2)],
+            ),
+            border: Border.all(color: const Color(0xFFFFD48D)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFC46C).withValues(alpha: 0.25),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFA726).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.local_fire_department,
+                      color: Color(0xFFE65100),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Featured Property Promotion',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE65100),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Text(
+                      'PLAN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'UGX 200,000 / month · per property',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFE65100),
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Pin a specific listing to the top of search results in its area and category. Ideal for high-value properties or listings that need faster visibility.',
+                style: TextStyle(color: AppColors.textSecondary, height: 1.3),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildPlanStatChip(
+                    icon: Icons.home_work_outlined,
+                    label: '$approvedCount approved',
+                    color: const Color(0xFFE65100),
+                  ),
+                  _buildPlanStatChip(
+                    icon: Icons.push_pin_outlined,
+                    label: '$activeFeaturedCount active featured',
+                    color: const Color(0xFF2E7D32),
+                  ),
+                  if (hasPaidButNotApplied)
+                    _buildPlanStatChip(
+                      icon: Icons.verified_outlined,
+                      label: 'Payment confirmed',
+                      color: AppColors.primary,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: isBusy
+                      ? null
+                      : () => _openFeaturedPromotionPlanFlow(),
+                  icon: isBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          hasPaidButNotApplied
+                              ? Icons.check_circle_outline
+                              : Icons.payment,
+                        ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  label: Text(buttonLabel),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPlanStatChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
     if (value is DateTime) return value;
@@ -591,34 +803,204 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
 
   String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 
-  Future<Map<String, dynamic>?> _findAnotherActivePromotion({
-    required String ownerId,
-    required String excludingPropertyId,
-  }) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('properties')
-        .where('ownerId', isEqualTo: ownerId)
-        .where('hasActivePromotion', isEqualTo: true)
-        .get();
-
-    final now = DateTime.now();
-    for (final doc in snapshot.docs) {
-      if (doc.id == excludingPropertyId) continue;
-      final data = doc.data();
-      final endDate = _parseDateTime(data['promotionEndDate']);
-      final isActive = endDate == null || endDate.isAfter(now);
-      if (!isActive) continue;
-
-      return {
-        'title': (data['title'] as String?) ?? 'Another property',
-        'endDate': endDate,
-      };
-    }
-
-    return null;
+  bool _isPaymentSuccessStatus(String status) {
+    const successStatuses = {'completed', 'success', 'paid'};
+    return successStatuses.contains(status.toLowerCase());
   }
 
-  Future<String?> _payForFeaturedPromotion(PropertyModel property) async {
+  bool _isPaymentFailureStatus(String status) {
+    const failureStatuses = {
+      'failed',
+      'declined',
+      'cancelled',
+      'expired',
+      'user_cancelled',
+      'timeout',
+    };
+    return failureStatuses.contains(status.toLowerCase());
+  }
+
+  void _storePendingFeaturedPayment({
+    required String transactionRef,
+    required String phoneNumber,
+  }) {
+    _pendingFeaturedPaymentRef = transactionRef;
+    _pendingFeaturedPaymentPhone = phoneNumber;
+  }
+
+  void _clearPendingFeaturedPayment() {
+    _pendingFeaturedPaymentRef = null;
+    _pendingFeaturedPaymentPhone = null;
+  }
+
+  Future<bool> _waitForFeaturedPaymentConfirmation({
+    required String transactionRef,
+    required String phoneNumber,
+  }) async {
+    if (!mounted) return false;
+
+    bool dialogOpen = true;
+    bool cancelledByUser = false;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('Complete Featured Plan Payment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter your PIN on phone to confirm the featured promotion plan.',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Amount: UGX ${CurrencyFormatter.format(_featuredPromotionPrice)} / month',
+              ),
+              Text('Phone: $phoneNumber'),
+              const SizedBox(height: 16),
+              const Text(
+                'Waiting for payment confirmation...',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                cancelledByUser = true;
+                if (!dialogOpen) return;
+                dialogOpen = false;
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    void closeDialogIfOpen() {
+      if (!dialogOpen || !mounted) return;
+      dialogOpen = false;
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    const int maxAttempts = 48; // 4 minutes, every 5 seconds
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      if (!mounted || cancelledByUser) break;
+
+      await Future.delayed(const Duration(seconds: 5));
+      if (!mounted || cancelledByUser) break;
+
+      try {
+        final statusResponse = await _pandoraService.checkPaymentStatus(
+          transactionRef: transactionRef,
+        );
+        if (!mounted || cancelledByUser) break;
+
+        final status = statusResponse.status.toLowerCase().trim();
+
+        if (statusResponse.success || _isPaymentSuccessStatus(status)) {
+          closeDialogIfOpen();
+          return true;
+        }
+
+        if (_isPaymentFailureStatus(status)) {
+          closeDialogIfOpen();
+          _clearPendingFeaturedPayment();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(statusResponse.message),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return false;
+        }
+      } catch (e) {
+        final normalizedError = e.toString().toLowerCase();
+        final statusServiceMissing =
+            normalizedError.contains('service unavailable') ||
+            normalizedError.contains('404');
+        if (statusServiceMissing) {
+          closeDialogIfOpen();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Payment status service is not available (HTTP 404). '
+                  'Please deploy/enable pandoraPaymentStatus Cloud Function.',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return false;
+        }
+      }
+    }
+
+    closeDialogIfOpen();
+    if (!mounted) return false;
+
+    if (cancelledByUser) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment confirmation cancelled.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Payment confirmation timed out. Re-open promotion flow to continue.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+    return false;
+  }
+
+  Future<String?> _payForFeaturedPromotionPlan() async {
+    if (_availableFeaturedPaymentRef != null) {
+      return _availableFeaturedPaymentRef;
+    }
+
+    if (_pendingFeaturedPaymentRef != null &&
+        _pendingFeaturedPaymentPhone != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Payment already initiated. Enter PIN on phone to complete.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+
+      final confirmed = await _waitForFeaturedPaymentConfirmation(
+        transactionRef: _pendingFeaturedPaymentRef!,
+        phoneNumber: _pendingFeaturedPaymentPhone!,
+      );
+      if (!confirmed) return null;
+
+      final confirmedRef = _pendingFeaturedPaymentRef!;
+      _clearPendingFeaturedPayment();
+      _availableFeaturedPaymentRef = confirmedRef;
+      return _availableFeaturedPaymentRef;
+    }
+
     final phoneController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     bool isPaying = false;
@@ -631,7 +1013,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
-              title: const Text('Pay Featured Promotion'),
+              title: const Text('Pay Featured Promotion Plan'),
               content: SingleChildScrollView(
                 child: Form(
                   key: formKey,
@@ -640,12 +1022,8 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Property: ${property.title}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
                         'Amount: UGX ${CurrencyFormatter.format(_featuredPromotionPrice)} / month',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
@@ -682,14 +1060,14 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                           setDialogState(() => isPaying = true);
 
                           final transactionRef =
-                              'FEATURED_${property.id}_${DateTime.now().millisecondsSinceEpoch}';
+                              'FEATUREDPLAN_${DateTime.now().millisecondsSinceEpoch}';
                           try {
                             final response = await _pandoraService
                                 .initiatePayment(
                                   phoneNumber: phoneController.text.trim(),
                                   amount: _featuredPromotionPrice,
                                   transactionRef: transactionRef,
-                                  narrative: 'Featured Property Promotion',
+                                  narrative: 'Featured Property Promotion Plan',
                                 );
 
                             if (!response.success) {
@@ -697,6 +1075,10 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                             }
 
                             paymentReference = response.transactionReference;
+                            _storePendingFeaturedPayment(
+                              transactionRef: response.transactionReference,
+                              phoneNumber: phoneController.text.trim(),
+                            );
                             if (dialogContext.mounted) {
                               Navigator.of(dialogContext).pop();
                             }
@@ -742,101 +1124,366 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
       },
     );
 
-    return paymentReference;
-  }
+    final refToCheck = paymentReference ?? _pendingFeaturedPaymentRef;
+    final phoneToCheck = _pendingFeaturedPaymentPhone;
+    if (refToCheck == null || phoneToCheck == null) return null;
 
-  Future<void> _startFeaturedPromotion(PropertyModel property) async {
-    if (_promotingPropertyId != null) return;
-
-    if (!property.isActive) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Activate this property before promoting it.'),
-          backgroundColor: Colors.orange,
+          content: Text(
+            'Payment initiated. Enter your PIN on phone to confirm.',
+          ),
+          backgroundColor: Colors.green,
         ),
       );
-      return;
     }
 
-    if (_isPromotionCurrentlyActive(property)) {
-      final endDate = property.promotionEndDate;
-      final until = endDate != null ? ' until ${_formatDate(endDate)}' : '';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('This property is already featured$until.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    try {
-      final activePromotion = await _findAnotherActivePromotion(
-        ownerId: property.ownerId,
-        excludingPropertyId: property.id,
-      );
-      if (activePromotion != null) {
-        final title = activePromotion['title'] as String;
-        final endDate = activePromotion['endDate'] as DateTime?;
-        final until = endDate != null ? ' until ${_formatDate(endDate)}' : '';
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Only one property can be featured per month. "$title" is active$until.',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        return;
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error checking promotion eligibility: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    if (!mounted) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Featured Property Promotion'),
-        content: Text(
-          'Promote "${property.title}" for UGX ${CurrencyFormatter.format(_featuredPromotionPrice)} for 30 days?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
+    await Future.delayed(const Duration(milliseconds: 180));
+    final confirmed = await _waitForFeaturedPaymentConfirmation(
+      transactionRef: refToCheck,
+      phoneNumber: phoneToCheck,
     );
+    if (!confirmed) return null;
 
-    if (confirmed != true) return;
+    _clearPendingFeaturedPayment();
+    _availableFeaturedPaymentRef = refToCheck;
+    return _availableFeaturedPaymentRef;
+  }
 
-    final paymentReference = await _payForFeaturedPromotion(property);
-    if (paymentReference == null) return;
+  Future<List<PropertyModel>> _loadApprovedPropertiesForPromotion() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return [];
 
+    final snapshot = await FirebaseFirestore.instance
+        .collection('properties')
+        .where('ownerId', isEqualTo: userId)
+        .where('status', isEqualTo: PropertyStatus.approved.name)
+        .get();
+
+    final properties = snapshot.docs.map((doc) {
+      final propertyData = doc.data();
+      return PropertyModel.fromJson({...propertyData, 'id': doc.id});
+    }).toList();
+
+    properties.sort((a, b) {
+      final activeCompare = (b.isActive ? 1 : 0).compareTo(a.isActive ? 1 : 0);
+      if (activeCompare != 0) return activeCompare;
+
+      final promotedCompare = (_isPromotionCurrentlyActive(b) ? 1 : 0)
+          .compareTo(_isPromotionCurrentlyActive(a) ? 1 : 0);
+      if (promotedCompare != 0) return promotedCompare;
+
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+
+    return properties;
+  }
+
+  Future<PropertyModel?> _showApprovedPropertyPicker(
+    List<PropertyModel> properties, {
+    String? preferredPropertyId,
+  }) async {
+    PropertyModel? selectedProperty;
+    if (preferredPropertyId != null) {
+      for (final property in properties) {
+        if (property.id == preferredPropertyId && property.isActive) {
+          selectedProperty = property;
+          break;
+        }
+      }
+    }
+    if (selectedProperty == null) {
+      for (final property in properties) {
+        if (property.isActive) {
+          selectedProperty = property;
+          break;
+        }
+      }
+    }
+
+    return showModalBottomSheet<PropertyModel>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.86,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Choose Property To Promote',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Select any approved property. Inactive listings are not eligible.',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      itemCount: properties.length,
+                      itemBuilder: (context, index) {
+                        final property = properties[index];
+                        final isSelectable = property.isActive;
+                        final isFeatured = _isPromotionCurrentlyActive(
+                          property,
+                        );
+                        final isSelected = selectedProperty?.id == property.id;
+
+                        return Opacity(
+                          opacity: isSelectable ? 1 : 0.58,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: isSelectable
+                                ? () => setSheetState(() {
+                                    selectedProperty = property;
+                                  })
+                                : null,
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : Colors.grey.shade300,
+                                  width: isSelected ? 2 : 1,
+                                ),
+                                color: isSelected
+                                    ? AppColors.primary.withValues(alpha: 0.08)
+                                    : Colors.white,
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (property.imageUrls.isNotEmpty)
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.network(
+                                        property.imageUrls.first,
+                                        width: 74,
+                                        height: 74,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Container(
+                                                  width: 74,
+                                                  height: 74,
+                                                  color: Colors.grey.shade200,
+                                                  child: const Icon(
+                                                    Icons.image_not_supported,
+                                                  ),
+                                                ),
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      width: 74,
+                                      height: 74,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(
+                                        Icons.home_work_outlined,
+                                      ),
+                                    ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          property.title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          property.location,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Row(
+                                          children: [
+                                            if (isFeatured)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 3,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green.shade100,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                ),
+                                                child: Text(
+                                                  property.promotionEndDate !=
+                                                          null
+                                                      ? 'Featured until ${_formatDate(property.promotionEndDate!)}'
+                                                      : 'Featured',
+                                                  style: TextStyle(
+                                                    color:
+                                                        Colors.green.shade800,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            if (!isSelectable)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 3,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.orange.shade100,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                ),
+                                                child: Text(
+                                                  'Inactive',
+                                                  style: TextStyle(
+                                                    color:
+                                                        Colors.orange.shade900,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Radio<String>(
+                                    value: property.id,
+                                    groupValue: selectedProperty?.id,
+                                    onChanged: isSelectable
+                                        ? (_) => setSheetState(() {
+                                            selectedProperty = property;
+                                          })
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            child: const Text('Later'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: selectedProperty == null
+                                ? null
+                                : () => Navigator.of(
+                                    sheetContext,
+                                  ).pop(selectedProperty),
+                            icon: const Icon(Icons.local_fire_department),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                            ),
+                            label: const Text('Activate Promotion'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _activateFeaturedPromotionForProperty({
+    required PropertyModel property,
+    required String paymentReference,
+  }) async {
     setState(() => _promotingPropertyId = property.id);
+
     try {
-      final promotionEndDate = DateTime.now().add(const Duration(days: 30));
+      final now = DateTime.now();
+      final currentEnd = property.promotionEndDate;
+      final hasCurrentPromotion =
+          property.hasActivePromotion &&
+          currentEnd != null &&
+          currentEnd.isAfter(now);
+
+      final baseDate = hasCurrentPromotion ? currentEnd : now;
+      final promotionEndDate = baseDate.add(const Duration(days: 30));
+
       await FirebaseFirestore.instance
           .collection('properties')
           .doc(property.id)
@@ -847,14 +1494,20 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
             'promotionEndDate': Timestamp.fromDate(promotionEndDate),
             'featuredPromotionPaidAt': Timestamp.now(),
             'featuredPromotionPaymentRef': paymentReference,
+            'featuredPromotionAmount': _featuredPromotionPrice,
+            'featuredPromotionPeriod': 'monthly',
             'updatedAt': DateTime.now().toIso8601String(),
           });
+
+      if (_availableFeaturedPaymentRef == paymentReference) {
+        _availableFeaturedPaymentRef = null;
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Featured promotion activated until ${_formatDate(promotionEndDate)}.',
+              'Featured promotion is active until ${_formatDate(promotionEndDate)}.',
             ),
             backgroundColor: Colors.green,
           ),
@@ -876,12 +1529,84 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
     }
   }
 
+  Future<void> _openFeaturedPromotionPlanFlow({
+    String? preferredPropertyId,
+  }) async {
+    if (_isFeaturedPromotionFlowBusy) return;
+
+    setState(() => _isFeaturedPromotionFlowBusy = true);
+    try {
+      final approvedProperties = await _loadApprovedPropertiesForPromotion();
+      if (approvedProperties.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'You need at least one approved property to use this plan.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+      if (!approvedProperties.any((property) => property.isActive)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Activate at least one approved property before promoting.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      final paymentReference = await _payForFeaturedPromotionPlan();
+      if (paymentReference == null) return;
+
+      final selectedProperty = await _showApprovedPropertyPicker(
+        approvedProperties,
+        preferredPropertyId: preferredPropertyId,
+      );
+      if (selectedProperty == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Payment is confirmed. Reopen Featured Promotion to choose a property.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      await _activateFeaturedPromotionForProperty(
+        property: selectedProperty,
+        paymentReference: paymentReference,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isFeaturedPromotionFlowBusy = false);
+      }
+    }
+  }
+
+  Future<void> _startFeaturedPromotion(PropertyModel property) async {
+    await _openFeaturedPromotionPlanFlow(preferredPropertyId: property.id);
+  }
+
   Widget _buildPromotionSection(PropertyModel property) {
     final isActivePromotion = _isPromotionCurrentlyActive(property);
     final hasExpiredPromotion =
         (property.featuredPromotion || property.hasActivePromotion) &&
         !isActivePromotion;
-    final isProcessing = _promotingPropertyId == property.id;
+    final isProcessing =
+        _promotingPropertyId == property.id || _isFeaturedPromotionFlowBusy;
 
     String statusText = 'No active featured promotion';
     Color statusColor = Colors.grey.shade700;
@@ -899,14 +1624,16 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
       statusColor = Colors.orange.shade700;
     }
 
-    final canPromote = !isProcessing && !isActivePromotion && property.isActive;
+    final canPromote = !isProcessing && property.isActive;
 
     final buttonText = isProcessing
-        ? 'Processing payment...'
+        ? 'Processing...'
+        : _availableFeaturedPaymentRef != null
+        ? 'Choose This Property To Activate'
         : isActivePromotion
-        ? 'Featured Promotion Active'
+        ? 'Extend Featured Plan (+30 days)'
         : property.isActive
-        ? 'Promote This Property • UGX ${CurrencyFormatter.format(_featuredPromotionPrice)} / month'
+        ? 'Pay Plan & Promote This Property'
         : 'Activate Property To Promote';
 
     return Container(
@@ -941,7 +1668,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'One promoted property per account at a time.',
+            'UGX ${CurrencyFormatter.format(_featuredPromotionPrice)} per month for each promoted property.',
             style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
           ),
           const SizedBox(height: 10),
@@ -952,8 +1679,10 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                   ? () => _startFeaturedPromotion(property)
                   : null,
               icon: Icon(
-                isActivePromotion
-                    ? Icons.check_circle
+                _availableFeaturedPaymentRef != null
+                    ? Icons.push_pin
+                    : isActivePromotion
+                    ? Icons.autorenew
                     : Icons.local_fire_department,
               ),
               style: ElevatedButton.styleFrom(
