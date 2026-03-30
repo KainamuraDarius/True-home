@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/snackbar_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'edit_hostel_screen.dart';
@@ -552,24 +553,20 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              currentStatus
-                  ? 'Hostel deactivated - hidden from customers'
-                  : 'Hostel activated - visible to customers',
-            ),
-            backgroundColor: currentStatus ? Colors.orange : Colors.green,
-          ),
+        SnackbarHelper.showInfo(
+          context,
+          currentStatus
+              ? 'Hostel deactivated - hidden from customers'
+              : 'Hostel activated - visible to customers',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating hostel: $e'),
-            backgroundColor: Colors.red,
-          ),
+        SnackbarHelper.showError(
+          context,
+          'Error updating hostel. Please try again.',
+          actionLabel: 'Retry',
+          onAction: () => _toggleAvailability(id, currentStatus),
         );
       }
     }
@@ -665,21 +662,19 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
 
       if (mounted) {
         Navigator.pop(context); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('"$title" moved to trash'),
-            backgroundColor: Colors.green,
-          ),
+        SnackbarHelper.showSuccess(
+          context,
+          '"$title" moved to trash',
         );
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error deleting hostel: $e'),
-            backgroundColor: Colors.red,
-          ),
+        SnackbarHelper.showError(
+          context,
+          'Error deleting hostel. Please try again.',
+          actionLabel: 'Retry',
+          onAction: () => _deleteHostel(id, title),
         );
       }
     }

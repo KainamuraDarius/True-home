@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../utils/snackbar_helper.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -218,13 +219,9 @@ class _AddHostelScreenState extends State<AddHostelScreen>
         final totalImages = _selectedImages.length + images.length;
         if (totalImages > 12) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'You can only upload up to 12 images. Currently: ${_selectedImages.length}, Selected: ${images.length}',
-                ),
-                backgroundColor: Colors.orange,
-              ),
+            SnackbarHelper.showWarning(
+              context,
+              'You can only upload up to 12 images. Currently: ${_selectedImages.length}, Selected: ${images.length}',
             );
           }
           final remainingSlots = 12 - _selectedImages.length;
@@ -250,9 +247,10 @@ class _AddHostelScreenState extends State<AddHostelScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        SnackbarHelper.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error picking images: $e')));
+          'Error picking images. Please try again.',
+        );
       }
     }
   }
@@ -350,13 +348,9 @@ class _AddHostelScreenState extends State<AddHostelScreen>
       if (_selectedImages.isNotEmpty) {
         imageUrls = await _uploadImages();
         if (mounted && imageUrls.length < _selectedImages.length) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '${imageUrls.length} of ${_selectedImages.length} images uploaded successfully',
-              ),
-              backgroundColor: Colors.orange,
-            ),
+          SnackbarHelper.showWarning(
+            context,
+            '${imageUrls.length} of ${_selectedImages.length} images uploaded successfully',
           );
         }
       }
@@ -386,13 +380,9 @@ class _AddHostelScreenState extends State<AddHostelScreen>
       // Validate at least one room type
       if (roomTypes.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Please select at least one room type with pricing',
-              ),
-              backgroundColor: Colors.orange,
-            ),
+          SnackbarHelper.showWarning(
+            context,
+            'Please select at least one room type with pricing',
           );
         }
         setState(() {
@@ -451,19 +441,18 @@ class _AddHostelScreenState extends State<AddHostelScreen>
       await propertyRef.set(property.toJson());
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Student hostel published successfully!'),
-            backgroundColor: Colors.green,
-          ),
+        SnackbarHelper.showSuccess(
+          context,
+          'Student hostel published successfully!',
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        SnackbarHelper.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          'Error submitting hostel. Please try again.',
+        );
       }
     } finally {
       if (mounted) {

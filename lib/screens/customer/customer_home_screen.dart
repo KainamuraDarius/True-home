@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/snackbar_helper.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -687,37 +688,18 @@ class _HomeTabState extends State<HomeTab> {
       favorites.remove(propertyId);
       await prefs.setStringList('favorite_properties', favorites);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.heart_broken, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Removed from favorites'),
-              ],
-            ),
-            duration: Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
+        SnackbarHelper.showInfo(
+          context,
+          'Removed from favorites',
         );
       }
     } else {
       favorites.add(propertyId);
       await prefs.setStringList('favorite_properties', favorites);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.favorite, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Item added to favorites!'),
-              ],
-            ),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.green[700],
-          ),
+        SnackbarHelper.showSuccess(
+          context,
+          'Item added to favorites!',
         );
       }
     }
@@ -991,9 +973,10 @@ class _HomeTabState extends State<HomeTab> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        SnackbarHelper.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error searching: $e')));
+          'Error searching. Please try again.',
+        );
       }
       print(' Search error: $e');
     }
@@ -4023,9 +4006,10 @@ class _SearchTabState extends State<SearchTab> {
     } catch (e) {
       setState(() => _isSearching = false);
       if (mounted) {
-        ScaffoldMessenger.of(
+        SnackbarHelper.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error searching: $e')));
+          'Error searching. Please try again.',
+        );
       }
     }
   }
@@ -5303,18 +5287,17 @@ class _FavoritesTabState extends State<FavoritesTab> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Removed from favorites'),
-            duration: Duration(seconds: 2),
-          ),
+        SnackbarHelper.showInfo(
+          context,
+          'Removed from favorites',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        SnackbarHelper.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error removing favorite: $e')));
+          'Error removing favorite. Please try again.',
+        );
       }
     }
   }
@@ -5350,14 +5333,16 @@ class _FavoritesTabState extends State<FavoritesTab> {
         });
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('All favorites cleared')),
+          SnackbarHelper.showSuccess(
+            context,
+            'All favorites cleared',
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error clearing favorites: $e')),
+          SnackbarHelper.showError(
+            context,
+            'Error clearing favorites. Please try again.',
           );
         }
       }
