@@ -5,6 +5,7 @@ const List<String> universities = [
   'Kampala International University',
   'Kyambogo University',
   'Makerere University',
+  'Makerere University Business School (MUBS)',
   'Mbarara University of Science and Technology',
   'Ndejje University',
   'Nkumba University',

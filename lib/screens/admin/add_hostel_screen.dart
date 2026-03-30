@@ -600,31 +600,21 @@ class _AddHostelScreenState extends State<AddHostelScreen>
                 ),
                 const SizedBox(height: 16),
 
-                // Room Structure
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedRoomStructure,
+                // Room Structure (customizable)
+                TextFormField(
+                  controller: TextEditingController(text: _selectedRoomStructure),
                   decoration: const InputDecoration(
                     labelText: 'Room Structure *',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.meeting_room),
-                    hintText: 'Select room structure',
+                    hintText: 'e.g., Self Contained, Mixed, Double, etc.',
                   ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Self Contained',
-                      child: Text('Self Contained'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Not Self Contained',
-                      child: Text('Not Self Contained'),
-                    ),
-                  ],
                   onChanged: (value) {
                     setState(() => _selectedRoomStructure = value);
                   },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please select room structure';
+                      return 'Please enter room structure';
                     }
                     return null;
                   },

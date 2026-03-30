@@ -995,7 +995,7 @@ class _HomeTabState extends State<HomeTab> {
           context,
         ).showSnackBar(SnackBar(content: Text('Error searching: $e')));
       }
-      print('❌ Search error: $e');
+      print(' Search error: $e');
     }
   }
 
@@ -2480,28 +2480,49 @@ class _HomeTabState extends State<HomeTab> {
           ),
           const SizedBox(height: 14),
 
-          // Property type buttons - fit in single row
-          Row(
-            children: [
-              Expanded(
-                child: _buildPropertyTypeButton('Buy', PropertyType.sale),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _buildPropertyTypeButton('Rent', PropertyType.rent),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _buildPropertyTypeButton('Hostels', PropertyType.hostel),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _buildPropertyTypeButton(
-                  'Commercial',
-                  PropertyType.commercial,
+          // Property type buttons - fit in single row, fill width, prevent word wrap
+          SizedBox(
+            width: double.infinity,
+            child: Row(
+              // crossAxisAlignment: CrossAxisAlignment.stretch, // Removed to fix assertion error
+              children: [
+                Expanded(
+                  child: _buildPropertyTypeButton(
+                    'Buy',
+                    PropertyType.sale,
+                    fontSize: 13,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                  ),
                 ),
-              ),
-            ],
+                SizedBox(width: MediaQuery.of(context).size.width > 600 ? 16 : 6),
+                Expanded(
+                  child: _buildPropertyTypeButton(
+                    'Rent',
+                    PropertyType.rent,
+                    fontSize: 13,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                  ),
+                ),
+                SizedBox(width: MediaQuery.of(context).size.width > 600 ? 16 : 6),
+                Expanded(
+                  child: _buildPropertyTypeButton(
+                    'Hostels',
+                    PropertyType.hostel,
+                    fontSize: 13,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                  ),
+                ),
+                SizedBox(width: MediaQuery.of(context).size.width > 600 ? 16 : 6),
+                Expanded(
+                  child: _buildPropertyTypeButton(
+                    'Commercial',
+                    PropertyType.commercial,
+                    fontSize: 13,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -2671,7 +2692,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _buildPropertyTypeButton(String label, PropertyType type) {
+  Widget _buildPropertyTypeButton(String label, PropertyType type, {double fontSize = 11, EdgeInsetsGeometry padding = const EdgeInsets.symmetric(vertical: 10, horizontal: 6)}) {
     final isSelected = _selectedFilter == type;
 
     // Get icon for each property type
@@ -2692,8 +2713,7 @@ class _HomeTabState extends State<HomeTab> {
       onPressed: () {
         setState(() {
           _selectedFilter = isSelected ? null : type;
-          _displayedPropertiesCount =
-              3; // Reset pagination to 3 when filter changes
+          _displayedPropertiesCount = 3; // Reset pagination to 3 when filter changes
           _selectedPropertyLocation = null; // Reset location filter
         });
         // Reload locations for the selected property type
@@ -2704,25 +2724,21 @@ class _HomeTabState extends State<HomeTab> {
           Future.delayed(const Duration(milliseconds: 100), () {
             final context = _universityDropdownKey.currentContext;
             if (context != null) {
-              final RenderBox? renderBox =
-                  context.findRenderObject() as RenderBox?;
+              final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
               if (renderBox != null) {
                 final position = renderBox.localToGlobal(Offset.zero);
-                final scrollPosition =
-                    _scrollController.offset + position.dy - 100;
+                final scrollPosition = _scrollController.offset + position.dy - 100;
 
-                _scrollController
-                    .animateTo(
-                      scrollPosition,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    )
-                    .then((_) {
-                      // Open university picker after scrolling
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        _showUniversityPicker(context);
-                      });
-                    });
+                _scrollController.animateTo(
+                  scrollPosition,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut,
+                ).then((_) {
+                  // Open university picker after scrolling
+                  Future.delayed(const Duration(milliseconds: 300), () {
+                    _showUniversityPicker(context);
+                  });
+                });
               }
             }
           });
@@ -2734,8 +2750,10 @@ class _HomeTabState extends State<HomeTab> {
       label: Text(
         label,
         textAlign: TextAlign.center,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: fontSize,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
         ),
       ),
@@ -2747,7 +2765,7 @@ class _HomeTabState extends State<HomeTab> {
             ? Colors.white
             : Theme.of(context).textTheme.bodyLarge!.color,
         elevation: isSelected ? 4 : 0,
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        padding: padding,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(

@@ -1193,7 +1193,16 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                     },
-                                    if (widget.property.agentName.isNotEmpty)
+                                    if (widget.property.type == PropertyType.hostel && widget.property.ownerName.isNotEmpty)
+                                      Text(
+                                        widget.property.ownerName,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.blue.shade700,
+                                        ),
+                                      )
+                                    else if (widget.property.agentName.isNotEmpty)
                                       FutureBuilder<bool>(
                                         future: _checkAgentVerificationStatus(),
                                         builder: (context, snapshot) {
