@@ -26,7 +26,7 @@ class ReserveRoomScreen extends StatefulWidget {
 }
 
 class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
-      bool _useDifferentPaymentNumber = false;
+      final bool _useDifferentPaymentNumber = false;
     User? _firebaseUser;
     Map<String, dynamic>? _userProfile;
   final _formKey = GlobalKey<FormState>();

@@ -324,8 +324,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       final hasEnterpriseAccess = _hasActivePaidPlan(userData);
       final hasPaidAccess = _hasActivePaidOrEnterprisePlan(userData);
 
-      if (mounted)
+      if (mounted) {
         setState(() => _hasManagePlanAndTeamAccess = hasEnterpriseAccess);
+      }
       // Return paid access for agent/enterprise
       return hasPaidAccess;
     } catch (e) {

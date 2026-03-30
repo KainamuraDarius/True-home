@@ -1224,7 +1224,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                         // Category and custom category (if needed)
                         ...[
                           DropdownButtonFormField<String>(
-                            value: _selectedCategory,
+                            initialValue: _selectedCategory,
                             decoration: InputDecoration(
                               labelText: _selectedType == PropertyType.commercial
                                   ? 'Commercial Category *'
@@ -1335,7 +1335,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                                 Expanded(
                                   flex: 2,
                                   child: DropdownButtonFormField<String>(
-                                    value: _currency,
+                                    initialValue: _currency,
                                     decoration: const InputDecoration(
                                       labelText: 'Currency',
                                       border: OutlineInputBorder(),
@@ -1364,7 +1364,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                             if (_selectedType == PropertyType.commercial) ...[
                               const SizedBox(height: 12),
                               DropdownButtonFormField<String>(
-                                value: _rentalUnit,
+                                initialValue: _rentalUnit,
                                 decoration: const InputDecoration(
                                   labelText: 'Rental Unit',
                                   border: OutlineInputBorder(),

@@ -207,7 +207,7 @@ class _PlanTeamManagementScreenState extends State<PlanTeamManagementScreen> {
       );
     }
 
-    Future<void> _cancelPlan(BuildContext context) async {
+    Future<void> cancelPlan(BuildContext context) async {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -381,7 +381,7 @@ class _PlanTeamManagementScreenState extends State<PlanTeamManagementScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: () => _cancelPlan(context),
+                          onPressed: () => cancelPlan(context),
                           icon: const Icon(Icons.cancel_outlined, color: Colors.red),
                           label: const Text('Cancel Plan', style: TextStyle(color: Colors.red)),
                           style: OutlinedButton.styleFrom(

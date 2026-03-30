@@ -665,10 +665,11 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                           label: const Text('Month'),
                           selected: _pricingPeriod == PricingPeriod.month,
                           onSelected: (selected) {
-                            if (selected)
+                            if (selected) {
                               setState(
                                 () => _pricingPeriod = PricingPeriod.month,
                               );
+                            }
                           },
                         ),
                         const SizedBox(width: 8),
@@ -676,10 +677,11 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                           label: const Text('Semester'),
                           selected: _pricingPeriod == PricingPeriod.semester,
                           onSelected: (selected) {
-                            if (selected)
+                            if (selected) {
                               setState(
                                 () => _pricingPeriod = PricingPeriod.semester,
                               );
+                            }
                           },
                         ),
                       ],
