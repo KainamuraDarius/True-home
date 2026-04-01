@@ -2467,41 +2467,42 @@ class _HomeTabState extends State<HomeTab> {
           SizedBox(
             width: double.infinity,
             child: Row(
-              // crossAxisAlignment: CrossAxisAlignment.stretch, // Removed to fix assertion error
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Expanded(
+                Flexible(
+                  flex: 1,
                   child: _buildPropertyTypeButton(
                     'Buy',
                     PropertyType.sale,
-                    fontSize: 13,
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                    fontSize: 10,
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
                   ),
                 ),
-                SizedBox(width: MediaQuery.of(context).size.width > 600 ? 16 : 6),
-                Expanded(
+                Flexible(
+                  flex: 1,
                   child: _buildPropertyTypeButton(
                     'Rent',
                     PropertyType.rent,
-                    fontSize: 13,
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                    fontSize: 10,
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
                   ),
                 ),
-                SizedBox(width: MediaQuery.of(context).size.width > 600 ? 16 : 6),
-                Expanded(
+                Flexible(
+                  flex: 1,
                   child: _buildPropertyTypeButton(
                     'Hostels',
                     PropertyType.hostel,
-                    fontSize: 13,
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                    fontSize: 10,
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
                   ),
                 ),
-                SizedBox(width: MediaQuery.of(context).size.width > 600 ? 16 : 6),
-                Expanded(
+                Flexible(
+                  flex: 2,
                   child: _buildPropertyTypeButton(
                     'Commercial',
                     PropertyType.commercial,
-                    fontSize: 13,
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                    fontSize: 12,
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                   ),
                 ),
               ],
