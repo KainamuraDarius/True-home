@@ -43,10 +43,9 @@
 	<true/>
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
-</dict>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to your location to provide location-based services and improve your experience.</string>
+	<string>Truehome uses your location to show nearby properties and help you find homes in your area.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to your location while you are using the app to show relevant information and features.</string>
+	<string>Truehome uses your location to show nearby properties and help you find homes in your area.</string>
 </dict>
 </plist>
