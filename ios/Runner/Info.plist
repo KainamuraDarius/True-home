@@ -44,4 +44,9 @@
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
 </dict>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs access to your location to provide location-based services and improve your experience.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to your location while you are using the app to show relevant information and features.</string>
+</dict>
 </plist>
