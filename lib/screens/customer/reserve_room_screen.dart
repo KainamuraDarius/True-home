@@ -26,9 +26,9 @@ class ReserveRoomScreen extends StatefulWidget {
 }
 
 class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
-      final bool _useDifferentPaymentNumber = false;
-    User? _firebaseUser;
-    Map<String, dynamic>? _userProfile;
+  final bool _useDifferentPaymentNumber = false;
+  User? _firebaseUser;
+  Map<String, dynamic>? _userProfile;
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -41,7 +41,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   final double _reservationFee = 20000; // UGX
   bool _isCheckingAvailability = true;
   bool _roomAvailable = false;
-  
+
   String? _currentTransactionId; // Track current payment transaction
   bool _paymentInitialized = false;
 
@@ -61,7 +61,10 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
     // Try to get extra profile info from Firestore
     String? firestorePhone;
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       if (doc.exists) {
         _userProfile = doc.data();
         _nameController.text = _userProfile?['name'] ?? user.displayName ?? '';
@@ -169,10 +172,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                     const SizedBox(height: 12),
                     const Text(
                       'You will receive a payment prompt on your mobile money app or via USSD (*165# for MTN, etc). Complete the payment on your phone to confirm the reservation.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
+                      style: TextStyle(fontSize: 14, height: 1.5),
                     ),
                   ],
                 ),
@@ -243,7 +243,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
       ),
     );
   }
-  
+
   /// Initiate Pandora payment
   /// Sends payment request to Pandora API - user will receive USSD/app prompt
   Future<void> _initiatePandoraPayment() async {
@@ -273,8 +273,9 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         ),
       );
 
-      final transactionRef = 'HOSTEL_${widget.property.id}_${DateTime.now().millisecondsSinceEpoch}';
-      
+      final transactionRef =
+          'HOSTEL_${widget.property.id}_${DateTime.now().millisecondsSinceEpoch}';
+
       // Call Pandora API to initiate payment
       final response = await _pandoraService.initiatePayment(
         phoneNumber: _phoneController.text.trim(),
@@ -318,19 +319,16 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
-  
+
   /// Show dialog that checks payment status
   /// Polls Pandora API and waits for payment to complete
   void _showPaymentStatusDialog(String transactionRef) {
     bool paymentCompleted = false;
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -351,10 +349,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                 children: [
                   const Text(
                     '📱 Check Your Phone',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   const Text(
@@ -416,7 +411,10 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
     );
 
     // Start polling for payment status
-    _pollPaymentStatus(transactionRef, maxAttempts: 60); // Poll for up to 5 minutes
+    _pollPaymentStatus(
+      transactionRef,
+      maxAttempts: 60,
+    ); // Poll for up to 5 minutes
   }
 
   /// Poll Pandora API to check payment status
@@ -428,7 +426,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
     if (attemptNumber >= maxAttempts) {
       if (mounted) {
         Navigator.pop(context); // Close status dialog
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Payment request timed out. Please try again.'),
@@ -458,11 +456,13 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
       if (statusResponse.success) {
         // Payment completed!
         Navigator.pop(context); // Close status dialog
-        
+
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('✅ Payment received! Creating your reservation...'),
+            content: const Text(
+              '✅ Payment received! Creating your reservation...',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -470,46 +470,58 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         // Create reservation with paid status
         _submitReservationAfterPayment(transactionRef);
       } else if (statusResponse.status.toLowerCase() == 'failed' ||
-                 statusResponse.status.toLowerCase() == 'cancelled' ||
-                 statusResponse.status.toLowerCase() == 'expired') {
+          statusResponse.status.toLowerCase() == 'cancelled' ||
+          statusResponse.status.toLowerCase() == 'expired') {
         // Payment failed
         Navigator.pop(context); // Close status dialog
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment ${statusResponse.status.toLowerCase()}: ${statusResponse.message}'),
+            content: Text(
+              'Payment ${statusResponse.status.toLowerCase()}: ${statusResponse.message}',
+            ),
             backgroundColor: Colors.red,
           ),
         );
-        
+
         setState(() {
           _isProcessing = false;
         });
       } else {
         // Still processing - poll again
-        _pollPaymentStatus(transactionRef, maxAttempts: maxAttempts, attemptNumber: attemptNumber + 1);
+        _pollPaymentStatus(
+          transactionRef,
+          maxAttempts: maxAttempts,
+          attemptNumber: attemptNumber + 1,
+        );
       }
     } catch (e) {
       debugPrint('Error checking payment status: $e');
-      
+
       // Continue polling on error (network might be temporarily down)
       await Future.delayed(const Duration(seconds: 2));
       if (mounted) {
-        _pollPaymentStatus(transactionRef, maxAttempts: maxAttempts, attemptNumber: attemptNumber + 1);
+        _pollPaymentStatus(
+          transactionRef,
+          maxAttempts: maxAttempts,
+          attemptNumber: attemptNumber + 1,
+        );
       }
     }
   }
-  
+
   /// Cancel the payment
   Future<void> _cancelPayment() async {
     if (_currentTransactionId != null) {
       try {
-        await _pandoraService.cancelPayment(transactionRef: _currentTransactionId!);
+        await _pandoraService.cancelPayment(
+          transactionRef: _currentTransactionId!,
+        );
       } catch (e) {
         debugPrint('Error cancelling payment: $e');
       }
     }
-    
+
     setState(() {
       _isProcessing = false;
       _currentTransactionId = null;
@@ -626,26 +638,26 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
       // Store custodian notification for follow-up
       try {
         await FirebaseFirestore.instance
-          .collection('custodian_booking_notifications')
-          .add({
-          'reservationId': docRef.id,
-          'propertyId': widget.property.id,
-          'propertyTitle': widget.property.title,
-          'roomTypeName': widget.roomType.name,
-          'studentName': _nameController.text.trim(),
-          'studentPhone': _phoneController.text.trim(),
-          'studentEmail': _emailController.text.trim(),
-          'custodianName': widget.property.agentName.trim().isNotEmpty
-            ? widget.property.agentName.trim()
-            : 'Hostel Manager',
-          'custodianPhone': widget.property.contactPhone.trim(),
-          'custodianEmail': widget.property.contactEmail.trim(),
-          'studentUserId': currentUser!.uid,
-          'paymentStatus': 'paid',
-          'transactionId': transactionId,
-          'status': 'confirmed',
-          'createdAt': Timestamp.fromDate(DateTime.now()),
-          });
+            .collection('custodian_booking_notifications')
+            .add({
+              'reservationId': docRef.id,
+              'propertyId': widget.property.id,
+              'propertyTitle': widget.property.title,
+              'roomTypeName': widget.roomType.name,
+              'studentName': _nameController.text.trim(),
+              'studentPhone': _phoneController.text.trim(),
+              'studentEmail': _emailController.text.trim(),
+              'custodianName': widget.property.agentName.trim().isNotEmpty
+                  ? widget.property.agentName.trim()
+                  : 'Hostel Manager',
+              'custodianPhone': widget.property.contactPhone.trim(),
+              'custodianEmail': widget.property.contactEmail.trim(),
+              'studentUserId': currentUser!.uid,
+              'paymentStatus': 'paid',
+              'transactionId': transactionId,
+              'status': 'confirmed',
+              'createdAt': Timestamp.fromDate(DateTime.now()),
+            });
       } catch (notificationError) {
         debugPrint(
           'Custodian notification error for reservation ${docRef.id}: $notificationError',
@@ -729,11 +741,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(
-                          Icons.school,
-                          size: 16,
-                          color: Colors.blue,
-                        ),
+                        const Icon(Icons.school, size: 16, color: Colors.blue),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -757,43 +765,35 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                         ),
                       ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                _getRoomTypeIcon(widget.roomType.name),
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                widget.roomType.name,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          Icon(
+                            _getRoomTypeIcon(widget.roomType.name),
+                            color: AppColors.primary,
                           ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'UGX ${CurrencyFormatter.format(widget.roomType.price)}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.roomType.name,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '/${widget.roomType.pricingPeriod.name}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
+                                const SizedBox(height: 4),
+                                Text(
+                                  'UGX ${CurrencyFormatter.format(widget.roomType.price)} / ${widget.roomType.pricingPeriod.name}',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -908,7 +908,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
 
               const SizedBox(height: 16),
 
-
               // Phone Field with toggle
               TextFormField(
                 controller: _phoneController,
@@ -983,7 +982,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'A one-time reservation fee of UGX 20,000 is required to secure your booking and connect you to the Hostel managers for confirmation of hostel and room details.',
+                      'A one-time processing fee of UGX 20,000 is required to connect you to the Hostel managers for confirmation of hostel and room details.',
                     ),
                     const SizedBox(height: 8),
                     Text(
