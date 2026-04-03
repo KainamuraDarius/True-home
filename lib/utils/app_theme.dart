@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
   // Modern Primary Colors - Vibrant Blue
@@ -63,7 +62,6 @@ class AppTheme {
         error: AppColors.error,
         brightness: Brightness.light,
       ),
-      fontFamily: GoogleFonts.plusJakartaSans().fontFamily,
       scaffoldBackgroundColor: AppColors.background,
 
       // AppBar Theme - Modern with gradient effect
@@ -335,7 +333,6 @@ class AppTheme {
         error: AppColors.error,
         onSurface: Colors.white,
       ),
-      fontFamily: GoogleFonts.plusJakartaSans().fontFamily,
       scaffoldBackgroundColor: const Color(0xFF111827),
 
       // AppBar Theme - Dark Mode

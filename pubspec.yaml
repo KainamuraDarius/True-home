@@ -89,7 +89,6 @@ dependencies:
   # JSON Serialization
   json_annotation: ^4.9.0
   timezone: ^0.9.4
-  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:

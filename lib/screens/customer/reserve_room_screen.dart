@@ -972,7 +972,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                         Icon(Icons.info_outline, color: Colors.green.shade700),
                         const SizedBox(width: 8),
                         const Text(
-                          'Reservation Fee',
+                          'Processing Fee',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
