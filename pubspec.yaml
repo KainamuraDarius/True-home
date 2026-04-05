@@ -152,12 +152,12 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/true_home_logo.png"
+  image_path: "assets/images/app_icon.png"
   min_sdk_android: 21
   
   # Android Adaptive Icons (Modern Android)
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/app_icon_foreground_adaptive.png"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
   
   # iOS Configuration
   remove_alpha_ios: false
@@ -165,12 +165,12 @@ flutter_launcher_icons:
   # Web Configuration
   web:
     generate: true
-    image_path: "assets/images/true_home_logo.png"
+    image_path: "assets/images/app_icon.png"
     background_color: "#000000"
     theme_color: "#2563EB"
   
   # Windows Configuration  
   windows:
     generate: true
-    image_path: "assets/images/true_home_logo.png"
+    image_path: "assets/images/app_icon.png"
     icon_size: 48
