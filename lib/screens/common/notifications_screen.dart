@@ -12,9 +12,9 @@ class NotificationsScreen extends StatefulWidget {
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> with SingleTickerProviderStateMixin {
+class _NotificationsScreenState extends State<NotificationsScreen>
+    with SingleTickerProviderStateMixin {
   final NotificationService _notificationService = NotificationService();
-  final String userId = FirebaseAuth.instance.currentUser!.uid;
   late AnimationController _animationController;
 
   // Modern dark theme colors
@@ -53,9 +53,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
           child: Column(
             children: [
               _buildModernAppBar(),
-              Expanded(
-                child: _buildNotificationsList(),
-              ),
+              Expanded(child: _buildNotificationsList()),
             ],
           ),
         ),
@@ -68,7 +66,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_accentPurple.withOpacity(0.3), _accentBlue.withOpacity(0.2)],
+          colors: [
+            _accentPurple.withOpacity(0.3),
+            _accentBlue.withOpacity(0.2),
+          ],
         ),
         border: Border(
           bottom: BorderSide(color: Colors.white.withOpacity(0.1)),
@@ -83,9 +84,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [_accentPurple, _accentBlue],
-              ),
+              gradient: LinearGradient(colors: [_accentPurple, _accentBlue]),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
@@ -95,7 +94,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
                 ),
               ],
             ),
-            child: const Icon(Icons.notifications_active, color: Colors.white, size: 24),
+            child: const Icon(
+              Icons.notifications_active,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -165,119 +168,170 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
   }
 
   Widget _buildNotificationsList() {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      return _buildGuestState();
+    }
+
     return StreamBuilder<QuerySnapshot>(
-        stream: _notificationService.getUserNotifications(userId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(_accentPurple),
-                      strokeWidth: 3,
-                    ),
+      stream: _notificationService.getUserNotifications(userId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading notifications...',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentPurple),
+                    strokeWidth: 3,
                   ),
-                ],
-              ),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return _buildErrorState(snapshot.error.toString());
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          // Sort notifications by createdAt in descending order (newest first)
-          final notifications = snapshot.data!.docs;
-          notifications.sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-            final aTime = aData['createdAt'];
-            final bTime = bData['createdAt'];
-            
-            if (aTime == null && bTime == null) return 0;
-            if (aTime == null) return 1;
-            if (bTime == null) return -1;
-            
-            // Handle different types: Timestamp, int (milliseconds), or String
-            DateTime? aDateTime;
-            DateTime? bDateTime;
-            
-            if (aTime is Timestamp) {
-              aDateTime = aTime.toDate();
-            } else if (aTime is int) {
-              aDateTime = DateTime.fromMillisecondsSinceEpoch(aTime);
-            } else if (aTime is String) {
-              aDateTime = DateTime.tryParse(aTime);
-            }
-            
-            if (bTime is Timestamp) {
-              bDateTime = bTime.toDate();
-            } else if (bTime is int) {
-              bDateTime = DateTime.fromMillisecondsSinceEpoch(bTime);
-            } else if (bTime is String) {
-              bDateTime = DateTime.tryParse(bTime);
-            }
-            
-            if (aDateTime == null && bDateTime == null) return 0;
-            if (aDateTime == null) return 1;
-            if (bDateTime == null) return -1;
-            
-            return bDateTime.compareTo(aDateTime);
-          });
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: notifications.length,
-            itemBuilder: (context, index) {
-              final notification = notifications[index];
-              final data = notification.data() as Map<String, dynamic>;
-              final isRead = data['isRead'] ?? false;
-              final title = data['title'] ?? '';
-              final message = data['message'] ?? '';
-              final type = data['type'] ?? 'general';
-              final propertyId = data['propertyId'];
-              final createdAtRaw = data['createdAt'];
-              
-              // Parse createdAt from different formats
-              DateTime? createdAtDateTime;
-              if (createdAtRaw is Timestamp) {
-                createdAtDateTime = createdAtRaw.toDate();
-              } else if (createdAtRaw is int) {
-                createdAtDateTime = DateTime.fromMillisecondsSinceEpoch(createdAtRaw);
-              } else if (createdAtRaw is String) {
-                createdAtDateTime = DateTime.tryParse(createdAtRaw);
-              }
-
-              return _buildNotificationCard(
-                notification: notification,
-                title: title,
-                message: message,
-                type: type,
-                isRead: isRead,
-                propertyId: propertyId,
-                createdAt: createdAtDateTime,
-                index: index,
-              );
-            },
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Loading notifications...',
+                  style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                ),
+              ],
+            ),
           );
-        },
-      );
+        }
+
+        if (snapshot.hasError) {
+          return _buildErrorState(snapshot.error.toString());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        // Sort notifications by createdAt in descending order (newest first)
+        final notifications = snapshot.data!.docs;
+        notifications.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aTime = aData['createdAt'];
+          final bTime = bData['createdAt'];
+
+          if (aTime == null && bTime == null) return 0;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+
+          // Handle different types: Timestamp, int (milliseconds), or String
+          DateTime? aDateTime;
+          DateTime? bDateTime;
+
+          if (aTime is Timestamp) {
+            aDateTime = aTime.toDate();
+          } else if (aTime is int) {
+            aDateTime = DateTime.fromMillisecondsSinceEpoch(aTime);
+          } else if (aTime is String) {
+            aDateTime = DateTime.tryParse(aTime);
+          }
+
+          if (bTime is Timestamp) {
+            bDateTime = bTime.toDate();
+          } else if (bTime is int) {
+            bDateTime = DateTime.fromMillisecondsSinceEpoch(bTime);
+          } else if (bTime is String) {
+            bDateTime = DateTime.tryParse(bTime);
+          }
+
+          if (aDateTime == null && bDateTime == null) return 0;
+          if (aDateTime == null) return 1;
+          if (bDateTime == null) return -1;
+
+          return bDateTime.compareTo(aDateTime);
+        });
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: notifications.length,
+          itemBuilder: (context, index) {
+            final notification = notifications[index];
+            final data = notification.data() as Map<String, dynamic>;
+            final isRead = data['isRead'] ?? false;
+            final title = data['title'] ?? '';
+            final message = data['message'] ?? '';
+            final type = data['type'] ?? 'general';
+            final propertyId = data['propertyId'];
+            final createdAtRaw = data['createdAt'];
+
+            // Parse createdAt from different formats
+            DateTime? createdAtDateTime;
+            if (createdAtRaw is Timestamp) {
+              createdAtDateTime = createdAtRaw.toDate();
+            } else if (createdAtRaw is int) {
+              createdAtDateTime = DateTime.fromMillisecondsSinceEpoch(
+                createdAtRaw,
+              );
+            } else if (createdAtRaw is String) {
+              createdAtDateTime = DateTime.tryParse(createdAtRaw);
+            }
+
+            return _buildNotificationCard(
+              notification: notification,
+              title: title,
+              message: message,
+              type: type,
+              isRead: isRead,
+              propertyId: propertyId,
+              createdAt: createdAtDateTime,
+              index: index,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildGuestState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withOpacity(0.12)),
+              ),
+              child: const Icon(
+                Icons.lock_outline,
+                size: 56,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Login required',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please sign in to view your notifications.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.75),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -289,7 +343,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
             padding: const EdgeInsets.all(30),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [_accentPurple.withOpacity(0.2), _accentBlue.withOpacity(0.2)],
+                colors: [
+                  _accentPurple.withOpacity(0.2),
+                  _accentBlue.withOpacity(0.2),
+                ],
               ),
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white.withOpacity(0.1)),
@@ -367,7 +424,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
     required int index,
   }) {
     final iconInfo = _getNotificationIconInfo(type);
-    
+
     return Dismissible(
       key: Key(notification.id),
       background: Container(
@@ -402,23 +459,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isRead
-                  ? [Colors.white.withOpacity(0.05), Colors.white.withOpacity(0.02)]
-                  : [(iconInfo['color'] as Color).withOpacity(0.15), (iconInfo['color'] as Color).withOpacity(0.05)],
+                  ? [
+                      Colors.white.withOpacity(0.05),
+                      Colors.white.withOpacity(0.02),
+                    ]
+                  : [
+                      (iconInfo['color'] as Color).withOpacity(0.15),
+                      (iconInfo['color'] as Color).withOpacity(0.05),
+                    ],
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isRead 
+              color: isRead
                   ? Colors.white.withOpacity(0.1)
                   : (iconInfo['color'] as Color).withOpacity(0.3),
               width: isRead ? 1 : 1.5,
             ),
-            boxShadow: isRead ? null : [
-              BoxShadow(
-                color: (iconInfo['color'] as Color).withOpacity(0.2),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            boxShadow: isRead
+                ? null
+                : [
+                    BoxShadow(
+                      color: (iconInfo['color'] as Color).withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
           child: Material(
             color: Colors.transparent,
@@ -470,7 +535,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,
-                                    fontWeight: isRead ? FontWeight.w500 : FontWeight.bold,
+                                    fontWeight: isRead
+                                        ? FontWeight.w500
+                                        : FontWeight.bold,
                                   ),
                                 ),
                               ),
@@ -656,6 +723,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
   }
 
   Future<void> _markAllAsRead() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      if (mounted) {
+        _showSnackBar(
+          'Please log in to manage notifications',
+          Icons.lock_outline,
+        );
+      }
+      return;
+    }
+
     try {
       final notifications = await FirebaseFirestore.instance
           .collection('notifications')
@@ -678,6 +756,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
   }
 
   Future<void> _clearAll() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      if (mounted) {
+        _showSnackBar(
+          'Please log in to manage notifications',
+          Icons.lock_outline,
+        );
+      }
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => Dialog(
@@ -743,7 +832,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> with SingleTi
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                          side: BorderSide(
+                            color: Colors.white.withOpacity(0.2),
+                          ),
                         ),
                       ),
                       child: Text(

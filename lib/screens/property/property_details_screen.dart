@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -127,8 +128,23 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
             });
           }
         }
+      } on FirebaseException catch (e) {
+        if (e.code == 'permission-denied') {
+          if (mounted) {
+            setState(() {
+              _currentUserRole = null;
+              _currentUserRoles = [];
+            });
+          }
+          if (kDebugMode) {
+            debugPrint('Guest mode: role lookup is not permitted.');
+          }
+          return;
+        }
       } catch (e) {
-        print('Error getting user role: $e');
+        if (kDebugMode) {
+          debugPrint('Error getting user role: $e');
+        }
       }
     }
   }
@@ -310,8 +326,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       if (agentDoc.exists) {
         return agentDoc.data()?['profileImageUrl'];
       }
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        if (kDebugMode) {
+          debugPrint('Guest mode: agent profile image read is not permitted.');
+        }
+        return null;
+      }
     } catch (e) {
-      print('Error fetching agent profile image: $e');
+      if (kDebugMode) {
+        debugPrint('Error fetching agent profile image: $e');
+      }
     }
 
     return null;
@@ -328,8 +353,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         final data = agentDoc.data();
         return data?['isVerified'] == true;
       }
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        if (kDebugMode) {
+          debugPrint('Guest mode: agent verification read is not permitted.');
+        }
+        return false;
+      }
     } catch (e) {
-      print('Error checking agent verification status: $e');
+      if (kDebugMode) {
+        debugPrint('Error checking agent verification status: $e');
+      }
     }
 
     return false;
@@ -337,6 +371,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Property Details'),
@@ -491,9 +527,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                 children: [
                   Text(
                     widget.property.title,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -506,8 +541,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                           : widget.property.type == PropertyType.hostel
                           ? '/semester'
                           : ''}',
-                      style: TextStyle(
-                        fontSize: 28,
+                      style: textTheme.displaySmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
                       ),
@@ -547,20 +581,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Near University',
-                                  style: TextStyle(
-                                    fontSize: 12,
+                                  style: textTheme.labelMedium?.copyWith(
                                     color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   widget.property.university!,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ],
@@ -609,12 +640,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Gender Policy',
-                                  style: TextStyle(
-                                    fontSize: 12,
+                                  style: textTheme.labelMedium?.copyWith(
                                     color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -622,9 +651,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                   _getGenderPolicyLabel(
                                     widget.property.genderPolicy,
                                   ),
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
                                     color: _getGenderPolicyColor(
                                       widget.property.genderPolicy,
                                     ),
@@ -666,20 +694,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Room Structure',
-                                  style: TextStyle(
-                                    fontSize: 12,
+                                  style: textTheme.labelMedium?.copyWith(
                                     color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   widget.property.roomStructure!,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
                                     color: Colors.teal.shade700,
                                   ),
                                 ),
@@ -699,8 +724,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       Expanded(
                         child: Text(
                           widget.property.location,
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: textTheme.bodyLarge?.copyWith(
                             color: Colors.grey,
                           ),
                         ),
@@ -722,11 +746,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Available Room Types',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -734,131 +757,151 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: Container(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: AppColors.primary.withOpacity(0.3),
                                   ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.03),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
                                 child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              _getRoomTypeIcon(roomType.name),
-                                              color: AppColors.primary,
-                                              size: 24,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  roomType.name,
-                                                  style: const TextStyle(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w600,
+                                        Icon(
+                                          _getRoomTypeIcon(roomType.name),
+                                          color: AppColors.primary,
+                                          size: 24,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                roomType.name,
+                                                style: textTheme.titleMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      height: 1.2,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 6,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.primary
+                                                      .withOpacity(0.08),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                  border: Border.all(
+                                                    color: AppColors.primary
+                                                        .withOpacity(0.12),
                                                   ),
                                                 ),
-                                                const SizedBox(height: 4),
-                                                Row(
-                                                  children: [
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
+                                                child: Text(
+                                                  '${widget.property.currency} ${CurrencyFormatter.format(roomType.price)} / ${roomType.pricingPeriod.name}',
+                                                  style: textTheme.labelMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color:
+                                                            AppColors.primary,
+                                                      ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Wrap(
+                                                spacing: 8,
+                                                runSpacing: 8,
+                                                crossAxisAlignment:
+                                                    WrapCrossAlignment.center,
+                                                children: [
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          roomType
+                                                              .hasAvailability
+                                                          ? Colors.green
+                                                                .withOpacity(
+                                                                  0.1,
+                                                                )
+                                                          : Colors.red
+                                                                .withOpacity(
+                                                                  0.1,
+                                                                ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            999,
                                                           ),
-                                                      decoration: BoxDecoration(
+                                                      border: Border.all(
                                                         color:
                                                             roomType
                                                                 .hasAvailability
                                                             ? Colors.green
-                                                                  .withOpacity(
-                                                                    0.1,
-                                                                  )
-                                                            : Colors.red
-                                                                  .withOpacity(
-                                                                    0.1,
-                                                                  ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                        border: Border.all(
-                                                          color:
-                                                              roomType
-                                                                  .hasAvailability
-                                                              ? Colors.green
-                                                              : Colors.red,
-                                                        ),
-                                                      ),
-                                                      child: Text(
-                                                        roomType.hasAvailability
-                                                            ? '${roomType.availableRooms} Available'
-                                                            : 'Fully Booked',
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color:
-                                                              roomType
-                                                                  .hasAvailability
-                                                              ? Colors
-                                                                    .green
-                                                                    .shade700
-                                                              : Colors
-                                                                    .red
-                                                                    .shade700,
-                                                        ),
+                                                            : Colors.red,
                                                       ),
                                                     ),
-                                                    if (roomType.totalRooms >
-                                                        0) ...[
-                                                      const SizedBox(width: 8),
-                                                      Text(
-                                                        'of ${roomType.totalRooms}',
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          color: Colors
-                                                              .grey
-                                                              .shade600,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              '${widget.property.currency} ${CurrencyFormatter.format(roomType.price)}',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.primary,
+                                                    child: Text(
+                                                      roomType.hasAvailability
+                                                          ? '${roomType.availableRooms} Available'
+                                                          : 'Fully Booked',
+                                                      style: textTheme
+                                                          .labelMedium
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color:
+                                                                roomType
+                                                                    .hasAvailability
+                                                                ? Colors
+                                                                      .green
+                                                                      .shade700
+                                                                : Colors
+                                                                      .red
+                                                                      .shade700,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  if (roomType.totalRooms > 0)
+                                                    Text(
+                                                      'of ${roomType.totalRooms}',
+                                                      style: textTheme
+                                                          .labelSmall
+                                                          ?.copyWith(
+                                                            color: Colors
+                                                                .grey
+                                                                .shade600,
+                                                          ),
+                                                    ),
+                                                ],
                                               ),
-                                            ),
-                                            Text(
-                                              '/${roomType.pricingPeriod.name}',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -872,7 +915,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                       const SizedBox(height: 12),
                                       SizedBox(
                                         width: double.infinity,
-                                        child: ElevatedButton.icon(
+                                        child: FilledButton.icon(
                                           onPressed: () {
                                             if (!_requireAuthentication(
                                               title: 'Login To Book',
@@ -897,13 +940,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                             Icons.book_online,
                                             size: 18,
                                           ),
-                                          label: const Text('Reserve Room'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.blue,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 8,
-                                            ),
+                                          label: const Text(
+                                            'Request Reservation',
                                           ),
                                         ),
                                       ),
@@ -946,14 +984,16 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
                   const Divider(),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Description',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     widget.property.description,
-                    style: const TextStyle(fontSize: 16, height: 1.5),
+                    style: textTheme.bodyLarge?.copyWith(height: 1.5),
                   ),
                   const SizedBox(height: 24),
 
@@ -961,11 +1001,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   if (widget.property.amenities.isNotEmpty) ...[
                     const Divider(),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'Amenities',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -996,8 +1035,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                               const SizedBox(width: 6),
                               Text(
                                 amenity,
-                                style: TextStyle(
-                                  fontSize: 14,
+                                style: textTheme.bodyMedium?.copyWith(
                                   color: AppColors.primary,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -1016,9 +1054,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     widget.property.type == PropertyType.hostel
                         ? 'Contact Support'
                         : 'Contact Information',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1051,6 +1088,18 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                               content: Text('Agent profile not found'),
                             ),
                           );
+                        }
+                      } on FirebaseException catch (e) {
+                        if (e.code == 'permission-denied') {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Please log in to view the agent profile.',
+                              ),
+                            ),
+                          );
+                          return;
                         }
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1193,7 +1242,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                     },
-                                    if (widget.property.type == PropertyType.hostel && widget.property.ownerName.isNotEmpty)
+                                    if (widget.property.type ==
+                                            PropertyType.hostel &&
+                                        widget.property.ownerName.isNotEmpty)
                                       Text(
                                         widget.property.ownerName,
                                         style: TextStyle(
@@ -1202,11 +1253,15 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           color: Colors.blue.shade700,
                                         ),
                                       )
-                                    else if (widget.property.agentName.isNotEmpty)
+                                    else if (widget
+                                        .property
+                                        .agentName
+                                        .isNotEmpty)
                                       FutureBuilder<bool>(
                                         future: _checkAgentVerificationStatus(),
                                         builder: (context, snapshot) {
-                                          final isVerified = snapshot.data ?? false;
+                                          final isVerified =
+                                              snapshot.data ?? false;
                                           return AgentNameWithBadge(
                                             name: widget.property.agentName,
                                             isVerified: isVerified,

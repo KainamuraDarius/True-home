@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../utils/snackbar_helper.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/responsive_helper.dart';
@@ -91,6 +94,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               'id': userDoc.id,
             });
           });
+        }
+      } on FirebaseException catch (e) {
+        if (e.code == 'permission-denied') {
+          if (mounted) {
+            setState(() {
+              _currentUser = null;
+            });
+          }
+          return;
         }
       } catch (e) {
         // Silently fail if user data can't be loaded
@@ -550,6 +562,9 @@ class _HomeTabState extends State<HomeTab> {
   bool _showSuggestions = false;
   final FocusNode _searchFocusNode = FocusNode();
   String _inlineAutocompleteSuggestion = '';
+  final Connectivity _connectivity = Connectivity();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isOffline = false;
 
   // Common search terms for suggestions
   static const List<String> _commonLocations = [
@@ -635,10 +650,13 @@ class _HomeTabState extends State<HomeTab> {
         });
       }
     });
+
+    _initializeConnectivity();
   }
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     _searchController.dispose();
     _minPriceController.dispose();
     _maxPriceController.dispose();
@@ -649,7 +667,64 @@ class _HomeTabState extends State<HomeTab> {
     super.dispose();
   }
 
+  Future<void> _initializeConnectivity() async {
+    final initialResults = await _connectivity.checkConnectivity();
+    _updateConnectivityStatus(initialResults);
+
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
+      _updateConnectivityStatus,
+    );
+  }
+
+  void _updateConnectivityStatus(List<ConnectivityResult> results) {
+    final isOffline =
+        results.isEmpty ||
+        results.every((result) => result == ConnectivityResult.none);
+
+    if (!mounted) return;
+    if (_isOffline == isOffline) return;
+
+    setState(() {
+      _isOffline = isOffline;
+    });
+  }
+
+  Widget _buildOfflinePropertiesState() {
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 64, color: Colors.grey.shade500),
+            const SizedBox(height: 16),
+            const Text(
+              'No internet connection',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Connect to the internet to load available properties.',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadCurrentUser() async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      if (mounted) {
+        setState(() {
+          _currentUser = null;
+        });
+      }
+      return;
+    }
+
     try {
       final user = await _roleService.getCurrentUser();
       if (mounted) {
@@ -657,8 +732,22 @@ class _HomeTabState extends State<HomeTab> {
           _currentUser = user;
         });
       }
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        if (mounted) {
+          setState(() {
+            _currentUser = null;
+          });
+        }
+        if (kDebugMode) {
+          debugPrint('Guest mode: user profile read is not permitted.');
+        }
+        return;
+      }
     } catch (e) {
-      print('Error loading current user: $e');
+      if (kDebugMode) {
+        debugPrint('Error loading current user: $e');
+      }
     }
   }
 
@@ -688,19 +777,13 @@ class _HomeTabState extends State<HomeTab> {
       favorites.remove(propertyId);
       await prefs.setStringList('favorite_properties', favorites);
       if (mounted) {
-        SnackbarHelper.showInfo(
-          context,
-          'Removed from favorites',
-        );
+        SnackbarHelper.showInfo(context, 'Removed from favorites');
       }
     } else {
       favorites.add(propertyId);
       await prefs.setStringList('favorite_properties', favorites);
       if (mounted) {
-        SnackbarHelper.showSuccess(
-          context,
-          'Item added to favorites!',
-        );
+        SnackbarHelper.showSuccess(context, 'Item added to favorites!');
       }
     }
   }
@@ -767,7 +850,10 @@ class _HomeTabState extends State<HomeTab> {
     final normalizedSearch = _normalizeSearchText(searchTerm);
     if (normalizedSearch.isEmpty) return true;
 
-    final terms = normalizedSearch.split(' ').where((t) => t.isNotEmpty).toList();
+    final terms = normalizedSearch
+        .split(' ')
+        .where((t) => t.isNotEmpty)
+        .toList();
     for (final field in fields) {
       final normalizedField = _normalizeSearchText(field ?? '');
       if (normalizedField.isEmpty) continue;
@@ -776,7 +862,9 @@ class _HomeTabState extends State<HomeTab> {
         return true;
       }
 
-      final allTermsMatch = terms.every((term) => normalizedField.contains(term));
+      final allTermsMatch = terms.every(
+        (term) => normalizedField.contains(term),
+      );
       if (allTermsMatch) {
         return true;
       }
@@ -973,10 +1061,7 @@ class _HomeTabState extends State<HomeTab> {
       });
     } catch (e) {
       if (mounted) {
-        SnackbarHelper.showError(
-          context,
-          'Error searching. Please try again.',
-        );
+        SnackbarHelper.showError(context, 'Error searching. Please try again.');
       }
       print(' Search error: $e');
     }
@@ -1817,7 +1902,16 @@ class _HomeTabState extends State<HomeTab> {
                             );
                           }
 
+                          if (_isOffline &&
+                              (!snapshot.hasData ||
+                                  snapshot.data!.docs.isEmpty)) {
+                            return _buildOfflinePropertiesState();
+                          }
+
                           if (snapshot.hasError) {
+                            if (_isOffline) {
+                              return _buildOfflinePropertiesState();
+                            }
                             return Padding(
                               padding: const EdgeInsets.all(40),
                               child: Center(
@@ -1862,11 +1956,6 @@ class _HomeTabState extends State<HomeTab> {
                           var allProperties = snapshot.data!.docs.map((doc) {
                             final data = doc.data() as Map<String, dynamic>;
                             data['id'] = doc.id;
-
-                            // Debug: Log imageUrls from Firestore
-                            print(
-                              '🔥 Firestore doc ${doc.id}: imageUrls = ${data['imageUrls']}',
-                            );
 
                             return PropertyModel.fromJson(data);
                           }).toList();
@@ -2018,6 +2107,19 @@ class _HomeTabState extends State<HomeTab> {
                           final hasMore =
                               totalProperties > _displayedPropertiesCount;
 
+                          final screenWidth = MediaQuery.of(context).size.width;
+                          final useWebGridLayout = kIsWeb && screenWidth >= 900;
+                          final webGridColumns = screenWidth >= 1400
+                              ? 4
+                              : screenWidth >= 1024
+                              ? 3
+                              : 2;
+                          final webCardAspectRatio = screenWidth >= 1400
+                              ? 0.74
+                              : screenWidth >= 1024
+                              ? 0.72
+                              : 0.76;
+
                           return Column(
                             children: [
                               // Responsive property list - grid on desktop, list on mobile
@@ -2033,7 +2135,7 @@ class _HomeTabState extends State<HomeTab> {
                                     padding: ResponsiveHelper.getContentPadding(
                                       context,
                                     ),
-                                    child: ResponsiveHelper.isDesktop(context)
+                                    child: useWebGridLayout
                                         ? GridView.builder(
                                             shrinkWrap: true,
                                             physics:
@@ -2041,14 +2143,9 @@ class _HomeTabState extends State<HomeTab> {
                                             gridDelegate:
                                                 SliverGridDelegateWithFixedCrossAxisCount(
                                                   crossAxisCount:
-                                                      ResponsiveHelper.getGridCrossAxisCount(
-                                                        context,
-                                                        mobileCount: 1,
-                                                        tabletCount: 2,
-                                                        desktopCount: 3,
-                                                        largeDesktopCount: 4,
-                                                      ),
-                                                  childAspectRatio: 0.75,
+                                                      webGridColumns,
+                                                  childAspectRatio:
+                                                      webCardAspectRatio,
                                                   crossAxisSpacing: 20,
                                                   mainAxisSpacing: 20,
                                                 ),
@@ -2475,7 +2572,10 @@ class _HomeTabState extends State<HomeTab> {
                     'Buy',
                     PropertyType.sale,
                     fontSize: 10,
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 0,
+                    ),
                   ),
                 ),
                 Flexible(
@@ -2484,7 +2584,10 @@ class _HomeTabState extends State<HomeTab> {
                     'Rent',
                     PropertyType.rent,
                     fontSize: 10,
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 0,
+                    ),
                   ),
                 ),
                 Flexible(
@@ -2493,7 +2596,10 @@ class _HomeTabState extends State<HomeTab> {
                     'Hostels',
                     PropertyType.hostel,
                     fontSize: 10,
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 0,
+                    ),
                   ),
                 ),
                 Flexible(
@@ -2502,7 +2608,10 @@ class _HomeTabState extends State<HomeTab> {
                     'Commercial',
                     PropertyType.commercial,
                     fontSize: 12,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 4,
+                    ),
                   ),
                 ),
               ],
@@ -2676,7 +2785,15 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _buildPropertyTypeButton(String label, PropertyType type, {double fontSize = 11, EdgeInsetsGeometry padding = const EdgeInsets.symmetric(vertical: 10, horizontal: 6)}) {
+  Widget _buildPropertyTypeButton(
+    String label,
+    PropertyType type, {
+    double fontSize = 11,
+    EdgeInsetsGeometry padding = const EdgeInsets.symmetric(
+      vertical: 10,
+      horizontal: 6,
+    ),
+  }) {
     final isSelected = _selectedFilter == type;
 
     // Get icon for each property type
@@ -2697,7 +2814,8 @@ class _HomeTabState extends State<HomeTab> {
       onPressed: () {
         setState(() {
           _selectedFilter = isSelected ? null : type;
-          _displayedPropertiesCount = 3; // Reset pagination to 3 when filter changes
+          _displayedPropertiesCount =
+              3; // Reset pagination to 3 when filter changes
           _selectedPropertyLocation = null; // Reset location filter
         });
         // Reload locations for the selected property type
@@ -2708,21 +2826,25 @@ class _HomeTabState extends State<HomeTab> {
           Future.delayed(const Duration(milliseconds: 100), () {
             final context = _universityDropdownKey.currentContext;
             if (context != null) {
-              final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+              final RenderBox? renderBox =
+                  context.findRenderObject() as RenderBox?;
               if (renderBox != null) {
                 final position = renderBox.localToGlobal(Offset.zero);
-                final scrollPosition = _scrollController.offset + position.dy - 100;
+                final scrollPosition =
+                    _scrollController.offset + position.dy - 100;
 
-                _scrollController.animateTo(
-                  scrollPosition,
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeInOut,
-                ).then((_) {
-                  // Open university picker after scrolling
-                  Future.delayed(const Duration(milliseconds: 300), () {
-                    _showUniversityPicker(context);
-                  });
-                });
+                _scrollController
+                    .animateTo(
+                      scrollPosition,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    )
+                    .then((_) {
+                      // Open university picker after scrolling
+                      Future.delayed(const Duration(milliseconds: 300), () {
+                        _showUniversityPicker(context);
+                      });
+                    });
               }
             }
           });
@@ -3331,7 +3453,9 @@ class _HomeTabState extends State<HomeTab> {
               imageUrls: project.imageUrls,
               height: 250,
               width: double.infinity,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               fallbackIcon: Icons.business,
               disableImageTap: true,
             ),
@@ -3443,6 +3567,8 @@ class _HomeTabState extends State<HomeTab> {
     BuildContext context,
     PropertyModel property,
   ) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3465,7 +3591,9 @@ class _HomeTabState extends State<HomeTab> {
               imageUrls: property.imageUrls,
               height: 250,
               width: double.infinity,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               fallbackIcon: Icons.home,
             ),
             // Property Details
@@ -3497,9 +3625,8 @@ class _HomeTabState extends State<HomeTab> {
                   // Property Name
                   Text(
                     property.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -3517,8 +3644,7 @@ class _HomeTabState extends State<HomeTab> {
                       Expanded(
                         child: Text(
                           property.location,
-                          style: TextStyle(
-                            fontSize: 14,
+                          style: textTheme.bodyMedium?.copyWith(
                             color: Colors.grey[700],
                           ),
                           maxLines: 1,
@@ -3531,8 +3657,7 @@ class _HomeTabState extends State<HomeTab> {
                   // Price
                   Text(
                     '${property.currency} ${CurrencyFormatter.format(property.price)}',
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary,
                     ),
@@ -3547,7 +3672,7 @@ class _HomeTabState extends State<HomeTab> {
                           const SizedBox(width: 4),
                           Text(
                             '${property.bedrooms}',
-                            style: const TextStyle(fontSize: 12),
+                            style: textTheme.bodySmall,
                           ),
                           const SizedBox(width: 12),
                         ],
@@ -3560,7 +3685,7 @@ class _HomeTabState extends State<HomeTab> {
                           const SizedBox(width: 4),
                           Text(
                             '${property.bathrooms}',
-                            style: const TextStyle(fontSize: 12),
+                            style: textTheme.bodySmall,
                           ),
                         ],
                       ],
@@ -3574,7 +3699,7 @@ class _HomeTabState extends State<HomeTab> {
                         Flexible(
                           child: Text(
                             property.university!,
-                            style: const TextStyle(fontSize: 12),
+                            style: textTheme.bodySmall,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -3605,8 +3730,10 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildPropertyCard(BuildContext context, PropertyModel property) {
-    final isDesktopGrid = ResponsiveHelper.isDesktop(context);
+    final isDesktopGrid = kIsWeb && MediaQuery.of(context).size.width >= 1024;
     final imageHeight = isDesktopGrid ? 160.0 : 180.0;
+    final desktopImageFlex = property.type == PropertyType.hostel ? 11 : 12;
+    final desktopDetailsFlex = property.type == PropertyType.hostel ? 9 : 8;
 
     return Card(
       elevation: 2,
@@ -3627,11 +3754,17 @@ class _HomeTabState extends State<HomeTab> {
           children: [
             // Property Image - Use AspectRatio for grid, fixed height for list
             isDesktopGrid
-                ? Expanded(flex: 3, child: _buildPropertyImage(property, null))
+                ? Expanded(
+                    flex: desktopImageFlex,
+                    child: _buildPropertyImage(property, null),
+                  )
                 : _buildPropertyImage(property, imageHeight),
             // Property Details
             isDesktopGrid
-                ? Expanded(flex: 2, child: _buildPropertyDetails(property))
+                ? Expanded(
+                    flex: desktopDetailsFlex,
+                    child: _buildPropertyDetails(property),
+                  )
                 : _buildPropertyDetails(property),
           ],
         ),
@@ -3707,17 +3840,30 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildPropertyDetails(PropertyModel property) {
+    final isDesktopGrid = kIsWeb && MediaQuery.of(context).size.width >= 1024;
+    final textTheme = Theme.of(context).textTheme;
+    final totalRoomTypes = property.roomTypes.length;
+    final totalRooms = property.roomTypes.fold<int>(
+      0,
+      (sum, roomType) =>
+          sum + (roomType.totalRooms > 0 ? roomType.totalRooms : 0),
+    );
+    final availableRooms = property.roomTypes.fold<int>(
+      0,
+      (sum, roomType) =>
+          sum + (roomType.availableRooms > 0 ? roomType.availableRooms : 0),
+    );
+
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(isDesktopGrid ? 10 : 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             property.title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+            style: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
             maxLines: 1,
@@ -3735,8 +3881,7 @@ class _HomeTabState extends State<HomeTab> {
               Expanded(
                 child: Text(
                   property.location,
-                  style: const TextStyle(
-                    fontSize: 12,
+                  style: textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                   maxLines: 1,
@@ -3745,6 +3890,31 @@ class _HomeTabState extends State<HomeTab> {
               ),
             ],
           ),
+          if (property.type == PropertyType.hostel) ...[
+            SizedBox(height: isDesktopGrid ? 6 : 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: isDesktopGrid ? 6 : 8,
+              children: [
+                _buildHostelMetricChip(
+                  icon: Icons.layers_outlined,
+                  label: '$totalRoomTypes room types',
+                ),
+                if (totalRooms > 0)
+                  _buildHostelMetricChip(
+                    icon: Icons.meeting_room_outlined,
+                    label: '$totalRooms rooms',
+                  ),
+                _buildHostelMetricChip(
+                  icon: Icons.event_available_outlined,
+                  label: availableRooms > 0
+                      ? '$availableRooms available'
+                      : 'Fully booked',
+                  isPositive: availableRooms > 0,
+                ),
+              ],
+            ),
+          ],
           if (property.bedrooms > 0 || property.bathrooms > 0) ...[
             const SizedBox(height: 4),
             Row(
@@ -3756,10 +3926,7 @@ class _HomeTabState extends State<HomeTab> {
                     color: AppColors.textSecondary,
                   ),
                   const SizedBox(width: 2),
-                  Text(
-                    '${property.bedrooms}',
-                    style: const TextStyle(fontSize: 11),
-                  ),
+                  Text('${property.bedrooms}', style: textTheme.labelSmall),
                   const SizedBox(width: 8),
                 ],
                 if (property.bathrooms > 0) ...[
@@ -3769,10 +3936,7 @@ class _HomeTabState extends State<HomeTab> {
                     color: AppColors.textSecondary,
                   ),
                   const SizedBox(width: 2),
-                  Text(
-                    '${property.bathrooms}',
-                    style: const TextStyle(fontSize: 11),
-                  ),
+                  Text('${property.bathrooms}', style: textTheme.labelSmall),
                 ],
               ],
             ),
@@ -3787,13 +3951,47 @@ class _HomeTabState extends State<HomeTab> {
                       : property.type == PropertyType.hostel
                       ? "/sem"
                       : ""}',
-            style: const TextStyle(
-              fontSize: 14,
+            style: textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.primary,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHostelMetricChip({
+    required IconData icon,
+    required String label,
+    bool isPositive = true,
+  }) {
+    final accentColor = isPositive ? AppColors.primary : Colors.red.shade600;
+    final backgroundColor = isPositive
+        ? AppColors.primary.withOpacity(0.08)
+        : Colors.red.withOpacity(0.08);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accentColor.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: accentColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: accentColor,
+            ),
           ),
         ],
       ),
@@ -3816,6 +4014,8 @@ class _SearchTabState extends State<SearchTab> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _minPriceController = TextEditingController();
   final TextEditingController _maxPriceController = TextEditingController();
+  final Connectivity _connectivity = Connectivity();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   PropertyType? _selectedType;
   String? _selectedLocation;
   double _minPrice = 0;
@@ -3832,6 +4032,7 @@ class _SearchTabState extends State<SearchTab> {
   List<PropertyModel> _featuredResults = [];
   List<PropertyModel> _organicResults = [];
   bool _isSearching = false;
+  bool _isOffline = false;
   List<String> _searchHistory = [];
   bool _showHistory = false;
   static const String _searchHistoryKey = 'search_history';
@@ -3841,14 +4042,62 @@ class _SearchTabState extends State<SearchTab> {
   void initState() {
     super.initState();
     _loadSearchHistory();
+    _initializeConnectivity();
   }
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     _searchController.dispose();
     _minPriceController.dispose();
     _maxPriceController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeConnectivity() async {
+    final initialResults = await _connectivity.checkConnectivity();
+    _updateConnectivityStatus(initialResults);
+
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
+      _updateConnectivityStatus,
+    );
+  }
+
+  void _updateConnectivityStatus(List<ConnectivityResult> results) {
+    final isOffline =
+        results.isEmpty ||
+        results.every((result) => result == ConnectivityResult.none);
+
+    if (!mounted) return;
+    if (_isOffline == isOffline) return;
+
+    setState(() {
+      _isOffline = isOffline;
+    });
+  }
+
+  Widget _buildOfflineSearchState() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 40),
+          Icon(Icons.wifi_off_rounded, size: 64, color: Colors.grey[500]),
+          const SizedBox(height: 12),
+          const Text(
+            'No internet connection',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Connect to the internet to search for properties.',
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadSearchHistory() async {
@@ -3905,6 +4154,22 @@ class _SearchTabState extends State<SearchTab> {
     // Save search query to history if it's not empty
     if (_searchController.text.trim().isNotEmpty) {
       await _saveSearchQuery(_searchController.text.trim());
+    }
+
+    if (_isOffline) {
+      setState(() {
+        _isSearching = false;
+        _searchResults = [];
+        _featuredResults = [];
+        _organicResults = [];
+      });
+      if (mounted) {
+        SnackbarHelper.showInfo(
+          context,
+          'You are offline. Please connect to the internet and try again.',
+        );
+      }
+      return;
     }
 
     try {
@@ -4007,10 +4272,7 @@ class _SearchTabState extends State<SearchTab> {
     } catch (e) {
       setState(() => _isSearching = false);
       if (mounted) {
-        SnackbarHelper.showError(
-          context,
-          'Error searching. Please try again.',
-        );
+        SnackbarHelper.showError(context, 'Error searching. Please try again.');
       }
     }
   }
@@ -4830,6 +5092,8 @@ class _SearchTabState extends State<SearchTab> {
           Expanded(
             child: _isSearching
                 ? const Center(child: CircularProgressIndicator())
+                : _isOffline
+                ? _buildOfflineSearchState()
                 : _searchResults.isEmpty
                 ? SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
@@ -4889,14 +5153,9 @@ class _SearchTabState extends State<SearchTab> {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        ..._featuredResults.map(
-                          (property) => Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: _buildPropertyCard(
-                              property,
-                              isFeatured: true,
-                            ),
-                          ),
+                        _buildSearchResultCollection(
+                          _featuredResults,
+                          isFeatured: true,
                         ),
                         const SizedBox(height: 8),
                       ],
@@ -4909,18 +5168,50 @@ class _SearchTabState extends State<SearchTab> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        ..._organicResults.map(
-                          (property) => Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: _buildPropertyCard(property),
-                          ),
-                        ),
+                        _buildSearchResultCollection(_organicResults),
                       ],
                     ],
                   ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSearchResultCollection(
+    List<PropertyModel> properties, {
+    bool isFeatured = false,
+  }) {
+    final width = MediaQuery.of(context).size.width;
+    final useWebGrid = kIsWeb && width >= 1024;
+    final columns = width >= 1500 ? 4 : 3;
+
+    if (!useWebGrid) {
+      return Column(
+        children: properties
+            .map(
+              (property) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildPropertyCard(property, isFeatured: isFeatured),
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: properties.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        childAspectRatio: 0.82,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemBuilder: (context, index) {
+        return _buildPropertyCard(properties[index], isFeatured: isFeatured);
+      },
     );
   }
 
@@ -5288,10 +5579,7 @@ class _FavoritesTabState extends State<FavoritesTab> {
       });
 
       if (mounted) {
-        SnackbarHelper.showInfo(
-          context,
-          'Removed from favorites',
-        );
+        SnackbarHelper.showInfo(context, 'Removed from favorites');
       }
     } catch (e) {
       if (mounted) {
@@ -5334,10 +5622,7 @@ class _FavoritesTabState extends State<FavoritesTab> {
         });
 
         if (mounted) {
-          SnackbarHelper.showSuccess(
-            context,
-            'All favorites cleared',
-          );
+          SnackbarHelper.showSuccess(context, 'All favorites cleared');
         }
       } catch (e) {
         if (mounted) {
@@ -5826,7 +6111,6 @@ class _BrowseNewProjectsSectionState extends State<BrowseNewProjectsSection> {
         _locationProjects = projects;
         _loadingProjects = false;
       });
-
     }
   }
 
@@ -6321,7 +6605,11 @@ class _ZoomableImageCarouselState extends State<ZoomableImageCarousel> {
     }
 
     if (widget.height != null || widget.width != null) {
-      content = SizedBox(width: widget.width, height: widget.height, child: content);
+      content = SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: content,
+      );
     }
 
     return content;
