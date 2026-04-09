@@ -1282,6 +1282,10 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                               value: ProjectStatus.offPlan,
                               child: Text('Off-Plan'),
                             ),
+                            DropdownMenuItem(
+                              value: ProjectStatus.ready,
+                              child: Text('Ready'),
+                            ),
                           ],
                           onChanged: (value) {
                             setState(() => _selectedProjectStatus = value!);

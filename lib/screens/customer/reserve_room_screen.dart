@@ -785,7 +785,10 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'UGX ${CurrencyFormatter.format(widget.roomType.price)} / ${widget.roomType.pricingPeriod.name}',
+                                  widget.property.type == PropertyType.hostel &&
+                                          !widget.property.showPriceToCustomers
+                                      ? 'Price on request'
+                                      : 'UGX ${CurrencyFormatter.format(widget.roomType.price)} / ${widget.roomType.pricingPeriod.name}',
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,

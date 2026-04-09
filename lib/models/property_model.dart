@@ -125,6 +125,8 @@ class PropertyModel {
   final bool
   isActive; // Whether property is active (true) or sold/deactivated (false)
   final int viewCount; // Number of times this property has been viewed
+  final bool
+  showPriceToCustomers; // Whether customers should see this property's price
 
   PropertyModel({
     required this.id,
@@ -171,6 +173,7 @@ class PropertyModel {
     this.viewCount = 0, // Default to 0 views
     this.featuredPromotion = false,
     this.developerAdvertising = false,
+    this.showPriceToCustomers = true,
   });
 
   Map<String, dynamic> toJson() {
@@ -221,6 +224,7 @@ class PropertyModel {
       'viewCount': viewCount,
       'featuredPromotion': featuredPromotion,
       'developerAdvertising': developerAdvertising,
+      'showPriceToCustomers': showPriceToCustomers,
     };
   }
 
@@ -350,6 +354,9 @@ class PropertyModel {
       viewCount: json['viewCount'] ?? 0, // Default to 0 for old data
       featuredPromotion: json['featuredPromotion'] ?? false,
       developerAdvertising: json['developerAdvertising'] ?? false,
+      showPriceToCustomers: json['showPriceToCustomers'] is bool
+          ? json['showPriceToCustomers'] as bool
+          : true,
     );
   }
 
@@ -396,6 +403,7 @@ class PropertyModel {
     DateTime? promotionEndDate,
     double? inspectionFee,
     bool? isActive,
+    bool? showPriceToCustomers,
   }) {
     return PropertyModel(
       id: id ?? this.id,
@@ -440,6 +448,7 @@ class PropertyModel {
       promotionEndDate: promotionEndDate ?? this.promotionEndDate,
       inspectionFee: inspectionFee ?? this.inspectionFee,
       isActive: isActive ?? this.isActive,
+      showPriceToCustomers: showPriceToCustomers ?? this.showPriceToCustomers,
     );
   }
 }

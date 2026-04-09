@@ -74,7 +74,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
 
     final code = _currencyCode(widget.project.currency).toUpperCase();
     final upperRaw = raw.toUpperCase();
-    final alreadyHasCurrency = upperRaw.contains(code) ||
+    final alreadyHasCurrency =
+        upperRaw.contains(code) ||
         raw.contains('\$') ||
         raw.contains('€') ||
         raw.contains('£');
@@ -247,8 +248,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
         : 'Contact developer for available unit types';
     final depositTerms =
         widget.project.bookingDepositDescription?.trim().isNotEmpty == true
-            ? widget.project.bookingDepositDescription!.trim()
-            : 'Contact developer for booking terms';
+        ? widget.project.bookingDepositDescription!.trim()
+        : 'Contact developer for booking terms';
 
     return Container(
       width: double.infinity,
@@ -258,10 +259,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0F1628),
-            Color(0xFF1B1F36),
-          ],
+          colors: [Color(0xFF0F1628), Color(0xFF1B1F36)],
         ),
         border: Border.all(
           color: const Color(0xFFD4B35A).withOpacity(0.35),
@@ -380,7 +378,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
     final iconUrl = widget.project.companyIconUrl?.trim();
     final displayName = widget.project.customerVisibleDeveloperName;
     final agentName = widget.project.developerName.trim();
-    final showListedByAgent = widget.project.hasDeveloperTagline &&
+    final showListedByAgent =
+        widget.project.hasDeveloperTagline &&
         agentName.isNotEmpty &&
         agentName != displayName;
 
@@ -405,10 +404,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF101827),
-                Color(0xFF1A2333),
-              ],
+              colors: [Color(0xFF101827), Color(0xFF1A2333)],
             ),
             border: Border.all(
               color: const Color(0xFFD4B35A).withOpacity(0.28),
@@ -687,18 +683,20 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color:
-                          widget.project.projectStatus ==
-                              ProjectStatus.underConstruction
-                          ? Colors.orange.shade50
-                          : Colors.blue.shade50,
+                      color: switch (widget.project.projectStatus) {
+                        ProjectStatus.underConstruction =>
+                          Colors.orange.shade50,
+                        ProjectStatus.offPlan => Colors.blue.shade50,
+                        ProjectStatus.ready => Colors.green.shade50,
+                      },
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color:
-                            widget.project.projectStatus ==
-                                ProjectStatus.underConstruction
-                            ? Colors.orange.shade300
-                            : Colors.blue.shade300,
+                        color: switch (widget.project.projectStatus) {
+                          ProjectStatus.underConstruction =>
+                            Colors.orange.shade300,
+                          ProjectStatus.offPlan => Colors.blue.shade300,
+                          ProjectStatus.ready => Colors.green.shade300,
+                        },
                         width: 1,
                       ),
                     ),
@@ -706,31 +704,37 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          widget.project.projectStatus ==
-                                  ProjectStatus.underConstruction
-                              ? Icons.construction
-                              : Icons.architecture,
+                          switch (widget.project.projectStatus) {
+                            ProjectStatus.underConstruction =>
+                              Icons.construction,
+                            ProjectStatus.offPlan => Icons.architecture,
+                            ProjectStatus.ready => Icons.check_circle,
+                          },
                           size: 16,
-                          color:
-                              widget.project.projectStatus ==
-                                  ProjectStatus.underConstruction
-                              ? Colors.orange.shade700
-                              : Colors.blue.shade700,
+                          color: switch (widget.project.projectStatus) {
+                            ProjectStatus.underConstruction =>
+                              Colors.orange.shade700,
+                            ProjectStatus.offPlan => Colors.blue.shade700,
+                            ProjectStatus.ready => Colors.green.shade700,
+                          },
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          widget.project.projectStatus ==
-                                  ProjectStatus.underConstruction
-                              ? 'Under Construction'
-                              : 'Off-Plan',
+                          switch (widget.project.projectStatus) {
+                            ProjectStatus.underConstruction =>
+                              'Under Construction',
+                            ProjectStatus.offPlan => 'Off-Plan',
+                            ProjectStatus.ready => 'Ready',
+                          },
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color:
-                                widget.project.projectStatus ==
-                                    ProjectStatus.underConstruction
-                                ? Colors.orange.shade700
-                                : Colors.blue.shade700,
+                            color: switch (widget.project.projectStatus) {
+                              ProjectStatus.underConstruction =>
+                                Colors.orange.shade700,
+                              ProjectStatus.offPlan => Colors.blue.shade700,
+                              ProjectStatus.ready => Colors.green.shade700,
+                            },
                           ),
                         ),
                       ],

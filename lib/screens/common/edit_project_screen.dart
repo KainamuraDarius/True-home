@@ -64,12 +64,24 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     _phoneController = TextEditingController(text: p.contactPhone ?? '');
     _emailController = TextEditingController(text: p.contactEmail ?? '');
     _websiteController = TextEditingController(text: p.websiteUrl ?? '');
-    _startingPriceController = TextEditingController(text: p.startingPrice ?? '');
-    _priceDescriptorController = TextEditingController(text: p.priceDescriptor ?? '');
-    _bookingDepositController = TextEditingController(text: p.bookingDeposit != null ? p.bookingDeposit.toString() : '');
-    _bookingDepositDescriptionController = TextEditingController(text: p.bookingDepositDescription ?? '');
-    _developerTaglineController = TextEditingController(text: p.developerTagline ?? '');
-    _operationalAreasController = TextEditingController(text: p.operationalAreas.join(', '));
+    _startingPriceController = TextEditingController(
+      text: p.startingPrice ?? '',
+    );
+    _priceDescriptorController = TextEditingController(
+      text: p.priceDescriptor ?? '',
+    );
+    _bookingDepositController = TextEditingController(
+      text: p.bookingDeposit != null ? p.bookingDeposit.toString() : '',
+    );
+    _bookingDepositDescriptionController = TextEditingController(
+      text: p.bookingDepositDescription ?? '',
+    );
+    _developerTaglineController = TextEditingController(
+      text: p.developerTagline ?? '',
+    );
+    _operationalAreasController = TextEditingController(
+      text: p.operationalAreas.join(', '),
+    );
     _companyAboutController = TextEditingController(text: p.companyAbout ?? '');
     _selectedLocation = p.location;
     _selectedProjectStatus = p.projectStatus;
@@ -101,9 +113,10 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     final picked = await _imagePicker.pickMultiImage();
     if (picked.isNotEmpty) {
       setState(() {
-        _newImages = [..._newImages, ...picked]
-            .take(20 - _existingImageUrls.length)
-            .toList();
+        _newImages = [
+          ..._newImages,
+          ...picked,
+        ].take(20 - _existingImageUrls.length).toList();
       });
     }
   }
@@ -164,7 +177,10 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
               img.encodeJpg(decoded, quality: quality),
             );
 
-            return await StorageService.uploadImage(compressed, folder: 'projects');
+            return await StorageService.uploadImage(
+              compressed,
+              folder: 'projects',
+            );
           } catch (e) {
             debugPrint('Error uploading/compressing image: $e');
             return null;
@@ -188,25 +204,25 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   Future<String?> _uploadSingleImage(XFile image) async {
     try {
       final bytes = await image.readAsBytes();
-      
+
       img.Image? decodedImage = img.decodeImage(bytes);
       if (decodedImage == null) return null;
-      
+
       // Resize for icon (make it square and smaller)
       final size = 256;
       decodedImage = img.copyResize(decodedImage, width: size, height: size);
-      
+
       // Compress
       final compressedBytes = Uint8List.fromList(
         img.encodeJpg(decodedImage, quality: 90),
       );
-      
+
       // Upload to Firebase Storage
       final imageUrl = await StorageService.uploadImage(
         compressedBytes,
         folder: 'profiles',
       );
-      
+
       return imageUrl;
     } catch (e) {
       debugPrint('Error compressing/uploading company icon: $e');
@@ -281,7 +297,8 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
         'bookingDeposit': _bookingDepositController.text.trim().isNotEmpty
             ? double.tryParse(_bookingDepositController.text.trim())
             : null,
-        'bookingDepositDescription': _bookingDepositDescriptionController.text.trim().isNotEmpty
+        'bookingDepositDescription':
+            _bookingDepositDescriptionController.text.trim().isNotEmpty
             ? _bookingDepositDescriptionController.text.trim()
             : null,
         'developerTagline': _developerTaglineController.text.trim().isNotEmpty
@@ -324,14 +341,17 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       debugPrint('Error saving project: $e');
       if (mounted) {
         setState(() => _isSaving = false);
-        
+
         String errorMessage = 'Error saving project';
         final errorStr = e.toString().toLowerCase();
-        
+
         if (errorStr.contains('permission') || errorStr.contains('denied')) {
-          errorMessage = 'Permission denied. Please check your account permissions.';
-        } else if (errorStr.contains('network') || errorStr.contains('timeout')) {
-          errorMessage = 'Network connection error. Please check your internet and try again.';
+          errorMessage =
+              'Permission denied. Please check your account permissions.';
+        } else if (errorStr.contains('network') ||
+            errorStr.contains('timeout')) {
+          errorMessage =
+              'Network connection error. Please check your internet and try again.';
         } else if (errorStr.contains('firestore')) {
           errorMessage = 'Database error. Please try again later.';
         } else if (errorStr.contains('storage')) {
@@ -339,7 +359,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
         } else {
           errorMessage = 'An unexpected error occurred. Please try again.';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -366,7 +386,10 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
               TextButton.icon(
                 onPressed: _isSaving ? null : _saveChanges,
                 icon: const Icon(Icons.save, color: Colors.white),
-                label: const Text('Save', style: TextStyle(color: Colors.white)),
+                label: const Text(
+                  'Save',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -399,10 +422,12 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                             border: OutlineInputBorder(),
                           ),
                           items: _projectService.defaultLocations
-                              .map((loc) => DropdownMenuItem(
-                                    value: loc,
-                                    child: Text(loc),
-                                  ))
+                              .map(
+                                (loc) => DropdownMenuItem(
+                                  value: loc,
+                                  child: Text(loc),
+                                ),
+                              )
                               .toList(),
                           onChanged: (v) =>
                               setState(() => _selectedLocation = v!),
@@ -441,6 +466,10 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                               value: ProjectStatus.offPlan,
                               child: Text('Off-Plan'),
                             ),
+                            DropdownMenuItem(
+                              value: ProjectStatus.ready,
+                              child: Text('Ready'),
+                            ),
                           ],
                           onChanged: (v) =>
                               setState(() => _selectedProjectStatus = v!),
@@ -451,7 +480,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                         const Text(
                           'Pricing Information',
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 12),
 
@@ -526,7 +557,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                         const Text(
                           'Developer Information',
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 12),
 
@@ -545,7 +578,8 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                           controller: _operationalAreasController,
                           decoration: const InputDecoration(
                             labelText: 'Operational Areas (Optional)',
-                            hintText: 'e.g., UAE, Africa, Europe (comma-separated)',
+                            hintText:
+                                'e.g., UAE, Africa, Europe (comma-separated)',
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.public),
                           ),
@@ -556,12 +590,17 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                         // Developer Photo Picker
                         const Text(
                           'Developer Photo (Company Logo) (Optional)',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         GestureDetector(
                           onTap: () async {
-                            final image = await _imagePicker.pickImage(source: ImageSource.gallery);
+                            final image = await _imagePicker.pickImage(
+                              source: ImageSource.gallery,
+                            );
                             if (image != null) {
                               setState(() => _newCompanyIcon = image);
                             }
@@ -586,16 +625,22 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                                     ),
                                   )
                                 : _existingCompanyIconUrl != null
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(60),
-                                        child: Image.network(
-                                          _existingCompanyIconUrl!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(60),
+                                    child: Image.network(
+                                      _existingCompanyIconUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
                                             return Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
                                               children: [
-                                                Icon(Icons.image, size: 40, color: Colors.grey.shade600),
+                                                Icon(
+                                                  Icons.image,
+                                                  size: 40,
+                                                  color: Colors.grey.shade600,
+                                                ),
                                                 const SizedBox(height: 4),
                                                 Text(
                                                   'Tap to change',
@@ -607,22 +652,26 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                                               ],
                                             );
                                           },
-                                        ),
-                                      )
-                                    : Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.image, size: 40, color: Colors.grey.shade600),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Tap to upload',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
-                                        ],
+                                    ),
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.image,
+                                        size: 40,
+                                        color: Colors.grey.shade600,
                                       ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Tap to upload',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -643,7 +692,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                         const Text(
                           'Contact Information',
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 12),
 
@@ -687,13 +738,14 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                             const Text(
                               'Project Images',
                               style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const Spacer(),
                             Text(
                               '$_totalImageCount / 20',
-                              style:
-                                  TextStyle(color: Colors.grey.shade600),
+                              style: TextStyle(color: Colors.grey.shade600),
                             ),
                           ],
                         ),
@@ -706,15 +758,13 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                               scrollDirection: Axis.horizontal,
                               children: [
                                 // Existing images
-                                ..._existingImageUrls
-                                    .asMap()
-                                    .entries
-                                    .map((e) => _existingImageTile(e.value)),
+                                ..._existingImageUrls.asMap().entries.map(
+                                  (e) => _existingImageTile(e.value),
+                                ),
                                 // Newly picked images
-                                ..._newImages
-                                    .asMap()
-                                    .entries
-                                    .map((e) => _newImageTile(e.key, e.value)),
+                                ..._newImages.asMap().entries.map(
+                                  (e) => _newImageTile(e.key, e.value),
+                                ),
                               ],
                             ),
                           ),
@@ -722,11 +772,15 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                         const SizedBox(height: 12),
 
                         OutlinedButton.icon(
-                          onPressed: _totalImageCount >= 20 ? null : _pickNewImages,
+                          onPressed: _totalImageCount >= 20
+                              ? null
+                              : _pickNewImages,
                           icon: const Icon(Icons.add_photo_alternate),
-                          label: Text(_totalImageCount >= 20
-                              ? 'Max 20 images reached'
-                              : 'Add More Images'),
+                          label: Text(
+                            _totalImageCount >= 20
+                                ? 'Max 20 images reached'
+                                : 'Add More Images',
+                          ),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(double.infinity, 48),
                           ),
@@ -743,15 +797,19 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.info_outline,
-                                    color: Colors.orange.shade700, size: 18),
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Colors.orange.shade700,
+                                  size: 18,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Changing images will require admin re-approval.',
                                     style: TextStyle(
-                                        color: Colors.orange.shade700,
-                                        fontSize: 12),
+                                      color: Colors.orange.shade700,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -777,7 +835,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                             child: const Text(
                               'Save Changes',
                               style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
@@ -816,7 +876,8 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                               strokeWidth: 12,
                               backgroundColor: Colors.grey.shade200,
                               valueColor: const AlwaysStoppedAnimation<Color>(
-                                  AppColors.primary),
+                                AppColors.primary,
+                              ),
                             ),
                           ),
                           Column(
@@ -830,8 +891,11 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                                   color: AppColors.primary,
                                 ),
                               ),
-                              const Icon(Icons.cloud_upload_outlined,
-                                  color: AppColors.primary, size: 28),
+                              const Icon(
+                                Icons.cloud_upload_outlined,
+                                color: AppColors.primary,
+                                size: 28,
+                              ),
                             ],
                           ),
                         ],
@@ -841,12 +905,16 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                     Text(
                       _uploadStatus,
                       style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w500),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
-                    const Text('Please wait...',
-                        style: TextStyle(color: Colors.grey)),
+                    const Text(
+                      'Please wait...',
+                      style: TextStyle(color: Colors.grey),
+                    ),
                   ],
                 ),
               ),
@@ -884,8 +952,10 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             child: GestureDetector(
               onTap: () => _removeExistingImage(url),
               child: Container(
-                decoration:
-                    const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
                 padding: const EdgeInsets.all(4),
                 child: const Icon(Icons.close, color: Colors.white, size: 16),
               ),
@@ -895,14 +965,15 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             bottom: 4,
             left: 4,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.black54,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text('Saved',
-                  style: TextStyle(color: Colors.white, fontSize: 10)),
+              child: const Text(
+                'Saved',
+                style: TextStyle(color: Colors.white, fontSize: 10),
+              ),
             ),
           ),
         ],
@@ -937,8 +1008,10 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             child: GestureDetector(
               onTap: () => _removeNewImage(index),
               child: Container(
-                decoration:
-                    const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
                 padding: const EdgeInsets.all(4),
                 child: const Icon(Icons.close, color: Colors.white, size: 16),
               ),
@@ -948,14 +1021,15 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             bottom: 4,
             left: 4,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.blue.shade700,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text('New',
-                  style: TextStyle(color: Colors.white, fontSize: 10)),
+              child: const Text(
+                'New',
+                style: TextStyle(color: Colors.white, fontSize: 10),
+              ),
             ),
           ),
         ],

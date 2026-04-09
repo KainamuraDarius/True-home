@@ -18,7 +18,7 @@ class AllProjectsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewTrackingService = ViewTrackingService();
-    
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Projects in $location'),
@@ -44,9 +44,7 @@ class AllProjectsScreen extends StatelessWidget {
     return Card(
       elevation: 3,
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () async {
           await viewTrackingService.trackProjectClick(
@@ -88,7 +86,9 @@ class AllProjectsScreen extends StatelessWidget {
                               child: SizedBox(
                                 width: 30,
                                 height: 30,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                             ),
                           ),
@@ -148,26 +148,35 @@ class AllProjectsScreen extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: project.projectStatus == ProjectStatus.underConstruction
-                            ? Colors.orange.shade700
-                            : Colors.blue.shade700,
+                        color: switch (project.projectStatus) {
+                          ProjectStatus.underConstruction =>
+                            Colors.orange.shade700,
+                          ProjectStatus.offPlan => Colors.blue.shade700,
+                          ProjectStatus.ready => Colors.green.shade700,
+                        },
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            project.projectStatus == ProjectStatus.underConstruction
-                                ? Icons.construction
-                                : Icons.architecture,
+                            switch (project.projectStatus) {
+                              ProjectStatus.underConstruction =>
+                                Icons.construction,
+                              ProjectStatus.offPlan => Icons.architecture,
+                              ProjectStatus.ready => Icons.check_circle,
+                            },
                             size: 14,
                             color: Colors.white,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            project.projectStatus == ProjectStatus.underConstruction
-                                ? 'Under Construction'
-                                : 'Off-Plan',
+                            switch (project.projectStatus) {
+                              ProjectStatus.underConstruction =>
+                                'Under Construction',
+                              ProjectStatus.offPlan => 'Off-Plan',
+                              ProjectStatus.ready => 'Ready',
+                            },
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -200,10 +209,7 @@ class AllProjectsScreen extends StatelessWidget {
                     project.hasDeveloperTagline
                         ? project.customerVisibleDeveloperName
                         : 'By ${project.customerVisibleDeveloperName}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 8),
                   Row(

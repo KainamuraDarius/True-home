@@ -9,7 +9,8 @@ class CustomerPropertiesScreen extends StatefulWidget {
   const CustomerPropertiesScreen({super.key});
 
   @override
-  State<CustomerPropertiesScreen> createState() => _CustomerPropertiesScreenState();
+  State<CustomerPropertiesScreen> createState() =>
+      _CustomerPropertiesScreenState();
 }
 
 class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
@@ -82,14 +83,20 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: _selectedType == null
                   ? FirebaseFirestore.instance
-                      .collection('properties')
-                      .where('status', isEqualTo: PropertyStatus.approved.name)
-                      .snapshots()
+                        .collection('properties')
+                        .where(
+                          'status',
+                          isEqualTo: PropertyStatus.approved.name,
+                        )
+                        .snapshots()
                   : FirebaseFirestore.instance
-                      .collection('properties')
-                      .where('status', isEqualTo: PropertyStatus.approved.name)
-                      .where('type', isEqualTo: _selectedType!.name)
-                      .snapshots(),
+                        .collection('properties')
+                        .where(
+                          'status',
+                          isEqualTo: PropertyStatus.approved.name,
+                        )
+                        .where('type', isEqualTo: _selectedType!.name)
+                        .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
@@ -128,7 +135,8 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                   padding: const EdgeInsets.all(16),
                   itemCount: properties.length,
                   itemBuilder: (context, index) {
-                    final data = properties[index].data() as Map<String, dynamic>;
+                    final data =
+                        properties[index].data() as Map<String, dynamic>;
                     final property = PropertyModel.fromJson({
                       ...data,
                       'id': properties[index].id,
@@ -164,7 +172,9 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
               Stack(
                 children: [
                   ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(4),
+                    ),
                     child: Image.network(
                       property.imageUrls.first,
                       height: 240,
@@ -175,14 +185,19 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                         return Container(
                           height: 240,
                           color: Colors.grey[300],
-                          child: const Center(child: CircularProgressIndicator()),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
                         );
                       },
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           height: 240,
                           color: Colors.grey[300],
-                          child: const Icon(Icons.image_not_supported, size: 64),
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            size: 64,
+                          ),
                         );
                       },
                     ),
@@ -202,7 +217,9 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        property.type == PropertyType.sale ? 'FOR SALE' : 'FOR RENT',
+                        property.type == PropertyType.sale
+                            ? 'FOR SALE'
+                            : 'FOR RENT',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -230,7 +247,14 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
+                    property.type == PropertyType.hostel &&
+                            !property.showPriceToCustomers
+                        ? 'Price on request'
+                        : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
+                              ? '/month'
+                              : property.type == PropertyType.hostel
+                              ? '/semester'
+                              : ''}',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -240,7 +264,11 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                      const Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -253,11 +281,20 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      _buildFeature(Icons.bed, '${property.bedrooms}'),
-                      const SizedBox(width: 16),
-                      _buildFeature(Icons.bathtub, '${property.bathrooms}'),
-                      const SizedBox(width: 16),
-                      _buildFeature(Icons.square_foot, '${property.areaSqft.toInt()} sqft'),
+                      if (property.type != PropertyType.commercial &&
+                          property.bedrooms > 0) ...[
+                        _buildFeature(Icons.bed, '${property.bedrooms}'),
+                        const SizedBox(width: 16),
+                      ],
+                      if (property.type != PropertyType.commercial &&
+                          property.bathrooms > 0) ...[
+                        _buildFeature(Icons.bathtub, '${property.bathrooms}'),
+                        const SizedBox(width: 16),
+                      ],
+                      _buildFeature(
+                        Icons.square_foot,
+                        '${property.areaSqft.toInt()} sqft',
+                      ),
                     ],
                   ),
                 ],
@@ -274,10 +311,7 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
       children: [
         Icon(icon, size: 16, color: Colors.grey[600]),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }

@@ -819,7 +819,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                   ),
                                                 ),
                                                 child: Text(
-                                                  '${widget.property.currency} ${CurrencyFormatter.format(roomType.price)} / ${roomType.pricingPeriod.name}',
+                                                  _canShowHostelPriceToCustomers(
+                                                        widget.property,
+                                                      )
+                                                      ? '${widget.property.currency} ${CurrencyFormatter.format(roomType.price)} / ${roomType.pricingPeriod.name}'
+                                                      : 'Price on request',
                                                   style: textTheme.labelMedium
                                                       ?.copyWith(
                                                         fontWeight:
@@ -957,21 +961,28 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Features (only show for non-hostels)
-                  if (widget.property.type != PropertyType.hostel) ...[
+                  // Property metrics
+                  if (widget.property.type == PropertyType.commercial) ...[
+                    _buildCommercialAreaInfo(widget.property.areaSqft),
+                    const SizedBox(height: 24),
+                  ] else if (widget.property.type != PropertyType.hostel) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildFeatureCard(
-                          Icons.bed,
-                          '${widget.property.bedrooms}',
-                          'Bedrooms',
-                        ),
-                        _buildFeatureCard(
-                          Icons.bathtub,
-                          '${widget.property.bathrooms}',
-                          'Bathrooms',
-                        ),
+                        if (widget.property.type != PropertyType.commercial &&
+                            widget.property.bedrooms > 0)
+                          _buildFeatureCard(
+                            Icons.bed,
+                            '${widget.property.bedrooms}',
+                            'Bedrooms',
+                          ),
+                        if (widget.property.type != PropertyType.commercial &&
+                            widget.property.bathrooms > 0)
+                          _buildFeatureCard(
+                            Icons.bathtub,
+                            '${widget.property.bathrooms}',
+                            'Bathrooms',
+                          ),
                         _buildFeatureCard(
                           Icons.square_foot,
                           '${widget.property.areaSqft.toInt()}',
@@ -1724,11 +1735,16 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
-                                            '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                                                ? '/month'
-                                                : property.type == PropertyType.hostel
-                                                ? '/semester'
-                                                : ''}',
+                                            property.type ==
+                                                        PropertyType.hostel &&
+                                                    !property
+                                                        .showPriceToCustomers
+                                                ? 'Price on request'
+                                                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
+                                                      ? '/month'
+                                                      : property.type == PropertyType.hostel
+                                                      ? '/semester'
+                                                      : ''}',
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
@@ -1736,37 +1752,45 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                             ),
                                           ),
                                           const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.bed,
-                                                size: 14,
-                                                color: Colors.grey[600],
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '${property.bedrooms} beds',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Icon(
-                                                Icons.bathroom,
-                                                size: 14,
-                                                color: Colors.grey[600],
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '${property.bathrooms} baths',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                          if (property.type !=
+                                                  PropertyType.commercial &&
+                                              (property.bedrooms > 0 ||
+                                                  property.bathrooms > 0))
+                                            Row(
+                                              children: [
+                                                if (property.bedrooms > 0) ...[
+                                                  Icon(
+                                                    Icons.bed,
+                                                    size: 14,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    '${property.bedrooms} beds',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                ],
+                                                if (property.bathrooms > 0) ...[
+                                                  Icon(
+                                                    Icons.bathroom,
+                                                    size: 14,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    '${property.bathrooms} baths',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
                                         ],
                                       ),
                                     ),
@@ -1871,6 +1895,71 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
             ),
           ),
           Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        ],
+      ),
+    );
+  }
+
+  bool _canShowHostelPriceToCustomers(PropertyModel property) {
+    return property.type != PropertyType.hostel ||
+        property.showPriceToCustomers;
+  }
+
+  Widget _buildCommercialAreaInfo(double areaSqft) {
+    final hasArea = areaSqft > 0;
+    final areaLabel = hasArea
+        ? '${areaSqft.toInt()} sq ft'
+        : 'Area not specified';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.square_foot,
+              size: 18,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Approximate Area',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  areaLabel,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: hasArea
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

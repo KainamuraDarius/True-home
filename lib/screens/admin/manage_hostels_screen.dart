@@ -42,10 +42,7 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                   const SizedBox(width: 12),
                   const Text(
                     'Manage Student Hostels',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
                   // Refresh button
@@ -69,7 +66,9 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                        ),
                       ),
                       onChanged: (value) {
                         setState(() {
@@ -85,7 +84,10 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                     items: const [
                       DropdownMenuItem(value: 'all', child: Text('All Status')),
                       DropdownMenuItem(value: 'active', child: Text('Active')),
-                      DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+                      DropdownMenuItem(
+                        value: 'inactive',
+                        child: Text('Inactive'),
+                      ),
                     ],
                     onChanged: (value) {
                       setState(() {
@@ -113,7 +115,11 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red.shade300,
+                      ),
                       const SizedBox(height: 16),
                       Text('Error: ${snapshot.error}'),
                       const SizedBox(height: 8),
@@ -131,22 +137,22 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
               }
 
               var hostels = snapshot.data!.docs.toList();
-              
+
               // Sort by createdAt descending (newest first) - done in memory to avoid index requirement
               hostels.sort((a, b) {
                 final aData = a.data() as Map<String, dynamic>;
                 final bData = b.data() as Map<String, dynamic>;
                 final aTime = aData['createdAt'];
                 final bTime = bData['createdAt'];
-                
+
                 if (aTime == null && bTime == null) return 0;
                 if (aTime == null) return 1;
                 if (bTime == null) return -1;
-                
+
                 // Handle Timestamp or other formats
                 DateTime? aDateTime;
                 DateTime? bDateTime;
-                
+
                 if (aTime is Timestamp) {
                   aDateTime = aTime.toDate();
                 } else if (aTime is int) {
@@ -154,7 +160,7 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                 } else if (aTime is String) {
                   aDateTime = DateTime.tryParse(aTime);
                 }
-                
+
                 if (bTime is Timestamp) {
                   bDateTime = bTime.toDate();
                 } else if (bTime is int) {
@@ -162,11 +168,11 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                 } else if (bTime is String) {
                   bDateTime = DateTime.tryParse(bTime);
                 }
-                
+
                 if (aDateTime == null && bDateTime == null) return 0;
                 if (aDateTime == null) return 1;
                 if (bDateTime == null) return -1;
-                
+
                 return bDateTime.compareTo(aDateTime); // descending order
               });
 
@@ -175,8 +181,12 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                 hostels = hostels.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final title = (data['title'] ?? '').toString().toLowerCase();
-                  final location = (data['location'] ?? '').toString().toLowerCase();
-                  final university = (data['nearbyUniversity'] ?? '').toString().toLowerCase();
+                  final location = (data['location'] ?? '')
+                      .toString()
+                      .toLowerCase();
+                  final university = (data['nearbyUniversity'] ?? '')
+                      .toString()
+                      .toLowerCase();
                   return title.contains(_searchQuery) ||
                       location.contains(_searchQuery) ||
                       university.contains(_searchQuery);
@@ -197,7 +207,11 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.school_outlined, size: 80, color: Colors.grey.shade400),
+                      Icon(
+                        Icons.school_outlined,
+                        size: 80,
+                        color: Colors.grey.shade400,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         _searchQuery.isNotEmpty
@@ -239,10 +253,14 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
   Widget _buildHostelCard(String id, Map<String, dynamic> data) {
     final title = data['title'] ?? 'Unnamed Hostel';
     final location = data['location'] ?? 'No location';
-    final university = data['nearbyUniversity'] ?? data['university'] ?? 'Not specified';
+    final university =
+        data['nearbyUniversity'] ?? data['university'] ?? 'Not specified';
     final images = List<String>.from(data['imageUrls'] ?? []);
     final isAvailable = data['isAvailable'] ?? data['isActive'] ?? true;
-    
+    final showPriceToCustomers = data['showPriceToCustomers'] is bool
+        ? data['showPriceToCustomers'] as bool
+        : true;
+
     // roomTypes can be either a List (new format) or Map (legacy format)
     List<Map<String, dynamic>> roomTypesList = [];
     final roomTypesData = data['roomTypes'];
@@ -263,12 +281,13 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
         }
       });
     }
-    
+
     final createdAt = data['createdAt'];
 
     String createdDate = 'Unknown';
     if (createdAt is Timestamp) {
-      createdDate = '${createdAt.toDate().day}/${createdAt.toDate().month}/${createdAt.toDate().year}';
+      createdDate =
+          '${createdAt.toDate().day}/${createdAt.toDate().month}/${createdAt.toDate().year}';
     }
 
     return Card(
@@ -282,7 +301,9 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
           Stack(
             children: [
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
                 child: images.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: images.first,
@@ -292,12 +313,18 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                         placeholder: (context, url) => Container(
                           height: 180,
                           color: Colors.grey.shade200,
-                          child: const Center(child: CircularProgressIndicator()),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
                         ),
                         errorWidget: (context, url, error) => Container(
                           height: 180,
                           color: Colors.grey.shade200,
-                          child: Icon(Icons.broken_image, size: 48, color: Colors.grey.shade400),
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 48,
+                            color: Colors.grey.shade400,
+                          ),
                         ),
                       )
                     : Container(
@@ -307,9 +334,16 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.image_not_supported, size: 48, color: Colors.grey.shade400),
+                              Icon(
+                                Icons.image_not_supported,
+                                size: 48,
+                                color: Colors.grey.shade400,
+                              ),
                               const SizedBox(height: 8),
-                              Text('No images', style: TextStyle(color: Colors.grey.shade500)),
+                              Text(
+                                'No images',
+                                style: TextStyle(color: Colors.grey.shade500),
+                              ),
                             ],
                           ),
                         ),
@@ -320,7 +354,10 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                 top: 12,
                 left: 12,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: isAvailable ? Colors.green : Colors.red,
                     borderRadius: BorderRadius.circular(20),
@@ -352,7 +389,10 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                   top: 12,
                   right: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(12),
@@ -360,11 +400,18 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.photo_library, color: Colors.white, size: 14),
+                        const Icon(
+                          Icons.photo_library,
+                          color: Colors.white,
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${images.length}',
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -392,7 +439,10 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(4),
@@ -413,7 +463,11 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                 // Location
                 Row(
                   children: [
-                    Icon(Icons.location_on, size: 16, color: Colors.grey.shade600),
+                    Icon(
+                      Icons.location_on,
+                      size: 16,
+                      color: Colors.grey.shade600,
+                    ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
@@ -443,11 +497,18 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                 // Created date
                 Row(
                   children: [
-                    Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
+                    Icon(
+                      Icons.calendar_today,
+                      size: 16,
+                      color: Colors.grey.shade600,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Created: $createdDate',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -468,7 +529,10 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                       final name = room['name'] ?? 'Room';
                       final price = room['price'] ?? 0;
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.purple.shade50,
                           borderRadius: BorderRadius.circular(16),
@@ -487,6 +551,66 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                   const SizedBox(height: 12),
                 ],
 
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: showPriceToCustomers
+                        ? Colors.green.shade50
+                        : Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: showPriceToCustomers
+                          ? Colors.green.shade200
+                          : Colors.orange.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        showPriceToCustomers
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: showPriceToCustomers
+                            ? Colors.green.shade700
+                            : Colors.orange.shade700,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Hostel Price Visibility',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              showPriceToCustomers
+                                  ? 'Customers can see hostel prices'
+                                  : 'Customers cannot see hostel prices',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: showPriceToCustomers,
+                        onChanged: (_) =>
+                            _togglePriceVisibility(id, showPriceToCustomers),
+                      ),
+                    ],
+                  ),
+                ),
+
                 const Divider(),
 
                 // Action buttons
@@ -502,7 +626,9 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                         ),
                         label: Text(isAvailable ? 'Deactivate' : 'Activate'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: isAvailable ? Colors.orange : Colors.green,
+                          foregroundColor: isAvailable
+                              ? Colors.orange
+                              : Colors.green,
                         ),
                       ),
                     ),
@@ -572,14 +698,41 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
     }
   }
 
+  Future<void> _togglePriceVisibility(
+    String id,
+    bool currentlyVisibleToCustomers,
+  ) async {
+    try {
+      await _firestore.collection('properties').doc(id).update({
+        'showPriceToCustomers': !currentlyVisibleToCustomers,
+      });
+
+      if (mounted) {
+        SnackbarHelper.showInfo(
+          context,
+          currentlyVisibleToCustomers
+              ? 'Hostel prices are now hidden from customers'
+              : 'Hostel prices are now visible to customers',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackbarHelper.showError(
+          context,
+          'Error updating price visibility. Please try again.',
+          actionLabel: 'Retry',
+          onAction: () =>
+              _togglePriceVisibility(id, currentlyVisibleToCustomers),
+        );
+      }
+    }
+  }
+
   void _editHostel(String id, Map<String, dynamic> data) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EditHostelScreen(
-          hostelId: id,
-          hostelData: data,
-        ),
+        builder: (context) => EditHostelScreen(hostelId: id, hostelData: data),
       ),
     );
   }
@@ -662,10 +815,7 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
 
       if (mounted) {
         Navigator.pop(context); // Close loading
-        SnackbarHelper.showSuccess(
-          context,
-          '"$title" moved to trash',
-        );
+        SnackbarHelper.showSuccess(context, '"$title" moved to trash');
       }
     } catch (e) {
       if (mounted) {

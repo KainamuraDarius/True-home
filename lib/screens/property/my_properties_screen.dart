@@ -94,11 +94,6 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildFeaturedPromotionPlanCard(userId),
-          ),
-          const SizedBox(height: 12),
 
           // Properties List
           Expanded(
@@ -142,46 +137,58 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                 });
 
                 if (properties.isEmpty) {
-                  return SingleChildScrollView(
+                  return ListView(
                     padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 48),
-                        Icon(
-                          Icons.home_work_outlined,
-                          size: 80,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No properties found',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[600],
+                    children: [
+                      _buildFeaturedPromotionPlanCard(userId),
+                      const SizedBox(height: 24),
+                      Column(
+                        children: [
+                          const SizedBox(height: 48),
+                          Icon(
+                            Icons.home_work_outlined,
+                            size: 80,
+                            color: Colors.grey[400],
                           ),
-                        ),
-                        if (kIsWeb) ...[
-                          const SizedBox(height: 24),
-                          const WebFooter(),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No properties found',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          if (kIsWeb) ...[
+                            const SizedBox(height: 24),
+                            const WebFooter(),
+                          ],
                         ],
-                      ],
-                    ),
+                      ),
+                    ],
                   );
                 }
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: properties.length + (kIsWeb ? 1 : 0),
+                  itemCount: properties.length + 1 + (kIsWeb ? 1 : 0),
                   itemBuilder: (context, index) {
-                    if (kIsWeb && index == properties.length) {
+                    if (index == 0) {
+                      return Column(
+                        children: [
+                          _buildFeaturedPromotionPlanCard(userId),
+                          const SizedBox(height: 12),
+                        ],
+                      );
+                    }
+
+                    if (kIsWeb && index == properties.length + 1) {
                       return const Padding(
                         padding: EdgeInsets.only(top: 8),
                         child: WebFooter(),
                       );
                     }
 
-                    final property = properties[index];
+                    final property = properties[index - 1];
 
                     return Dismissible(
                       key: Key(property.id),

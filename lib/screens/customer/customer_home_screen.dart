@@ -29,6 +29,25 @@ import '../../widgets/web_footer.dart';
 import 'project_details_screen.dart';
 import 'all_projects_screen.dart';
 
+bool _canShowHostelPriceToCustomers(PropertyModel property) {
+  return property.type != PropertyType.hostel || property.showPriceToCustomers;
+}
+
+String _customerVisiblePriceText(
+  PropertyModel property, {
+  bool useRawPrice = false,
+}) {
+  if (!_canShowHostelPriceToCustomers(property)) {
+    return 'Price on request';
+  }
+
+  final priceText = useRawPrice
+      ? property.price.toStringAsFixed(0)
+      : CurrencyFormatter.format(property.price);
+
+  return '${property.currency} $priceText';
+}
+
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key});
 
@@ -3408,7 +3427,7 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${property.currency} ${CurrencyFormatter.format(property.price)}',
+                      _customerVisiblePriceText(property),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -3656,7 +3675,7 @@ class _HomeTabState extends State<HomeTab> {
                   const SizedBox(height: 8),
                   // Price
                   Text(
-                    '${property.currency} ${CurrencyFormatter.format(property.price)}',
+                    _customerVisiblePriceText(property),
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary,
@@ -3664,7 +3683,9 @@ class _HomeTabState extends State<HomeTab> {
                   ),
                   const SizedBox(height: 6),
                   // Bedrooms & Bathrooms
-                  if (property.type != PropertyType.hostel)
+                  if (property.type != PropertyType.hostel &&
+                      property.type != PropertyType.commercial &&
+                      (property.bedrooms > 0 || property.bathrooms > 0))
                     Row(
                       children: [
                         if (property.bedrooms > 0) ...[
@@ -3915,7 +3936,8 @@ class _HomeTabState extends State<HomeTab> {
               ],
             ),
           ],
-          if (property.bedrooms > 0 || property.bathrooms > 0) ...[
+          if (property.type != PropertyType.commercial &&
+              (property.bedrooms > 0 || property.bathrooms > 0)) ...[
             const SizedBox(height: 4),
             Row(
               children: [
@@ -3943,8 +3965,10 @@ class _HomeTabState extends State<HomeTab> {
           ],
           const SizedBox(height: 6),
           Text(
-            property.type == PropertyType.hostel &&
-                    property.roomTypes.isNotEmpty
+            !_canShowHostelPriceToCustomers(property)
+                ? 'Price on request'
+                : property.type == PropertyType.hostel &&
+                      property.roomTypes.isNotEmpty
                 ? 'From ${property.currency} ${CurrencyFormatter.format(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}'
                 : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
                       ? "/month"
@@ -5462,26 +5486,36 @@ class _SearchTabState extends State<SearchTab> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.bed, size: 14, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${property.bedrooms}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(Icons.bathroom, size: 14, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${property.bathrooms}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
+                  if (property.type != PropertyType.commercial &&
+                      (property.bedrooms > 0 || property.bathrooms > 0))
+                    Row(
+                      children: [
+                        if (property.bedrooms > 0) ...[
+                          Icon(Icons.bed, size: 14, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${property.bedrooms}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        if (property.bathrooms > 0) ...[
+                          Icon(
+                            Icons.bathroom,
+                            size: 14,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${property.bathrooms}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ],
+                    ),
                   const SizedBox(height: 4),
                   Text(
-                    '${property.currency} ${CurrencyFormatter.format(property.price)}',
+                    _customerVisiblePriceText(property),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
@@ -5855,27 +5889,37 @@ class _FavoritesTabState extends State<FavoritesTab> {
                   ),
                   const SizedBox(height: 10),
                   // Bedrooms and Bathrooms
-                  Row(
-                    children: [
-                      Icon(Icons.bed, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${property.bedrooms} Beds',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      const SizedBox(width: 20),
-                      Icon(Icons.bathroom, size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${property.bathrooms} Baths',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
+                  if (property.type != PropertyType.commercial &&
+                      (property.bedrooms > 0 || property.bathrooms > 0))
+                    Row(
+                      children: [
+                        if (property.bedrooms > 0) ...[
+                          Icon(Icons.bed, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${property.bedrooms} Beds',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(width: 20),
+                        ],
+                        if (property.bathrooms > 0) ...[
+                          Icon(
+                            Icons.bathroom,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${property.bathrooms} Baths',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ],
+                    ),
                   const SizedBox(height: 12),
                   // Price
                   Text(
-                    '${property.currency} ${property.price.toStringAsFixed(0)}',
+                    _customerVisiblePriceText(property, useRawPrice: true),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
@@ -6013,26 +6057,36 @@ class _FavoritesTabState extends State<FavoritesTab> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.bed, size: 14, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${property.bedrooms}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(Icons.bathroom, size: 14, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${property.bathrooms}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
+                  if (property.type != PropertyType.commercial &&
+                      (property.bedrooms > 0 || property.bathrooms > 0))
+                    Row(
+                      children: [
+                        if (property.bedrooms > 0) ...[
+                          Icon(Icons.bed, size: 14, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${property.bedrooms}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        if (property.bathrooms > 0) ...[
+                          Icon(
+                            Icons.bathroom,
+                            size: 14,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${property.bathrooms}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ],
+                    ),
                   const SizedBox(height: 4),
                   Text(
-                    '${property.currency} ${property.price.toStringAsFixed(0)}',
+                    _customerVisiblePriceText(property, useRawPrice: true),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,

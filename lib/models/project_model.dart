@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum AdTier { basic, premium, firstPlaceRotational }
 
-enum ProjectStatus { underConstruction, offPlan }
+enum ProjectStatus { underConstruction, offPlan, ready }
 
 enum Currency { UGX, USD, EUR, GBP, ZAR, KES }
 
