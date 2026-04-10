@@ -962,22 +962,18 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   ],
 
                   // Property metrics
-                  if (widget.property.type == PropertyType.commercial) ...[
-                    _buildCommercialAreaInfo(widget.property.areaSqft),
-                    const SizedBox(height: 24),
-                  ] else if (widget.property.type != PropertyType.hostel) ...[
+                  if (widget.property.type != PropertyType.hostel &&
+                      widget.property.type != PropertyType.commercial) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        if (widget.property.type != PropertyType.commercial &&
-                            widget.property.bedrooms > 0)
+                        if (widget.property.bedrooms > 0)
                           _buildFeatureCard(
                             Icons.bed,
                             '${widget.property.bedrooms}',
                             'Bedrooms',
                           ),
-                        if (widget.property.type != PropertyType.commercial &&
-                            widget.property.bathrooms > 0)
+                        if (widget.property.bathrooms > 0)
                           _buildFeatureCard(
                             Icons.bathtub,
                             '${widget.property.bathrooms}',
@@ -1903,66 +1899,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   bool _canShowHostelPriceToCustomers(PropertyModel property) {
     return property.type != PropertyType.hostel ||
         property.showPriceToCustomers;
-  }
-
-  Widget _buildCommercialAreaInfo(double areaSqft) {
-    final hasArea = areaSqft > 0;
-    final areaLabel = hasArea
-        ? '${areaSqft.toInt()} sq ft'
-        : 'Area not specified';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.square_foot,
-              size: 18,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Approximate Area',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  areaLabel,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: hasArea
-                        ? AppColors.primary
-                        : AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildContactCard({

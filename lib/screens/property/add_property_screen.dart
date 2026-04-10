@@ -120,6 +120,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       if (_selectedType == PropertyType.commercial) {
         _bedroomsController.clear();
         _bathroomsController.clear();
+        _areaSqftController.clear();
       }
     });
     _saveDraft();
@@ -1471,61 +1472,63 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                           const SizedBox(height: 16),
                         ],
 
-                        // Area with unit selection
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: _areaSqftController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Approximate Area - Optional',
-                                  border: OutlineInputBorder(),
-                                  hintText: 'e.g., 1200',
-                                ),
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value != null &&
-                                      value.isNotEmpty &&
-                                      double.tryParse(value) == null) {
-                                    return 'Please enter a valid number';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 1,
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _areaUnit,
-                                decoration: const InputDecoration(
-                                  labelText: 'Unit',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'sqft',
-                                    child: Text('sq ft'),
+                        // Area with unit selection (not for commercial)
+                        if (_selectedType != PropertyType.commercial) ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: TextFormField(
+                                  controller: _areaSqftController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Approximate Area - Optional',
+                                    border: OutlineInputBorder(),
+                                    hintText: 'e.g., 1200',
                                   ),
-                                  DropdownMenuItem(
-                                    value: 'sqm',
-                                    child: Text('sq m'),
-                                  ),
-                                ],
-                                onChanged: (String? value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _areaUnit = value;
-                                    });
-                                  }
-                                },
+                                  keyboardType: TextInputType.number,
+                                  validator: (value) {
+                                    if (value != null &&
+                                        value.isNotEmpty &&
+                                        double.tryParse(value) == null) {
+                                      return 'Please enter a valid number';
+                                    }
+                                    return null;
+                                  },
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 1,
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _areaUnit,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Unit',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'sqft',
+                                      child: Text('sq ft'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'sqm',
+                                      child: Text('sq m'),
+                                    ),
+                                  ],
+                                  onChanged: (String? value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        _areaUnit = value;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
 
                         // Agent Information Section
                         const Divider(height: 32),
