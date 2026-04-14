@@ -171,14 +171,14 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'You will receive a payment prompt on your mobile money app or via USSD (*165# for MTN, etc). Complete the payment on your phone to confirm the reservation.',
+                      'You will receive a payment prompt on your mobile money app or via USSD (*165# for MTN, etc). Complete the payment on your phone to confirm the processing fee.',
                       style: TextStyle(fontSize: 14, height: 1.5),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              // Reservation Fee
+              // Processing Fee
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -193,7 +193,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Reservation Fee:',
+                          'Processing Fee:',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -355,7 +355,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                   const Text(
                     '✓ You should have received a payment prompt on your phone\n'
                     '✓ Follow the on-screen instructions to complete payment\n'
-                    '✓ Your reservation will be confirmed once payment is received',
+                    
                     style: TextStyle(fontSize: 13, height: 1.6),
                   ),
                   const SizedBox(height: 12),
@@ -959,7 +959,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
 
               const SizedBox(height: 24),
 
-              // Reservation Fee Info
+              // Processing Fee Info
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
