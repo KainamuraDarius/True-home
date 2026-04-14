@@ -354,8 +354,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                   const SizedBox(height: 12),
                   const Text(
                     '✓ You should have received a payment prompt on your phone\n'
-                    '✓ Follow the on-screen instructions to complete payment\n'
-                    ,
+                    '✓ Follow the on-screen instructions to complete payment\n',
                     style: TextStyle(fontSize: 13, height: 1.6),
                   ),
                   const SizedBox(height: 12),

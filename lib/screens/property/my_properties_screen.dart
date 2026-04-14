@@ -933,25 +933,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
           return false;
         }
       } catch (e) {
-        final normalizedError = e.toString().toLowerCase();
-        final statusServiceMissing =
-            normalizedError.contains('service unavailable') ||
-            normalizedError.contains('404');
-        if (statusServiceMissing) {
-          closeDialogIfOpen();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Payment status service is not available (HTTP 404). '
-                  'Please deploy/enable pandoraPaymentStatus Cloud Function.',
-                ),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return false;
-        }
+        debugPrint('Featured payment status check error: $e');
       }
     }
 
