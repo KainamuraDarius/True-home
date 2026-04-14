@@ -34,42 +34,40 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   List<UserRole> _currentUserRoles = [];
   final ViewTrackingService _viewTrackingService = ViewTrackingService();
 
+  // Cache the verification future so we don't fire multiple Firestore reads per build.
+  late final Future<bool> _agentVerifiedFuture;
+  // Cache the agent profile image future similarly.
+  late final Future<String?> _agentProfileImageFuture;
+
   @override
   void initState() {
     super.initState();
     _checkFavoriteStatus();
     _getCurrentUserRole();
-    _trackPropertyView(); // Track this view
+    _trackPropertyView();
+    _agentVerifiedFuture = _checkAgentVerificationStatus();
+    _agentProfileImageFuture = _getAgentProfileImage();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _prefetchGalleryImages();
     });
   }
 
   Future<void> _prefetchGalleryImages() async {
-    if (!mounted || widget.property.imageUrls.isEmpty) {
-      return;
-    }
+    if (!mounted || widget.property.imageUrls.isEmpty) return;
 
     final galleryImages = widget.property.imageUrls.take(6);
     for (final imageUrl in galleryImages) {
       try {
         await precacheImage(CachedNetworkImageProvider(imageUrl), context);
-      } catch (_) {
-        // Ignore prefetch errors and keep UI responsive.
-      }
+      } catch (_) {}
     }
   }
 
   Future<void> _prefetchImageAtIndex(int index) async {
-    if (!mounted || widget.property.imageUrls.isEmpty) {
-      return;
-    }
+    if (!mounted || widget.property.imageUrls.isEmpty) return;
 
-    final indexes = {
-      index - 1,
-      index,
-      index + 1,
-    }.where((i) => i >= 0 && i < widget.property.imageUrls.length);
+    final indexes = {index - 1, index, index + 1}
+        .where((i) => i >= 0 && i < widget.property.imageUrls.length);
 
     for (final i in indexes) {
       try {
@@ -77,15 +75,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           CachedNetworkImageProvider(widget.property.imageUrls[i]),
           context,
         );
-      } catch (_) {
-        // Ignore prefetch errors.
-      }
+      } catch (_) {}
     }
   }
 
   void _openGalleryZoom(int initialIndex) {
     if (widget.property.imageUrls.isEmpty) return;
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -98,7 +93,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     );
   }
 
-  // Track property view
   Future<void> _trackPropertyView() async {
     try {
       await _viewTrackingService.trackPropertyView(
@@ -112,44 +106,36 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   Future<void> _getCurrentUserRole() async {
     final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      try {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUser.uid)
-            .get();
+    if (currentUser == null) return;
 
-        if (userDoc.exists) {
-          final userData = UserModel.fromJson(userDoc.data()!);
-          if (mounted) {
-            setState(() {
-              _currentUserRole = userData.activeRole;
-              _currentUserRoles = userData.roles;
-            });
-          }
-        }
-      } on FirebaseException catch (e) {
-        if (e.code == 'permission-denied') {
-          if (mounted) {
-            setState(() {
-              _currentUserRole = null;
-              _currentUserRoles = [];
-            });
-          }
-          if (kDebugMode) {
-            debugPrint('Guest mode: role lookup is not permitted.');
-          }
-          return;
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('Error getting user role: $e');
-        }
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+
+      if (userDoc.exists && mounted) {
+        final userData = UserModel.fromJson(userDoc.data()!);
+        setState(() {
+          _currentUserRole = userData.activeRole;
+          _currentUserRoles = userData.roles;
+        });
       }
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        if (mounted) {
+          setState(() {
+            _currentUserRole = null;
+            _currentUserRoles = [];
+          });
+        }
+        if (kDebugMode) debugPrint('Guest mode: role lookup is not permitted.');
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Error getting user role: $e');
     }
   }
 
-  // Gender policy helper methods
   Color _getGenderPolicyColor(GenderPolicy policy) {
     switch (policy) {
       case GenderPolicy.maleOnly:
@@ -195,9 +181,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     if (!_requireAuthentication(
       title: 'Login Required',
       message: 'Create an account or log in to save properties to favorites.',
-    )) {
-      return;
-    }
+    )) return;
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -207,7 +191,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         favorites.remove(widget.property.id);
         await prefs.setStringList(_favoritesKey, favorites);
         setState(() => _isFavorite = false);
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -220,7 +203,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         favorites.add(widget.property.id);
         await prefs.setStringList(_favoritesKey, favorites);
         setState(() => _isFavorite = true);
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -232,9 +214,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error updating favorites: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating favorites: $e')),
+        );
       }
     }
   }
@@ -243,9 +225,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     required String title,
     required String message,
   }) {
-    if (FirebaseAuth.instance.currentUser != null) {
-      return true;
-    }
+    if (FirebaseAuth.instance.currentUser != null) return true;
 
     showModalBottomSheet(
       context: context,
@@ -310,13 +290,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
   Future<String?> _getAgentProfileImage() async {
-    // First try to use the image from property
     if (widget.property.agentProfileImageUrl != null &&
         widget.property.agentProfileImageUrl!.isNotEmpty) {
       return widget.property.agentProfileImageUrl;
     }
 
-    // If not available, fetch from agent's user profile
     try {
       final agentDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -324,7 +302,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           .get();
 
       if (agentDoc.exists) {
-        return agentDoc.data()?['profileImageUrl'];
+        return agentDoc.data()?['profileImageUrl'] as String?;
       }
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
@@ -334,9 +312,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         return null;
       }
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error fetching agent profile image: $e');
-      }
+      if (kDebugMode) debugPrint('Error fetching agent profile image: $e');
     }
 
     return null;
@@ -350,8 +326,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           .get();
 
       if (agentDoc.exists) {
-        final data = agentDoc.data();
-        return data?['isVerified'] == true;
+        return agentDoc.data()?['isVerified'] == true;
       }
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
@@ -361,12 +336,36 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         return false;
       }
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error checking agent verification status: $e');
-      }
+      if (kDebugMode) debugPrint('Error checking agent verification status: $e');
     }
 
     return false;
+  }
+
+  Future<void> _navigateToAgentProfile() async {
+    try {
+      final agentDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.property.ownerId)
+          .get();
+
+      if (agentDoc.exists && mounted) {
+        final agentUser = UserModel.fromJson({
+          ...agentDoc.data()!,
+          'id': agentDoc.id,
+        });
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AgentProfileScreen(agent: agentUser),
+          ),
+        );
+      }
+    } on FirebaseException catch (e) {
+      if (kDebugMode) debugPrint('Error navigating to agent profile: $e');
+    } catch (e) {
+      if (kDebugMode) debugPrint('Error navigating to agent profile: $e');
+    }
   }
 
   @override
@@ -406,9 +405,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     child: PageView.builder(
                       itemCount: widget.property.imageUrls.length,
                       onPageChanged: (index) {
-                        setState(() {
-                          _currentImageIndex = index;
-                        });
+                        setState(() => _currentImageIndex = index);
                         _prefetchImageAtIndex(index);
                       },
                       itemBuilder: (context, index) {
@@ -428,15 +425,13 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                 child: CircularProgressIndicator(),
                               ),
                             ),
-                            errorWidget: (context, url, error) {
-                              return Container(
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.image_not_supported,
-                                  size: 64,
-                                ),
-                              );
-                            },
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.image_not_supported,
+                                size: 64,
+                              ),
+                            ),
                           ),
                         );
                       },
@@ -467,7 +462,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       ),
                     ),
                   ),
-                  // Sold Out Banner
                   if (!widget.property.isActive)
                     Positioned(
                       top: 16,
@@ -533,14 +527,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Price (hidden for hostels - they show room pricing below)
+                  // Price (hidden for hostels — room pricing shown below)
                   if (widget.property.type != PropertyType.hostel) ...[
                     Text(
-                      '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent
-                          ? '/month'
-                          : widget.property.type == PropertyType.hostel
-                          ? '/semester'
-                          : ''}',
+                      '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : ''}',
                       style: textTheme.displaySmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
@@ -571,11 +561,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.school,
-                            color: AppColors.primary,
-                            size: 28,
-                          ),
+                          Icon(Icons.school, color: AppColors.primary, size: 28),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -613,9 +599,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            _getGenderPolicyColor(
-                              widget.property.genderPolicy,
-                            ).withOpacity(0.1),
+                            _getGenderPolicyColor(widget.property.genderPolicy)
+                                .withOpacity(0.1),
                             Colors.white,
                           ],
                         ),
@@ -794,25 +779,22 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                 roomType.name,
                                                 style: textTheme.titleMedium
                                                     ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      height: 1.2,
-                                                    ),
+                                                  fontWeight: FontWeight.w700,
+                                                  height: 1.2,
+                                                ),
                                               ),
                                               const SizedBox(height: 6),
                                               Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
-                                                    ),
+                                                  horizontal: 10,
+                                                  vertical: 6,
+                                                ),
                                                 decoration: BoxDecoration(
                                                   color: AppColors.primary
                                                       .withOpacity(0.08),
                                                   borderRadius:
-                                                      BorderRadius.circular(
-                                                        999,
-                                                      ),
+                                                      BorderRadius.circular(999),
                                                   border: Border.all(
                                                     color: AppColors.primary
                                                         .withOpacity(0.12),
@@ -820,17 +802,14 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                 ),
                                                 child: Text(
                                                   _canShowHostelPriceToCustomers(
-                                                        widget.property,
-                                                      )
+                                                          widget.property)
                                                       ? '${widget.property.currency} ${CurrencyFormatter.format(roomType.price)} / ${roomType.pricingPeriod.name}'
                                                       : 'Price on request',
                                                   style: textTheme.labelMedium
                                                       ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color:
-                                                            AppColors.primary,
-                                                      ),
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.primary,
+                                                  ),
                                                 ),
                                               ),
                                               const SizedBox(height: 8),
@@ -843,28 +822,21 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                   Container(
                                                     padding:
                                                         const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
-                                                        ),
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
                                                     decoration: BoxDecoration(
-                                                      color:
-                                                          roomType
+                                                      color: roomType
                                                               .hasAvailability
                                                           ? Colors.green
-                                                                .withOpacity(
-                                                                  0.1,
-                                                                )
+                                                              .withOpacity(0.1)
                                                           : Colors.red
-                                                                .withOpacity(
-                                                                  0.1,
-                                                                ),
+                                                              .withOpacity(0.1),
                                                       borderRadius:
                                                           BorderRadius.circular(
-                                                            999,
-                                                          ),
+                                                              999),
                                                       border: Border.all(
-                                                        color:
-                                                            roomType
+                                                        color: roomType
                                                                 .hasAvailability
                                                             ? Colors.green
                                                             : Colors.red,
@@ -877,18 +849,14 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                       style: textTheme
                                                           .labelMedium
                                                           ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color:
-                                                                roomType
-                                                                    .hasAvailability
-                                                                ? Colors
-                                                                      .green
-                                                                      .shade700
-                                                                : Colors
-                                                                      .red
-                                                                      .shade700,
-                                                          ),
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: roomType
+                                                                .hasAvailability
+                                                            ? Colors
+                                                                .green.shade700
+                                                            : Colors.red.shade700,
+                                                      ),
                                                     ),
                                                   ),
                                                   if (roomType.totalRooms > 0)
@@ -897,10 +865,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                       style: textTheme
                                                           .labelSmall
                                                           ?.copyWith(
-                                                            color: Colors
-                                                                .grey
-                                                                .shade600,
-                                                          ),
+                                                        color: Colors
+                                                            .grey.shade600,
+                                                      ),
                                                     ),
                                                 ],
                                               ),
@@ -909,13 +876,13 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                         ),
                                       ],
                                     ),
-                                    // Guests can see the CTA, but booking itself requires login.
+                                    // Guests can see the CTA; booking itself requires login.
                                     if (FirebaseAuth.instance.currentUser ==
                                             null ||
-                                        _currentUserRole == UserRole.customer ||
-                                        _currentUserRoles.contains(
-                                          UserRole.customer,
-                                        )) ...[
+                                        _currentUserRole ==
+                                            UserRole.customer ||
+                                        _currentUserRoles
+                                            .contains(UserRole.customer)) ...[
                                       const SizedBox(height: 12),
                                       SizedBox(
                                         width: double.infinity,
@@ -925,18 +892,16 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                               title: 'Login To Book',
                                               message:
                                                   'Bookings require an account so we can connect you with the hostel and keep your reservation records.',
-                                            )) {
-                                              return;
-                                            }
+                                            )) return;
 
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
                                                     ReserveRoomScreen(
-                                                      property: widget.property,
-                                                      roomType: roomType,
-                                                    ),
+                                                  property: widget.property,
+                                                  roomType: roomType,
+                                                ),
                                               ),
                                             );
                                           },
@@ -944,9 +909,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                             Icons.book_online,
                                             size: 18,
                                           ),
-                                          label: const Text(
-                                            'Request Reservation',
-                                          ),
+                                          label:
+                                              const Text('Request Reservation'),
                                         ),
                                       ),
                                     ],
@@ -1058,109 +1022,36 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   const Divider(),
                   const SizedBox(height: 16),
                   Text(
-                    widget.property.type == PropertyType.hostel
-                        ? 'Contact Support'
-                        : 'Contact Information',
+                    'Contact Information',
                     style: textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Agent Profile Section
+
+                  // ── Agent Profile Card ──────────────────────────────────
                   InkWell(
-                    onTap: () async {
-                      // Fetch agent UserModel from Firestore
-                      try {
-                        final agentDoc = await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(widget.property.ownerId)
-                            .get();
-
-                        if (agentDoc.exists && mounted) {
-                          final agentUser = UserModel.fromJson({
-                            ...agentDoc.data()!,
-                            'id': agentDoc.id,
-                          });
-
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  AgentProfileScreen(agent: agentUser),
-                            ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Agent profile not found'),
-                            ),
-                          );
-                        }
-                      } on FirebaseException catch (e) {
-                        if (e.code == 'permission-denied') {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Please log in to view the agent profile.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error loading agent profile: $e'),
-                          ),
-                        );
-                      }
-                    },
+                    onTap: _navigateToAgentProfile,
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.blue.shade50, Colors.white],
-                        ),
+                        color: Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.shade200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        border: Border.all(color: Colors.blue.shade100),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              // Agent Profile Image
-                              Container(
-                                width: 70,
-                                height: 70,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.blue.shade300,
-                                    width: 3,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.blue.withOpacity(0.2),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipOval(
+                              // Agent Avatar
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(40),
+                                child: SizedBox(
+                                  width: 64,
+                                  height: 64,
                                   child: FutureBuilder<String?>(
-                                    future: _getAgentProfileImage(),
+                                    future: _agentProfileImageFuture,
                                     builder: (context, snapshot) {
                                       if (snapshot.connectionState ==
                                           ConnectionState.waiting) {
@@ -1174,8 +1065,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                 strokeWidth: 2,
                                                 valueColor:
                                                     AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Colors.blue.shade700),
+                                                        Color>(
+                                                  Colors.blue.shade700,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -1190,41 +1082,39 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           imageUrl,
                                           fit: BoxFit.cover,
                                           errorBuilder:
-                                              (context, error, stackTrace) {
-                                                return Container(
-                                                  color: Colors.blue.shade100,
-                                                  child: Icon(
-                                                    Icons.person,
-                                                    size: 40,
-                                                    color: Colors.blue.shade700,
-                                                  ),
-                                                );
-                                              },
-                                        );
-                                      } else {
-                                        return Container(
-                                          color: Colors.blue.shade100,
-                                          child: Icon(
-                                            Icons.person,
-                                            size: 40,
-                                            color: Colors.blue.shade700,
+                                              (context, error, stackTrace) =>
+                                                  Container(
+                                            color: Colors.blue.shade100,
+                                            child: Icon(
+                                              Icons.person,
+                                              size: 40,
+                                              color: Colors.blue.shade700,
+                                            ),
                                           ),
                                         );
                                       }
+
+                                      return Container(
+                                        color: Colors.blue.shade100,
+                                        child: Icon(
+                                          Icons.person,
+                                          size: 40,
+                                          color: Colors.blue.shade700,
+                                        ),
+                                      );
                                     },
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 16),
+
                               // Agent Info
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    if (widget
-                                        .property
-                                        .companyName
-                                        .isNotEmpty) ...{
+                                    if (widget.property.companyName
+                                        .isNotEmpty) ...[
                                       Row(
                                         children: [
                                           Icon(
@@ -1248,7 +1138,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                         ],
                                       ),
                                       const SizedBox(height: 8),
-                                    },
+                                    ],
                                     if (widget.property.type ==
                                             PropertyType.hostel &&
                                         widget.property.ownerName.isNotEmpty)
@@ -1261,11 +1151,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                         ),
                                       )
                                     else if (widget
-                                        .property
-                                        .agentName
-                                        .isNotEmpty)
+                                        .property.agentName.isNotEmpty)
                                       FutureBuilder<bool>(
-                                        future: _checkAgentVerificationStatus(),
+                                        future: _agentVerifiedFuture,
                                         builder: (context, snapshot) {
                                           final isVerified =
                                               snapshot.data ?? false;
@@ -1283,9 +1171,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                         },
                                       ),
                                     const SizedBox(height: 4),
-                                    // Verified Badge - Only show if agent is verified
                                     FutureBuilder<bool>(
-                                      future: _checkAgentVerificationStatus(),
+                                      future: _agentVerifiedFuture,
                                       builder: (context, snapshot) {
                                         if (snapshot.connectionState ==
                                             ConnectionState.waiting) {
@@ -1294,7 +1181,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
                                         final isVerified =
                                             snapshot.data ?? false;
-
                                         if (!isVerified) {
                                           return const SizedBox.shrink();
                                         }
@@ -1306,9 +1192,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           ),
                                           decoration: BoxDecoration(
                                             color: Colors.blue.shade700,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
                                           child: const Text(
                                             'Verified Agent',
@@ -1347,12 +1232,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Only show 'Contact Support' tab here. Custodian contact info is shown after reservation.
+                  // ── End Agent Profile Card ──────────────────────────────
                   const SizedBox(height: 24),
 
-                  // Inspection Fee Section (show if inspection fee is set and greater than 0)
+                  // Inspection Fee Section
                   if (widget.property.inspectionFee != null &&
                       widget.property.inspectionFee! > 0) ...[
                     const Divider(),
@@ -1408,10 +1291,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: Colors.orange.shade700,
-                                        borderRadius: BorderRadius.circular(20),
+                                        borderRadius:
+                                            BorderRadius.circular(20),
                                       ),
                                       child: Text(
-                                        'UGX ${(widget.property.inspectionFee ?? 30000).toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                                        '${widget.property.currency} ${CurrencyFormatter.format(widget.property.inspectionFee ?? 30000)}',
                                         style: const TextStyle(
                                           fontSize: 20,
                                           fontWeight: FontWeight.bold,
@@ -1430,7 +1314,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             decoration: BoxDecoration(
                               color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orange.shade200),
+                              border:
+                                  Border.all(color: Colors.orange.shade200),
                             ),
                             child: Row(
                               children: [
@@ -1442,7 +1327,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    'IMPORTANT: Pay UGX ${(widget.property.inspectionFee ?? 30000).toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} after confirming property availability.',
+                                    'IMPORTANT: Pay ${widget.property.currency} ${CurrencyFormatter.format(widget.property.inspectionFee ?? 30000)} after confirming property availability.',
                                     style: TextStyle(
                                       fontSize: 14,
                                       height: 1.4,
@@ -1459,99 +1344,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-
-                  // Hostel Booking Benefits Section (only for student hostels)
-                  if (widget.property.type == PropertyType.hostel) ...[
-                    const Divider(),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.blue.shade50, Colors.white],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primary, width: 2),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.verified_user,
-                                  color: AppColors.primary,
-                                  size: 32,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Book with Confidence',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Your trusted hostel reservation platform',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          _buildBenefitItem(
-                            Icons.shield_outlined,
-                            'Verified Properties',
-                            'All hostels are verified and approved by our admin team',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildBenefitItem(
-                            Icons.payment,
-                            'Secure Payment',
-                            'Your payment is protected with our secure booking system',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildBenefitItem(
-                            Icons.support_agent,
-                            '24/7 Support',
-                            'Contact us anytime if you need assistance with your reservation',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildBenefitItem(
-                            Icons.schedule,
-                            'Instant Confirmation',
-                            'Get immediate booking confirmation and room details',
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
                 ],
               ),
             ),
 
-            // More Properties from this Agent Section
+            // More Properties from this Agent
             const Divider(height: 32),
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -1566,12 +1363,14 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('properties')
-                        .where('ownerId', isEqualTo: widget.property.ownerId)
+                        .where('ownerId',
+                            isEqualTo: widget.property.ownerId)
                         .where('status', isEqualTo: 'approved')
                         .limit(10)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
+                      if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20.0),
@@ -1581,19 +1380,21 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       }
 
                       if (snapshot.hasError) {
-                        return Center(child: Text('Error: ${snapshot.error}'));
+                        return Center(
+                            child: Text('Error: ${snapshot.error}'));
                       }
 
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      if (!snapshot.hasData ||
+                          snapshot.data!.docs.isEmpty) {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20.0),
-                            child: Text('No other properties from this agent'),
+                            child:
+                                Text('No other properties from this agent'),
                           ),
                         );
                       }
 
-                      // Filter out current property
                       final properties = snapshot.data!.docs
                           .map(
                             (doc) => PropertyModel.fromJson({
@@ -1608,7 +1409,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20.0),
-                            child: Text('No other properties from this agent'),
+                            child:
+                                Text('No other properties from this agent'),
                           ),
                         );
                       }
@@ -1625,7 +1427,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => PropertyDetailsScreen(
+                                    builder: (context) =>
+                                        PropertyDetailsScreen(
                                       property: property,
                                     ),
                                   ),
@@ -1633,53 +1436,57 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                               },
                               child: Container(
                                 width: 250,
-                                margin: const EdgeInsets.only(right: 16),
+                                margin:
+                                    const EdgeInsets.only(right: 16),
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius:
+                                      BorderRadius.circular(12),
                                   color: Colors.white,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
+                                      color: Colors.black
+                                          .withOpacity(0.1),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),
                                   ],
                                 ),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                   children: [
-                                    // Property Image
                                     ClipRRect(
-                                      borderRadius: const BorderRadius.vertical(
+                                      borderRadius:
+                                          const BorderRadius.vertical(
                                         top: Radius.circular(12),
                                       ),
-                                      child: property.imageUrls.isNotEmpty
+                                      child: property
+                                              .imageUrls.isNotEmpty
                                           ? CachedNetworkImage(
-                                              imageUrl:
-                                                  property.imageUrls.first,
+                                              imageUrl: property
+                                                  .imageUrls.first,
                                               height: 150,
                                               width: double.infinity,
                                               fit: BoxFit.cover,
-                                              placeholder: (context, url) =>
+                                              placeholder: (context,
+                                                      url) =>
                                                   Container(
-                                                    color: Colors.grey[300],
-                                                    child: const Center(
-                                                      child:
-                                                          CircularProgressIndicator(),
-                                                    ),
-                                                  ),
-                                              errorWidget:
-                                                  (
-                                                    context,
-                                                    url,
-                                                    error,
-                                                  ) => Container(
-                                                    color: Colors.grey[300],
-                                                    child: const Icon(
-                                                      Icons.image_not_supported,
-                                                      size: 48,
-                                                    ),
-                                                  ),
+                                                color: Colors.grey[300],
+                                                child: const Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                ),
+                                              ),
+                                              errorWidget: (context,
+                                                      url, error) =>
+                                                  Container(
+                                                color: Colors.grey[300],
+                                                child: const Icon(
+                                                  Icons
+                                                      .image_not_supported,
+                                                  size: 48,
+                                                ),
+                                              ),
                                             )
                                           : Container(
                                               height: 150,
@@ -1690,9 +1497,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                               ),
                                             ),
                                     ),
-                                    // Property Details
                                     Padding(
-                                      padding: const EdgeInsets.all(12.0),
+                                      padding:
+                                          const EdgeInsets.all(12.0),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
@@ -1701,10 +1508,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                             property.title,
                                             style: const TextStyle(
                                               fontSize: 16,
-                                              fontWeight: FontWeight.bold,
+                                              fontWeight:
+                                                  FontWeight.bold,
                                             ),
                                             maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                            overflow:
+                                                TextOverflow.ellipsis,
                                           ),
                                           const SizedBox(height: 4),
                                           Row(
@@ -1720,11 +1529,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                   property.location,
                                                   style: TextStyle(
                                                     fontSize: 13,
-                                                    color: Colors.grey[600],
+                                                    color:
+                                                        Colors.grey[600],
                                                   ),
                                                   maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                                                  overflow: TextOverflow
+                                                      .ellipsis,
                                                 ),
                                               ),
                                             ],
@@ -1732,56 +1542,65 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           const SizedBox(height: 8),
                                           Text(
                                             property.type ==
-                                                        PropertyType.hostel &&
+                                                        PropertyType
+                                                            .hostel &&
                                                     !property
                                                         .showPriceToCustomers
                                                 ? 'Price on request'
-                                                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                                                      ? '/month'
-                                                      : property.type == PropertyType.hostel
-                                                      ? '/semester'
-                                                      : ''}',
+                                                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : ''}',
                                             style: const TextStyle(
                                               fontSize: 16,
-                                              fontWeight: FontWeight.bold,
+                                              fontWeight:
+                                                  FontWeight.bold,
                                               color: AppColors.primary,
                                             ),
                                           ),
                                           const SizedBox(height: 4),
                                           if (property.type !=
-                                                  PropertyType.commercial &&
+                                                  PropertyType
+                                                      .commercial &&
                                               (property.bedrooms > 0 ||
-                                                  property.bathrooms > 0))
+                                                  property.bathrooms >
+                                                      0))
                                             Row(
                                               children: [
-                                                if (property.bedrooms > 0) ...[
+                                                if (property.bedrooms >
+                                                    0) ...[
                                                   Icon(
                                                     Icons.bed,
                                                     size: 14,
-                                                    color: Colors.grey[600],
+                                                    color:
+                                                        Colors.grey[600],
                                                   ),
-                                                  const SizedBox(width: 4),
+                                                  const SizedBox(
+                                                      width: 4),
                                                   Text(
                                                     '${property.bedrooms} beds',
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      color: Colors.grey[600],
+                                                      color: Colors
+                                                          .grey[600],
                                                     ),
                                                   ),
-                                                  const SizedBox(width: 12),
+                                                  const SizedBox(
+                                                      width: 12),
                                                 ],
-                                                if (property.bathrooms > 0) ...[
+                                                if (property.bathrooms >
+                                                    0) ...[
                                                   Icon(
                                                     Icons.bathroom,
                                                     size: 14,
-                                                    color: Colors.grey[600],
+                                                    color:
+                                                        Colors.grey[600],
                                                   ),
-                                                  const SizedBox(width: 4),
+                                                  const SizedBox(
+                                                      width: 4),
                                                   Text(
                                                     '${property.bathrooms} baths',
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      color: Colors.grey[600],
+                                                      color: Colors
+                                                          .grey[600],
                                                     ),
                                                   ),
                                                 ],
@@ -1829,8 +1648,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('No contact phone available'),
-                        ),
+                            content: Text('No contact phone available')),
                       );
                     }
                   },
@@ -1851,8 +1669,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('No WhatsApp contact available'),
-                        ),
+                            content:
+                                Text('No WhatsApp contact available')),
                       );
                     }
                   },
@@ -1901,126 +1719,23 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         property.showPriceToCustomers;
   }
 
-  Widget _buildContactCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    Color? color,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: (color ?? AppColors.primary).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color ?? AppColors.primary),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBenefitItem(IconData icon, String title, String description) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: AppColors.primary, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade700,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Future<void> _makePhoneCall(String phoneNumber) async {
     final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
     if (await canLaunchUrl(phoneUri)) {
       await launchUrl(phoneUri);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not launch phone call')),
-        );
-      }
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not launch phone call')),
+      );
     }
   }
 
   Future<void> _openWhatsApp(String phoneNumber) async {
-    // Remove any non-digit characters
     String cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
 
-    // Handle Uganda phone numbers (starting with 0)
     if (cleanNumber.startsWith('0')) {
       cleanNumber = '256${cleanNumber.substring(1)}';
-    }
-    // Handle numbers that already have 256 but no +
-    else if (cleanNumber.startsWith('256')) {
-      // Already in correct format
-    }
-    // Handle numbers with + prefix
-    else if (phoneNumber.startsWith('+')) {
+    } else if (phoneNumber.startsWith('+')) {
       cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
     }
 
@@ -2028,30 +1743,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
     if (await canLaunchUrl(whatsappUri)) {
       await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open WhatsApp')),
-        );
-      }
-    }
-  }
-
-  Future<void> _sendEmail(String email) async {
-    final Uri emailUri = Uri(
-      scheme: 'mailto',
-      path: email,
-      query: 'subject=Inquiry about ${widget.property.title}',
-    );
-
-    if (await canLaunchUrl(emailUri)) {
-      await launchUrl(emailUri);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open email app')),
-        );
-      }
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open WhatsApp')),
+      );
     }
   }
 
@@ -2095,15 +1790,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
   IconData _getRoomTypeIcon(String roomType) {
-    if (roomType.toLowerCase().contains('single')) {
-      return Icons.person;
-    } else if (roomType.toLowerCase().contains('double')) {
-      return Icons.people;
-    } else if (roomType.toLowerCase().contains('triple')) {
-      return Icons.group;
-    } else if (roomType.toLowerCase().contains('shared')) {
-      return Icons.groups;
-    }
+    if (roomType.toLowerCase().contains('single')) return Icons.person;
+    if (roomType.toLowerCase().contains('double')) return Icons.people;
+    if (roomType.toLowerCase().contains('triple')) return Icons.group;
+    if (roomType.toLowerCase().contains('shared')) return Icons.groups;
     return Icons.hotel;
   }
 }

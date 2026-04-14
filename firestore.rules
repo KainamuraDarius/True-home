@@ -167,6 +167,14 @@ service cloud.firestore {
         (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
           ['isVerified', 'verifiedAt', 'verificationStatus', 'unverifiedAt']
         ));
+
+      match /favorites/{favoriteId} {
+        allow read, write, delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /blocked_users/{blockedUserId} {
+        allow read, write, delete: if isOwner(userId) || isAdmin();
+      }
     }
 
     // Organizations collection

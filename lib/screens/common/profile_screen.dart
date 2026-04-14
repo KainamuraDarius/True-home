@@ -12,6 +12,7 @@ import '../../services/room_availability_service.dart';
 import '../../models/user_model.dart';
 import '../../services/preferences_service.dart';
 import '../../services/role_service.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/web_footer.dart';
 import '../auth/welcome_screen.dart';
 import '../customer/reservation_confirmation_screen.dart';
@@ -40,11 +41,15 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+  final _authService = AuthService();
   UserModel? _currentUser;
   bool _isLoading = true;
+  bool _isSendingEmailVerification = false;
 
   bool get _isCustomerMode =>
       _currentUser != null && _currentUser!.activeRole == UserRole.customer;
+
+  bool get _isEmailVerified => _auth.currentUser?.emailVerified ?? false;
 
   @override
   void initState() {
@@ -59,13 +64,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final doc = await _firestore.collection('users').doc(user.uid).get();
         if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
+          if (!mounted) return;
           setState(() {
             _currentUser = UserModel.fromJson({...data, 'id': doc.id});
             _isLoading = false;
           });
+          return;
         }
       }
+
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
@@ -343,6 +356,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
                   _buildSettingsTile(
+                    icon: _isEmailVerified
+                      ? Icons.mark_email_read_outlined
+                      : Icons.mark_email_unread_outlined,
+                    title: 'Email Verification',
+                    subtitle: _isEmailVerified
+                      ? 'Email verified'
+                      : 'Email not verified',
+                    onTap: _showEmailVerificationDialog,
+                    ),
+                    _buildSettingsTile(
                     icon: Icons.verified_user,
                     title: 'Account Verification',
                     subtitle: _currentUser!.isVerified
@@ -1452,6 +1475,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showEmailVerificationDialog() {
+    final email = _auth.currentUser?.email ?? _currentUser?.email ?? '';
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                _isEmailVerified
+                    ? Icons.mark_email_read_outlined
+                    : Icons.mark_email_unread_outlined,
+                color: _isEmailVerified ? Colors.green : Colors.orange,
+              ),
+              const SizedBox(width: 8),
+              const Text('Email Verification'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (email.isNotEmpty)
+                Text(
+                  'Email: $email',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              const SizedBox(height: 10),
+              Text(
+                _isEmailVerified
+                    ? 'Your email is already verified.'
+                    : 'Your email is not verified yet. Verify it to secure your account and unlock protected features.',
+              ),
+            ],
+          ),
+          actions: [
+            if (!_isEmailVerified)
+              TextButton(
+                onPressed: _isSendingEmailVerification
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          _isSendingEmailVerification = true;
+                        });
+
+                        try {
+                          await _authService.sendEmailVerification();
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Verification email sent. Check your inbox.',
+                              ),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                e.toString().replaceFirst('Exception: ', ''),
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setDialogState(() {
+                              _isSendingEmailVerification = false;
+                            });
+                          }
+                        }
+                      },
+                child: _isSendingEmailVerification
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Send Link'),
+              ),
+            TextButton(
+              onPressed: () async {
+                await _auth.currentUser?.reload();
+                if (!mounted) return;
+                setState(() {});
+                setDialogState(() {});
+                if (_isEmailVerified) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Email verified successfully.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Refresh Status'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // App Preferences
   void _showLanguageDialog() async {
     final prefs = PreferencesService.instance;
@@ -2368,11 +2501,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (confirmed == true && mounted) {
+      BuildContext? loadingDialogContext;
+
       // Show loading
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
+        builder: (dialogContext) {
+          loadingDialogContext = dialogContext;
+          return const Center(child: CircularProgressIndicator());
+        },
       );
 
       try {
@@ -2424,26 +2562,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await PreferencesService.instance.clearAll();
 
         if (mounted) {
-          Navigator.pop(context); // Close loading
-          // Navigate to login
-          Navigator.pushReplacementNamed(context, '/login');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('Account deleted successfully'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+            (route) => false,
           );
         }
       } catch (e) {
         if (mounted) {
-          Navigator.pop(context); // Close loading
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to delete account: $e'),
@@ -2451,7 +2576,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           );
         }
+      } finally {
+        passwordController.dispose();
+
+        // Always try to close the loading dialog, even if the screen got disposed
+        // because auth state changed during account deletion.
+        if (loadingDialogContext != null) {
+          try {
+            final navigator = Navigator.of(
+              loadingDialogContext!,
+              rootNavigator: true,
+            );
+            if (navigator.canPop()) {
+              navigator.pop();
+            }
+          } catch (_) {
+            // Ignore teardown errors while the tree is rebuilding.
+          }
+        }
       }
+    } else {
+      passwordController.dispose();
     }
   }
 }

@@ -469,6 +469,18 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       return;
     }
 
+    if ((currentUser.email ?? '').isNotEmpty && !currentUser.emailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please verify your email before submitting a property.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -955,6 +967,18 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       return false;
     }
 
+    if ((currentUser.email ?? '').isNotEmpty && !currentUser.emailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please verify your email before continuing.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return false;
     }
@@ -1339,18 +1363,37 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                                     initialValue: _currency,
                                     decoration: const InputDecoration(
                                       labelText: 'Currency',
+                                      labelStyle: TextStyle(
+                                        color: Colors.black,
+                                      ),
                                       border: OutlineInputBorder(),
                                       isDense: true,
                                     ),
-                                    style: const TextStyle(fontSize: 14),
+                                    iconEnabledColor: Colors.black,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black,
+                                    ),
                                     items: const [
                                       DropdownMenuItem(
                                         value: 'UGX',
-                                        child: Text('UGX', style: TextStyle(fontSize: 14)),
+                                        child: Text(
+                                          'UGX',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black,
+                                          ),
+                                        ),
                                       ),
                                       DropdownMenuItem(
                                         value: 'USD',
-                                        child: Text('USD', style: TextStyle(fontSize: 14)),
+                                        child: Text(
+                                          'USD',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                     onChanged: (value) {

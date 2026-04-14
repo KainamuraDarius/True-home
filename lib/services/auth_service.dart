@@ -5,6 +5,17 @@ import '../models/user_model.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const String _emailActionRedirectUrl =
+      'https://truehome.com.ug/action';
+
+  ActionCodeSettings get _emailActionCodeSettings => ActionCodeSettings(
+    url: _emailActionRedirectUrl,
+    handleCodeInApp: true,
+    androidPackageName: 'com.truehome.app',
+    androidInstallApp: true,
+    androidMinimumVersion: '1',
+    iOSBundleId: 'com.example.trueHome',
+  );
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -71,6 +82,9 @@ class AuthService {
       // Update display name
       await credential.user!.updateDisplayName(name);
 
+      // Send verification email using the configured redirect URL.
+      await credential.user!.sendEmailVerification(_emailActionCodeSettings);
+
       // Keep user logged in for email verification
       // DO NOT sign out - they need to verify their email
 
@@ -106,6 +120,16 @@ class AuthService {
 
       if (credential.user == null) {
         throw Exception('Failed to sign in');
+      }
+
+      // Enforce verification for email/password accounts.
+      final signedInUser = credential.user!;
+      if ((signedInUser.email ?? '').isNotEmpty && !signedInUser.emailVerified) {
+        await _auth.signOut();
+        throw Exception(
+          'Please verify your email before logging in. '
+          'Check your inbox and try again.',
+        );
       }
 
       // Get user data from Firestore
@@ -229,7 +253,10 @@ class AuthService {
         throw Exception('No user logged in');
       }
 
-      await _auth.currentUser!.verifyBeforeUpdateEmail(newEmail);
+      await _auth.currentUser!.verifyBeforeUpdateEmail(
+        newEmail,
+        _emailActionCodeSettings,
+      );
       await _firestore.collection('users').doc(_auth.currentUser!.uid).update({
         'email': newEmail,
         'updatedAt': DateTime.now().toIso8601String(),
@@ -270,18 +297,7 @@ class AuthService {
 
   // Reset password
   Future<void> resetPassword(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email);
-    } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'user-not-found':
-          throw Exception('No user found for this email');
-        case 'invalid-email':
-          throw Exception('The email address is invalid');
-        default:
-          throw Exception('Failed to send reset email: ${e.message}');
-      }
-    }
+    await sendPasswordResetEmail(email);
   }
 
   // Sign out
@@ -296,7 +312,10 @@ class AuthService {
   // Send password reset email
   Future<void> sendPasswordResetEmail(String email) async {
     try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
+      await _auth.sendPasswordResetEmail(
+        email: email.trim(),
+        actionCodeSettings: _emailActionCodeSettings,
+      );
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
         case 'invalid-email':
@@ -344,7 +363,7 @@ class AuthService {
       }
 
       if (!_auth.currentUser!.emailVerified) {
-        await _auth.currentUser!.sendEmailVerification();
+        await _auth.currentUser!.sendEmailVerification(_emailActionCodeSettings);
       }
     } catch (e) {
       throw Exception('Failed to send verification email: $e');
