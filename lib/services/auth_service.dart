@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../models/user_model.dart';
 
 class AuthService {
@@ -82,7 +83,7 @@ class AuthService {
       // Update display name
       await credential.user!.updateDisplayName(name);
 
-      // Send verification email using the configured redirect URL.
+      // Always send the Firebase Auth verification email for login gating reliability.
       await credential.user!.sendEmailVerification(_emailActionCodeSettings);
 
       // Keep user logged in for email verification
@@ -309,24 +310,174 @@ class AuthService {
     }
   }
 
-  // Send password reset email
+  // Send password reset email with custom Cloud Function
   Future<void> sendPasswordResetEmail(String email) async {
+    email = email.trim();
+
     try {
-      await _auth.sendPasswordResetEmail(
-        email: email.trim(),
-        actionCodeSettings: _emailActionCodeSettings,
-      );
+      // Get user's name - try to find by email in Firestore
+      String userName = 'User';
+      try {
+        final userQuery = await _firestore
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+        
+        if (userQuery.docs.isNotEmpty) {
+          userName = userQuery.docs.first.data()['name'] ?? 'User';
+        }
+      } catch (e) {
+        // If lookup fails, just use default name
+        print('Could not retrieve user name: $e');
+      }
+
+      // Call Cloud Function to send custom email
+      final callable = FirebaseFunctions.instance.httpsCallable('sendPasswordResetEmail');
+      await callable.call({
+        'email': email,
+        'continueUrl': _emailActionRedirectUrl,
+        'userName': userName,
+      });
+    } on FirebaseException catch (e) {
+      // Fallback to Firebase native password reset email when callable email fails.
+      try {
+        await _auth.sendPasswordResetEmail(
+          email: email,
+          actionCodeSettings: _emailActionCodeSettings,
+        );
+      } on FirebaseAuthException catch (authError) {
+        switch (authError.code) {
+          case 'invalid-email':
+            throw Exception('Invalid email address');
+          case 'user-not-found':
+            throw Exception('No account found with this email');
+          default:
+            throw Exception(
+              'Failed to send reset email: ${authError.message}',
+            );
+        }
+      }
+      print('Cloud Function reset email failed, used Firebase fallback: ${e.message}');
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
         case 'invalid-email':
           throw Exception('Invalid email address');
-        case 'user-not-found':
-          throw Exception('No account found with this email');
         default:
           throw Exception('Failed to send reset email: ${e.message}');
       }
     } catch (e) {
       throw Exception('Failed to send reset email: $e');
+    }
+  }
+
+  // Send email verification link
+  Future<void> sendEmailVerificationLink({
+    required String email,
+    String? userName,
+  }) async {
+    email = email.trim();
+
+    try {
+      // Get user's name if not provided
+      String finalUserName = userName ?? 'User';
+      if (userName == null) {
+        try {
+          final userQuery = await _firestore
+              .collection('users')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+          
+          if (userQuery.docs.isNotEmpty) {
+            finalUserName = userQuery.docs.first.data()['name'] ?? 'User';
+          }
+        } catch (e) {
+          print('Could not retrieve user name: $e');
+        }
+      }
+
+      // Call Cloud Function to send custom email
+      final callable = FirebaseFunctions.instance.httpsCallable('sendEmailVerificationLink');
+      await callable.call({
+        'email': email,
+        'continueUrl': _emailActionRedirectUrl,
+        'userName': finalUserName,
+      });
+    } on FirebaseException catch (e) {
+      // Fallback to Firebase native verification email when callable email fails.
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        await currentUser.sendEmailVerification(_emailActionCodeSettings);
+      } else {
+        throw Exception(
+          'Could not send verification email fallback because no signed-in user was found.',
+        );
+      }
+      print('Cloud Function verification email failed, used Firebase fallback: ${e.message}');
+    } catch (e) {
+      throw Exception('Failed to send verification email: $e');
+    }
+  }
+
+  // Notify user of email address change
+  Future<void> notifyEmailChange({
+    required String oldEmail,
+    required String newEmail,
+    String? userName,
+    String? changeLink,
+  }) async {
+    try {
+      oldEmail = oldEmail.trim();
+      newEmail = newEmail.trim();
+
+      // Get user's name if not provided
+      String finalUserName = userName ?? 'User';
+      if (userName == null && _auth.currentUser != null) {
+        finalUserName = _auth.currentUser!.displayName ?? 'User';
+      }
+
+      // Call Cloud Function to send notification
+      final callable = FirebaseFunctions.instance.httpsCallable('sendEmailChangeNotification');
+      await callable.call({
+        'oldEmail': oldEmail,
+        'newEmail': newEmail,
+        'userName': finalUserName,
+        'changeLink': changeLink ?? '',
+      });
+    } catch (e) {
+      throw Exception('Failed to send email change notification: $e');
+    }
+  }
+
+  // Send security notification (MFA, login alerts, etc.)
+  Future<void> sendSecurityNotification({
+    required String email,
+    required String notificationType, // 'mfa_enrolled', 'login_alert', 'password_changed', 'suspicious_activity'
+    String? userName,
+    String? actionLink,
+    String? deviceInfo,
+  }) async {
+    try {
+      email = email.trim();
+
+      // Get user's name if not provided
+      String finalUserName = userName ?? 'User';
+      if (userName == null && _auth.currentUser != null) {
+        finalUserName = _auth.currentUser!.displayName ?? 'User';
+      }
+
+      // Call Cloud Function to send notification
+      final callable = FirebaseFunctions.instance.httpsCallable('sendSecurityNotification');
+      await callable.call({
+        'email': email,
+        'notificationType': notificationType,
+        'userName': finalUserName,
+        'actionLink': actionLink ?? '',
+        'deviceInfo': deviceInfo ?? '',
+      });
+    } catch (e) {
+      throw Exception('Failed to send security notification: $e');
     }
   }
 
@@ -367,6 +518,46 @@ class AuthService {
       }
     } catch (e) {
       throw Exception('Failed to send verification email: $e');
+    }
+  }
+
+  // Resend verification email from login screen for unverified email/password users.
+  Future<void> resendVerificationEmailForLogin({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      final user = credential.user;
+      if (user == null) {
+        throw Exception('Unable to resend verification email right now.');
+      }
+
+      if (user.emailVerified) {
+        await _auth.signOut();
+        throw Exception('This email is already verified. Please log in again.');
+      }
+
+      await user.sendEmailVerification(_emailActionCodeSettings);
+      await _auth.signOut();
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception('No user found for this email');
+        case 'wrong-password':
+        case 'invalid-credential':
+          throw Exception('Invalid email or password');
+        case 'too-many-requests':
+          throw Exception('Too many attempts. Please try again later.');
+        default:
+          throw Exception('Failed to resend verification email: ${e.message}');
+      }
+    } catch (e) {
+      throw Exception('Failed to resend verification email: $e');
     }
   }
 

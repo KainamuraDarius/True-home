@@ -21,6 +21,53 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  bool _isUnverifiedEmailError(String message) {
+    return message.toLowerCase().contains('verify your email');
+  }
+
+  Future<void> _resendVerificationEmail() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter your email and password to resend verification.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.resendVerificationEmailForLogin(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verification email sent. Please check your inbox.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -44,10 +91,19 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final message = e.toString();
+        final friendlyMessage = message.replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login failed: ${e.toString()}'),
+            content: Text(friendlyMessage),
             backgroundColor: AppColors.error,
+            action: _isUnverifiedEmailError(message)
+                ? SnackBarAction(
+                    label: 'Resend',
+                    textColor: Colors.white,
+                    onPressed: _resendVerificationEmail,
+                  )
+                : null,
           ),
         );
       }

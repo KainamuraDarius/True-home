@@ -51,6 +51,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool get _isEmailVerified => _auth.currentUser?.emailVerified ?? false;
 
+    Color get _themePrimaryText => Theme.of(context).colorScheme.onSurface;
+    Color get _themeSecondaryText =>
+      Theme.of(context).colorScheme.onSurface.withOpacity(0.72);
+
   @override
   void initState() {
     super.initState();
@@ -414,7 +418,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildSettingsTile(
                     icon: Icons.dark_mode,
                     title: 'Theme',
-                    subtitle: 'Light Mode',
+                    subtitle: Theme.of(context).brightness == Brightness.dark
+                        ? 'Dark Mode'
+                        : 'Light Mode',
                     onTap: () {
                       _showThemeDialog();
                     },
@@ -562,6 +568,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildInfoCard({required String title, required List<Widget> items}) {
     return Card(
       elevation: 1,
+      color: Theme.of(context).cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -570,10 +577,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: _themePrimaryText,
               ),
             ),
             const SizedBox(height: 12),
@@ -589,7 +596,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: AppColors.textSecondary),
+          Icon(icon, size: 20, color: _themeSecondaryText),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -597,16 +604,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: _themeSecondaryText,
                   ),
                 ),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.textPrimary,
+                    color: _themePrimaryText,
                   ),
                 ),
               ],
@@ -627,26 +634,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Card(
       elevation: 1,
       margin: const EdgeInsets.only(bottom: 8),
+      color: Theme.of(context).cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        leading: Icon(icon, color: textColor ?? AppColors.textPrimary),
+        leading: Icon(icon, color: textColor ?? _themePrimaryText),
         title: Text(
           title,
           style: TextStyle(
-            color: textColor ?? AppColors.textPrimary,
+            color: textColor ?? _themePrimaryText,
             fontWeight: FontWeight.w500,
           ),
         ),
         subtitle: subtitle != null
             ? Text(
                 subtitle,
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: _themeSecondaryText),
               )
             : null,
         trailing: Icon(
           Icons.arrow_forward_ios,
           size: 16,
-          color: textColor ?? AppColors.textSecondary,
+          color: textColor ?? _themeSecondaryText,
         ),
         onTap: onTap,
       ),
@@ -661,7 +669,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: AppColors.textSecondary,
+          color: _themeSecondaryText,
           letterSpacing: 0.5,
         ),
       ),
@@ -1685,12 +1693,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Choose Theme'),
+          title: const Text('Appearance'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                'Choose how TrueHome looks on this device.',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+              ),
+              const SizedBox(height: 12),
               RadioListTile<String>(
                 title: const Text('Light Mode'),
+                subtitle: const Text('Clean and bright'),
                 value: 'light',
                 groupValue: currentTheme,
                 onChanged: (value) async {
@@ -1715,6 +1730,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               RadioListTile<String>(
                 title: const Text('Dark Mode'),
+                subtitle: const Text('Low-light, high-contrast'),
                 value: 'dark',
                 groupValue: currentTheme,
                 onChanged: (value) async {
@@ -1739,6 +1755,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               RadioListTile<String>(
                 title: const Text('System Default'),
+                subtitle: const Text('Follows your device theme'),
                 value: 'system',
                 groupValue: currentTheme,
                 onChanged: (value) async {

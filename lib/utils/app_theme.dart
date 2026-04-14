@@ -329,15 +329,15 @@ class AppTheme {
       colorScheme: ColorScheme.dark(
         primary: AppColors.primaryLight,
         secondary: AppColors.secondaryLight,
-        surface: const Color(0xFF1F2937),
+        surface: const Color(0xFF111827),
         error: AppColors.error,
         onSurface: Colors.white,
       ),
-      scaffoldBackgroundColor: const Color(0xFF111827),
+      scaffoldBackgroundColor: const Color(0xFF0B1220),
 
       // AppBar Theme - Dark Mode
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF1F2937),
+        backgroundColor: Color(0xFF0F172A),
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
@@ -353,10 +353,10 @@ class AppTheme {
 
       // Card Theme - Dark Mode
       cardTheme: CardThemeData(
-        elevation: 4,
+        elevation: 2,
         shadowColor: Colors.black.withOpacity(0.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: const Color(0xFF1F2937),
+        color: const Color(0xFF111827),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
 
@@ -466,7 +466,7 @@ class AppTheme {
 
       // Bottom Navigation Bar - Dark Mode
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: const Color(0xFF1F2937),
+        backgroundColor: const Color(0xFF0F172A),
         selectedItemColor: AppColors.primaryLight,
         unselectedItemColor: const Color(0xFF9CA3AF),
         selectedLabelStyle: const TextStyle(
@@ -480,14 +480,14 @@ class AppTheme {
 
       // Divider Theme - Dark Mode
       dividerTheme: const DividerThemeData(
-        color: Color(0xFF374151),
+        color: Color(0xFF243244),
         thickness: 1,
         space: 1,
       ),
 
       // SnackBar Theme - Dark Mode
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: const Color(0xFF0F172A),
         contentTextStyle: const TextStyle(
           color: Colors.white,
           fontSize: 15,
@@ -499,7 +499,38 @@ class AppTheme {
       ),
 
       // Icon Theme - Dark Mode
-      iconTheme: const IconThemeData(color: Color(0xFFD1D5DB), size: 24),
+      iconTheme: const IconThemeData(color: Color(0xFFE5E7EB), size: 24),
+
+      // General surfaces and component chrome for dark mode
+      canvasColor: const Color(0xFF0B1220),
+      cardColor: const Color(0xFF111827),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: Color(0xFF111827),
+        titleTextStyle: TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+        contentTextStyle: TextStyle(
+          color: Color(0xFFD1D5DB),
+          fontSize: 14,
+        ),
+      ),
+      popupMenuTheme: const PopupMenuThemeData(
+        color: Color(0xFF111827),
+        textStyle: TextStyle(color: Colors.white),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Color(0xFF111827),
+        modalBackgroundColor: Color(0xFF111827),
+      ),
+      listTileTheme: const ListTileThemeData(
+        textColor: Colors.white,
+        iconColor: Color(0xFFE5E7EB),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.primaryLight,
+      ),
 
       // Text Theme - Dark Mode
       textTheme: const TextTheme(

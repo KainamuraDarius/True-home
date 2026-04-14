@@ -215,6 +215,190 @@ exports.sendVerificationEmailHttp = functions.https.onCall(async (data, context)
   }
 });
 
+// Shared helper for auth-related HTML emails.
+function buildAuthEmailHtml({ heading, greeting, body, actionText, actionLink, footnote }) {
+  const actionButton = actionLink
+    ? `<p><a href="${actionLink}" style="display:inline-block;padding:12px 18px;background:#1f5ebf;color:#fff;text-decoration:none;border-radius:6px;">${actionText || 'Open link'}</a></p>`
+    : '';
+
+  return `
+    <html>
+      <body style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937;">
+        <div style="max-width:620px;margin:0 auto;padding:20px;border:1px solid #e5e7eb;border-radius:8px;">
+          <h2 style="margin-top:0;color:#1f5ebf;">${heading}</h2>
+          <p>${greeting}</p>
+          ${body}
+          ${actionButton}
+          ${actionLink ? `<p style="font-size:12px;color:#6b7280;word-break:break-all;">${actionLink}</p>` : ''}
+          ${footnote ? `<p style="font-size:12px;color:#6b7280;">${footnote}</p>` : ''}
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function buildActionCodeSettings(continueUrl) {
+  return {
+    url: continueUrl || 'https://truehome.com.ug/action',
+    handleCodeInApp: true,
+    android: {
+      packageName: 'com.truehome.app',
+      installApp: true,
+      minimumVersion: '1',
+    },
+    iOS: {
+      bundleId: 'com.example.trueHome',
+    },
+  };
+}
+
+exports.sendPasswordResetEmail = functions.https.onCall(async (data) => {
+  const email = (data?.email || '').toString().trim().toLowerCase();
+  const continueUrl = (data?.continueUrl || '').toString().trim();
+  const userName = (data?.userName || 'User').toString().trim();
+
+  if (!email) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email is required');
+  }
+
+  const resetLink = await admin
+    .auth()
+    .generatePasswordResetLink(email, buildActionCodeSettings(continueUrl));
+
+  const html = buildAuthEmailHtml({
+    heading: 'Reset your TrueHome password',
+    greeting: `Hello ${userName},`,
+    body: '<p>Use the button below to reset your password. If you did not request this, ignore this email.</p>',
+    actionText: 'Reset Password',
+    actionLink: resetLink,
+    footnote: 'This link expires automatically for your security.',
+  });
+
+  await transporter.sendMail({
+    from: `TrueHome Support <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+    to: email,
+    subject: 'Reset your TrueHome password',
+    html,
+  });
+
+  return { success: true };
+});
+
+exports.sendEmailVerificationLink = functions.https.onCall(async (data) => {
+  const email = (data?.email || '').toString().trim().toLowerCase();
+  const continueUrl = (data?.continueUrl || '').toString().trim();
+  const userName = (data?.userName || 'User').toString().trim();
+
+  if (!email) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email is required');
+  }
+
+  const verificationLink = await admin
+    .auth()
+    .generateEmailVerificationLink(email, buildActionCodeSettings(continueUrl));
+
+  const html = buildAuthEmailHtml({
+    heading: 'Verify your email address',
+    greeting: `Hello ${userName},`,
+    body: '<p>Verify your TrueHome email address to complete account setup.</p>',
+    actionText: 'Verify Email',
+    actionLink: verificationLink,
+    footnote: 'If you did not create this account, you can ignore this message.',
+  });
+
+  await transporter.sendMail({
+    from: `TrueHome Support <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+    to: email,
+    subject: 'Verify your TrueHome email address',
+    html,
+  });
+
+  return { success: true };
+});
+
+exports.sendEmailChangeNotification = functions.https.onCall(async (data) => {
+  const oldEmail = (data?.oldEmail || '').toString().trim().toLowerCase();
+  const newEmail = (data?.newEmail || '').toString().trim().toLowerCase();
+  const userName = (data?.userName || 'User').toString().trim();
+  const changeLink = (data?.changeLink || '').toString().trim();
+
+  if (!oldEmail || !newEmail) {
+    throw new functions.https.HttpsError('invalid-argument', 'oldEmail and newEmail are required');
+  }
+
+  const oldHtml = buildAuthEmailHtml({
+    heading: 'Your email address was changed',
+    greeting: `Hello ${userName},`,
+    body: `<p>Your account email changed from <strong>${oldEmail}</strong> to <strong>${newEmail}</strong>.</p><p>If this was not you, change your password immediately.</p>`,
+    footnote: 'Security notice from TrueHome.',
+  });
+
+  const newHtml = buildAuthEmailHtml({
+    heading: 'Confirm your new email address',
+    greeting: `Hello ${userName},`,
+    body: `<p>Your account email has been updated to <strong>${newEmail}</strong>.</p>`,
+    actionText: 'Confirm Email',
+    actionLink: changeLink || '',
+  });
+
+  await Promise.all([
+    transporter.sendMail({
+      from: `TrueHome Security <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+      to: oldEmail,
+      subject: 'Your TrueHome email address has changed',
+      html: oldHtml,
+    }),
+    transporter.sendMail({
+      from: `TrueHome Support <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+      to: newEmail,
+      subject: 'Confirm your new TrueHome email address',
+      html: newHtml,
+    }),
+  ]);
+
+  return { success: true };
+});
+
+exports.sendSecurityNotification = functions.https.onCall(async (data) => {
+  const email = (data?.email || '').toString().trim().toLowerCase();
+  const notificationType = (data?.notificationType || 'security_alert').toString().trim();
+  const userName = (data?.userName || 'User').toString().trim();
+  const actionLink = (data?.actionLink || '').toString().trim();
+  const deviceInfo = (data?.deviceInfo || '').toString().trim();
+
+  if (!email || !notificationType) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email and notificationType are required');
+  }
+
+  const titles = {
+    mfa_enrolled: 'Multi-factor authentication enabled',
+    login_alert: 'New login detected',
+    password_changed: 'Password changed',
+    suspicious_activity: 'Suspicious activity detected',
+    security_alert: 'Security alert',
+  };
+
+  const title = titles[notificationType] || titles.security_alert;
+  const details = deviceInfo ? `<p><strong>Device:</strong> ${deviceInfo}</p>` : '';
+
+  const html = buildAuthEmailHtml({
+    heading: title,
+    greeting: `Hello ${userName},`,
+    body: `<p>This is a security notification for your TrueHome account.</p>${details}`,
+    actionText: 'Review Account',
+    actionLink,
+  });
+
+  await transporter.sendMail({
+    from: `TrueHome Security <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+    to: email,
+    subject: title,
+    html,
+  });
+
+  return { success: true };
+});
+
 // Callable function to send enterprise team invite code emails
 exports.sendTeamInviteCodeEmail = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
