@@ -26,12 +26,14 @@ class ProfileScreen extends StatefulWidget {
   final bool showWebFooter;
   final bool embedded;
   final VoidCallback? onMenuTap;
+  final VoidCallback? onBackHome;
 
   const ProfileScreen({
     super.key,
     this.showWebFooter = false,
     this.embedded = false,
     this.onMenuTap,
+    this.onBackHome,
   });
 
   @override
@@ -137,8 +139,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final profileContent = _currentUser == null
-        ? const Center(child: Text('No user data found'))
-        : SingleChildScrollView(
+      ? _buildGuestProfileContent()
+      : SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: SizedBox(
               width: double.infinity,
@@ -559,6 +561,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const Spacer(),
+                      if (widget.onBackHome != null)
+                        TextButton.icon(
+                          onPressed: widget.onBackHome,
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          label: const Text('Home'),
+                        ),
                     ],
                   ),
                 ),
@@ -576,6 +585,182 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Profile'), centerTitle: true),
       body: content,
+    );
+  }
+
+  Widget _buildGuestProfileContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 12),
+            Icon(
+              Icons.account_circle_outlined,
+              size: 86,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Guest Profile',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: _themePrimaryText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You can browse help, legal info, and app settings without signing in. Account details, bookings, and saved favorites stay protected.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: _themeSecondaryText,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const WelcomeScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.login),
+              label: const Text('Sign In / Create Account'),
+            ),
+            const SizedBox(height: 24),
+
+            _buildSectionHeader('Account (Sign-In Required)'),
+            _buildSettingsTile(
+              icon: Icons.edit,
+              title: 'Edit Profile',
+              subtitle: 'Sign in to manage your personal details',
+              onTap: () => _showProtectedActionDialog('Edit Profile'),
+            ),
+            _buildSettingsTile(
+              icon: Icons.favorite_border,
+              title: 'Saved Favorites',
+              subtitle: 'Sign in to save and sync favorites',
+              onTap: () => _showProtectedActionDialog('Saved Favorites'),
+            ),
+            _buildSettingsTile(
+              icon: Icons.book_online_outlined,
+              title: 'My Reservations',
+              subtitle: 'Sign in to view booking history',
+              onTap: () => _showProtectedActionDialog('My Reservations'),
+            ),
+            const SizedBox(height: 16),
+
+            _buildSectionHeader('App Preferences'),
+            _buildSettingsTile(
+              icon: Icons.dark_mode,
+              title: 'Theme',
+              subtitle: Theme.of(context).brightness == Brightness.dark
+                  ? 'Dark Mode'
+                  : 'Light Mode',
+              onTap: _showThemeDialog,
+            ),
+            _buildSettingsTile(
+              icon: Icons.notifications,
+              title: 'Push Notifications',
+              subtitle: 'Manage local notification preferences',
+              onTap: _showNotificationSettings,
+            ),
+            _buildSettingsTile(
+              icon: Icons.email_outlined,
+              title: 'Email Notifications',
+              subtitle: 'Manage digest and promotional toggles',
+              onTap: _showEmailNotificationDialog,
+            ),
+            const SizedBox(height: 16),
+
+            _buildSectionHeader('Help & Support'),
+            _buildSettingsTile(
+              icon: Icons.help_outline,
+              title: 'Help Center',
+              subtitle: 'FAQs and guides',
+              onTap: _showHelpCenter,
+            ),
+            _buildSettingsTile(
+              icon: Icons.contact_support,
+              title: 'Contact Us',
+              subtitle: 'Email, phone, and WhatsApp support',
+              onTap: _showContactDialog,
+            ),
+            _buildSettingsTile(
+              icon: Icons.star_rate,
+              title: 'Rate App',
+              subtitle: 'Rate True Home on Play Store',
+              onTap: _showRateDialog,
+            ),
+            const SizedBox(height: 16),
+
+            _buildSectionHeader('About'),
+            _buildSettingsTile(
+              icon: Icons.info_outline,
+              title: 'About True Home',
+              subtitle: 'Version 1.0.0',
+              onTap: _showAboutDialog,
+            ),
+            _buildSettingsTile(
+              icon: Icons.gavel,
+              title: 'Legal & Policies',
+              subtitle: 'Terms, privacy, and agreements',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LegalPoliciesScreen(),
+                  ),
+                );
+              },
+            ),
+
+            if (kIsWeb && widget.showWebFooter) ...[
+              const SizedBox(height: 24),
+              const WebFooter(),
+            ],
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showProtectedActionDialog(String actionLabel) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign in required'),
+        content: Text(
+          '$actionLabel is available after you sign in. Continue to authentication?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                this.context,
+                MaterialPageRoute(
+                  builder: (context) => const WelcomeScreen(),
+                ),
+              );
+            },
+            child: const Text('Sign In'),
+          ),
+        ],
+      ),
     );
   }
 

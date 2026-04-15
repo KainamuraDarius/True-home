@@ -61,6 +61,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   UserModel? _currentUser;
 
   bool get _isGuestUser => FirebaseAuth.instance.currentUser == null;
+  bool get _isCompactWebLayout =>
+      kIsWeb && !ResponsiveHelper.isDesktop(context);
 
   List<Widget> get _screens => [
     HomeTab(
@@ -72,22 +74,28 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             title: 'Login To Save Favorites',
             description:
                 'Browsing is open, but saved items and account tools require signing in.',
+            isWebNav: _isCompactWebLayout,
+            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+            onBackHome: () {
+              setState(() {
+                _currentIndex = 0;
+              });
+            },
           )
         : FavoritesTab(
             isWebNav: kIsWeb,
             onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
           ),
-    _isGuestUser
-        ? GuestAccessScreen(
-            title: 'Create An Account',
-            description:
-                'Use your account to manage bookings, profile details, and other protected actions.',
-          )
-        : ProfileScreen(
-            showWebFooter: true,
-            embedded: kIsWeb,
-            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-          ),
+    ProfileScreen(
+      showWebFooter: true,
+      embedded: kIsWeb,
+      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+      onBackHome: () {
+        setState(() {
+          _currentIndex = 0;
+        });
+      },
+    ),
   ];
 
   @override
@@ -6771,91 +6779,147 @@ class ProfileTab extends StatelessWidget {
 class GuestAccessScreen extends StatelessWidget {
   final String title;
   final String description;
+  final bool isWebNav;
+  final VoidCallback? onMenuTap;
+  final VoidCallback? onBackHome;
 
   const GuestAccessScreen({
     super.key,
     required this.title,
     required this.description,
+    this.isWebNav = false,
+    this.onMenuTap,
+    this.onBackHome,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.lock_outline_rounded,
-                    size: 42,
-                    color: AppColors.primary,
-                  ),
+    final lockedContent = Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: const Icon(
+                  Icons.lock_outline_rounded,
+                  size: 42,
+                  color: AppColors.primary,
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  description,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    height: 1.5,
-                    color: AppColors.textSecondary,
-                  ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
-                      );
-                    },
-                    child: const Text('Login'),
-                  ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: AppColors.textSecondary,
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const RoleSelectionScreen(),
-                        ),
-                      );
-                    },
-                    child: const Text('Create Account'),
-                  ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('Login'),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RoleSelectionScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('Create Account'),
+                ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+
+    return Scaffold(
+      body: isWebNav
+          ? Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey.shade200),
+                    ),
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Row(
+                      children: [
+                        if (onMenuTap != null)
+                          IconButton(
+                            icon: const Icon(Icons.menu),
+                            onPressed: onMenuTap,
+                            tooltip: 'Open menu',
+                          ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (onBackHome != null)
+                          TextButton.icon(
+                            onPressed: onBackHome,
+                            icon: const Icon(Icons.arrow_back_rounded),
+                            label: const Text('Home'),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(child: lockedContent),
+              ],
+            )
+          : lockedContent,
     );
   }
 }
