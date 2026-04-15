@@ -16,6 +16,7 @@ import '../customer/agent_profile_screen.dart';
 import '../customer/reserve_room_screen.dart';
 import '../../widgets/fullscreen_image_viewer.dart';
 import '../../services/view_tracking_service.dart';
+import '../../services/post_auth_intent_service.dart';
 
 class PropertyDetailsScreen extends StatefulWidget {
   final PropertyModel property;
@@ -178,11 +179,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
   Future<void> _toggleFavorite() async {
-    if (!_requireAuthentication(
-      title: 'Login Required',
-      message: 'Create an account or log in to save properties to favorites.',
-    )) return;
-
     try {
       final prefs = await SharedPreferences.getInstance();
       List<String> favorites = prefs.getStringList(_favoritesKey) ?? [];
@@ -224,6 +220,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   bool _requireAuthentication({
     required String title,
     required String message,
+    PostAuthIntent? postAuthIntent,
   }) {
     if (FirebaseAuth.instance.currentUser != null) return true;
 
@@ -255,6 +252,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
+                      if (postAuthIntent != null) {
+                        PostAuthIntentService.instance.setIntent(postAuthIntent);
+                      }
                       Navigator.push(
                         this.context,
                         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -269,6 +269,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   child: OutlinedButton(
                     onPressed: () {
                       Navigator.pop(context);
+                      if (postAuthIntent != null) {
+                        PostAuthIntentService.instance.setIntent(postAuthIntent);
+                      }
                       Navigator.push(
                         this.context,
                         MaterialPageRoute(
@@ -892,6 +895,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                               title: 'Login To Book',
                                               message:
                                                   'Bookings require an account so we can connect you with the hostel and keep your reservation records.',
+                                              postAuthIntent: PostAuthIntent(
+                                                type: PostAuthIntentType
+                                                    .openPropertyDetails,
+                                                propertyId: widget.property.id,
+                                              ),
                                             )) return;
 
                                             Navigator.push(

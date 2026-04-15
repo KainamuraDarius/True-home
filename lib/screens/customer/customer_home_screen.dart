@@ -16,7 +16,6 @@ import '../../models/project_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/universities.dart';
 import '../auth/login_screen.dart';
-import '../auth/role_selection_screen.dart';
 import '../common/profile_screen.dart';
 import '../common/notifications_screen.dart';
 import '../property/property_details_screen.dart';
@@ -24,6 +23,7 @@ import '../../services/notification_service.dart';
 import '../../services/project_service.dart';
 import '../../services/role_service.dart';
 import '../../services/view_tracking_service.dart';
+import '../../services/post_auth_intent_service.dart';
 import '../../widgets/role_switcher.dart';
 import '../../widgets/web_footer.dart';
 import 'project_details_screen.dart';
@@ -59,37 +59,38 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   int _currentIndex = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   UserModel? _currentUser;
-
-  bool get _isGuestUser => FirebaseAuth.instance.currentUser == null;
-  bool get _isCompactWebLayout =>
-      kIsWeb && !ResponsiveHelper.isDesktop(context);
+  StreamSubscription<User?>? _authStateSubscription;
+  String? _mergedFavoritesForUserId;
+  static const String _favoritesKey = 'favorite_properties';
+  PostAuthIntentType _pendingProfileIntent = PostAuthIntentType.none;
 
   List<Widget> get _screens => [
     HomeTab(
       isWebNav: kIsWeb,
       onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
     ),
-    _isGuestUser
-        ? GuestAccessScreen(
-            title: 'Login To Save Favorites',
-            description:
-                'Browsing is open, but saved items and account tools require signing in.',
-            isWebNav: _isCompactWebLayout,
-            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-            onBackHome: () {
-              setState(() {
-                _currentIndex = 0;
-              });
-            },
-          )
-        : FavoritesTab(
-            isWebNav: kIsWeb,
-            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-          ),
+    FavoritesTab(
+      isWebNav: kIsWeb,
+      onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+      onBackHome: () {
+        setState(() {
+          _currentIndex = 0;
+        });
+      },
+    ),
     ProfileScreen(
       showWebFooter: true,
       embedded: kIsWeb,
       onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+      pendingPostAuthIntent: _pendingProfileIntent,
+      onPendingIntentHandled: () {
+        if (!mounted || _pendingProfileIntent == PostAuthIntentType.none) {
+          return;
+        }
+        setState(() {
+          _pendingProfileIntent = PostAuthIntentType.none;
+        });
+      },
       onBackHome: () {
         setState(() {
           _currentIndex = 0;
@@ -101,8 +102,152 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _applyPostAuthIntent();
+
+    _authStateSubscription = FirebaseAuth.instance.authStateChanges().listen((
+      user,
+    ) {
+      if (!mounted) return;
+
+      if (user == null) {
+        _mergedFavoritesForUserId = null;
+        if (kIsWeb && _currentUser != null) {
+          setState(() {
+            _currentUser = null;
+          });
+        }
+        return;
+      }
+
+      _syncGuestFavoritesToAccount(user);
+      _applyPostAuthIntent();
+      if (kIsWeb) {
+        _loadUserData();
+      }
+    });
+
     if (kIsWeb) {
       _loadUserData();
+    }
+  }
+
+  void _applyPostAuthIntent() {
+    final intent = PostAuthIntentService.instance.consumeIntent();
+    if (intent.type == PostAuthIntentType.none) {
+      return;
+    }
+
+    if (intent.type == PostAuthIntentType.openFavorites) {
+      if (mounted) {
+        setState(() {
+          _currentIndex = 1;
+        });
+      }
+      return;
+    }
+
+    if (intent.type == PostAuthIntentType.openPropertyDetails &&
+        intent.propertyId != null) {
+      setState(() {
+        _currentIndex = 0;
+      });
+      _openPropertyFromIntent(intent.propertyId!);
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _currentIndex = 2;
+        _pendingProfileIntent = intent.type;
+      });
+    }
+  }
+
+  Future<void> _openPropertyFromIntent(String propertyId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('properties')
+          .doc(propertyId)
+          .get();
+
+      if (!mounted || !doc.exists) {
+        return;
+      }
+
+      final data = doc.data() as Map<String, dynamic>;
+      data['id'] = doc.id;
+      final property = PropertyModel.fromJson(data);
+
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PropertyDetailsScreen(property: property),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        SnackbarHelper.showError(
+          context,
+          'Could not restore your previous action. Please try again.',
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _authStateSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _syncGuestFavoritesToAccount(User user) async {
+    if (_mergedFavoritesForUserId == user.uid) {
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final localFavorites = prefs.getStringList(_favoritesKey) ?? const [];
+      if (localFavorites.isEmpty) {
+        _mergedFavoritesForUserId = user.uid;
+        return;
+      }
+
+      final userDocRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      final userDoc = await userDocRef.get();
+      if (!userDoc.exists) {
+        return;
+      }
+
+      final userData = userDoc.data() ?? <String, dynamic>{};
+      final cloudFavorites = List<String>.from(
+        userData['favoritePropertyIds'] ?? const <String>[],
+      );
+
+      final mergedFavorites = {...cloudFavorites, ...localFavorites}.toList();
+      final wasUpdated = mergedFavorites.length != cloudFavorites.length;
+
+      if (wasUpdated) {
+        await userDocRef.update({
+          'favoritePropertyIds': mergedFavorites,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      }
+
+      await prefs.setStringList(_favoritesKey, mergedFavorites);
+      _mergedFavoritesForUserId = user.uid;
+
+      if (wasUpdated && mounted) {
+        SnackbarHelper.showSuccess(
+          context,
+          'Your guest favorites were synced to your account.',
+        );
+      }
+    } catch (_) {
+      // Keep app usable even if merge fails.
     }
   }
 
@@ -134,6 +279,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       } catch (e) {
         // Silently fail if user data can't be loaded
       }
+    } else if (mounted) {
+      setState(() {
+        _currentUser = null;
+      });
     }
   }
 
@@ -4354,44 +4503,6 @@ class _SearchTabState extends State<SearchTab> {
   }
 
   Future<void> _toggleFavoriteProperty(String propertyId) async {
-    if (FirebaseAuth.instance.currentUser == null) {
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Login Required'),
-          content: const Text(
-            'Create an account or log in to save favorites and manage your shortlist.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RoleSelectionScreen(),
-                  ),
-                );
-              },
-              child: const Text('Create Account'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
-              },
-              child: const Text('Login'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
     final prefs = await SharedPreferences.getInstance();
     List<String> favorites = prefs.getStringList('favorite_properties') ?? [];
 
@@ -5543,8 +5654,14 @@ class _SearchTabState extends State<SearchTab> {
 class FavoritesTab extends StatefulWidget {
   final bool isWebNav;
   final VoidCallback? onMenuTap;
+  final VoidCallback? onBackHome;
 
-  const FavoritesTab({super.key, this.isWebNav = false, this.onMenuTap});
+  const FavoritesTab({
+    super.key,
+    this.isWebNav = false,
+    this.onMenuTap,
+    this.onBackHome,
+  });
 
   @override
   State<FavoritesTab> createState() => _FavoritesTabState();
@@ -5679,6 +5796,78 @@ class _FavoritesTabState extends State<FavoritesTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isGuestUser = FirebaseAuth.instance.currentUser == null;
+    final favoritesBody = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : _favoriteProperties.isEmpty
+        ? SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 48),
+                Icon(
+                  Icons.favorite_border,
+                  size: 100,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'No Favorites Yet',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Save properties you like by tapping the heart icon',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                ),
+                if (isGuestUser) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Your guest favorites are stored on this device.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 32),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final homeState = context
+                        .findAncestorStateOfType<_CustomerHomeScreenState>();
+                    homeState?.setState(() {
+                      homeState._currentIndex = 0;
+                    });
+                  },
+                  icon: const Icon(Icons.search),
+                  label: const Text('Browse Properties'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        : RefreshIndicator(
+            onRefresh: _loadFavorites,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _favoriteProperties.length,
+              itemBuilder: (context, index) {
+                final property = _favoriteProperties[index];
+                return _buildFavoritesPropertyCard(property);
+              },
+            ),
+          );
+
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: !widget.isWebNav,
@@ -5688,8 +5877,14 @@ class _FavoritesTabState extends State<FavoritesTab> {
                 onPressed: widget.onMenuTap,
               )
             : null,
-        title: const Text('My Favorites'),
+        title: const Text('Favorites'),
         actions: [
+          if (widget.isWebNav && widget.onBackHome != null)
+            IconButton(
+              icon: const Icon(Icons.home_outlined),
+              tooltip: 'Back to home',
+              onPressed: widget.onBackHome,
+            ),
           if (_favoriteProperties.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
@@ -5698,68 +5893,49 @@ class _FavoritesTabState extends State<FavoritesTab> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _favoriteProperties.isEmpty
-          ? SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 48),
-                  Icon(
-                    Icons.favorite_border,
-                    size: 100,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'No Favorites Yet',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Save properties you like by tapping the heart icon',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[500]),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      final homeState = context
-                          .findAncestorStateOfType<_CustomerHomeScreenState>();
-                      homeState?.setState(() {
-                        homeState._currentIndex = 0;
-                      });
-                    },
-                    icon: const Icon(Icons.search),
-                    label: const Text('Browse Properties'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+      body: isGuestUser
+          ? Column(
+              children: [
+                _buildGuestFavoritesBanner(),
+                Expanded(child: favoritesBody),
+              ],
             )
-          : RefreshIndicator(
-              onRefresh: _loadFavorites,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _favoriteProperties.length,
-                itemBuilder: (context, index) {
-                  final property = _favoriteProperties[index];
-                  return _buildFavoritesPropertyCard(property);
-                },
-              ),
+          : favoritesBody,
+    );
+  }
+
+  Widget _buildGuestFavoritesBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: AppColors.primary),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'You are browsing as guest. Sign in to sync your favorites across devices.',
+              style: TextStyle(fontSize: 13, height: 1.3),
             ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            },
+            child: const Text('Sign in'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -6773,153 +6949,5 @@ class ProfileTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const ProfileScreen(showWebFooter: true);
-  }
-}
-
-class GuestAccessScreen extends StatelessWidget {
-  final String title;
-  final String description;
-  final bool isWebNav;
-  final VoidCallback? onMenuTap;
-  final VoidCallback? onBackHome;
-
-  const GuestAccessScreen({
-    super.key,
-    required this.title,
-    required this.description,
-    this.isWebNav = false,
-    this.onMenuTap,
-    this.onBackHome,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final lockedContent = Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.lock_outline_rounded,
-                  size: 42,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                description,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.5,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const LoginScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('Login'),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RoleSelectionScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('Create Account'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    return Scaffold(
-      body: isWebNav
-          ? Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border(
-                      bottom: BorderSide(color: Colors.grey.shade200),
-                    ),
-                  ),
-                  child: SafeArea(
-                    bottom: false,
-                    child: Row(
-                      children: [
-                        if (onMenuTap != null)
-                          IconButton(
-                            icon: const Icon(Icons.menu),
-                            onPressed: onMenuTap,
-                            tooltip: 'Open menu',
-                          ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (onBackHome != null)
-                          TextButton.icon(
-                            onPressed: onBackHome,
-                            icon: const Icon(Icons.arrow_back_rounded),
-                            label: const Text('Home'),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                Expanded(child: lockedContent),
-              ],
-            )
-          : lockedContent,
-    );
   }
 }

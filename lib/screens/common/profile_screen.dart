@@ -13,11 +13,14 @@ import '../../models/user_model.dart';
 import '../../services/preferences_service.dart';
 import '../../services/role_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/post_auth_intent_service.dart';
 import '../../widgets/web_footer.dart';
 import '../auth/welcome_screen.dart';
+import '../auth/login_screen.dart';
 import '../customer/reservation_confirmation_screen.dart';
 import '../customer/become_agent_screen.dart';
 import '../customer/edit_profile_screen.dart';
+import '../customer/customer_home_screen.dart';
 import '../organization/organization_invites_screen.dart';
 import 'legal_policies_screen.dart';
 import '../../main.dart';
@@ -27,6 +30,8 @@ class ProfileScreen extends StatefulWidget {
   final bool embedded;
   final VoidCallback? onMenuTap;
   final VoidCallback? onBackHome;
+  final PostAuthIntentType pendingPostAuthIntent;
+  final VoidCallback? onPendingIntentHandled;
 
   const ProfileScreen({
     super.key,
@@ -34,6 +39,8 @@ class ProfileScreen extends StatefulWidget {
     this.embedded = false,
     this.onMenuTap,
     this.onBackHome,
+    this.pendingPostAuthIntent = PostAuthIntentType.none,
+    this.onPendingIntentHandled,
   });
 
   @override
@@ -47,6 +54,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserModel? _currentUser;
   bool _isLoading = true;
   bool _isSendingEmailVerification = false;
+  bool _didHandlePendingIntent = false;
+  bool _expandReservationsSection = false;
 
   bool get _isCustomerMode =>
       _currentUser != null && _currentUser!.activeRole == UserRole.customer;
@@ -63,6 +72,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadUserData();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pendingPostAuthIntent != widget.pendingPostAuthIntent) {
+      _didHandlePendingIntent = false;
+      _tryHandlePendingIntent();
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -85,9 +103,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _isLoading = false;
       });
+      _tryHandlePendingIntent();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+    }
+  }
+
+  void _tryHandlePendingIntent() {
+    if (!mounted || _didHandlePendingIntent || _currentUser == null) {
+      return;
+    }
+
+    final intent = widget.pendingPostAuthIntent;
+    if (intent == PostAuthIntentType.none) {
+      return;
+    }
+
+    _didHandlePendingIntent = true;
+    widget.onPendingIntentHandled?.call();
+
+    switch (intent) {
+      case PostAuthIntentType.editProfile:
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted || _currentUser == null) return;
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EditProfileScreen(user: _currentUser!),
+            ),
+          );
+          if (result == true) {
+            _loadUserData();
+          }
+        });
+        break;
+      case PostAuthIntentType.openReservations:
+        setState(() {
+          _expandReservationsSection = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Opened your reservations section.')),
+        );
+        break;
+      case PostAuthIntentType.openPropertyDetails:
+        // Property restoration intents are handled by customer home routing.
+        break;
+      case PostAuthIntentType.none:
+      case PostAuthIntentType.openFavorites:
+        break;
     }
   }
 
@@ -114,7 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _auth.signOut();
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+          MaterialPageRoute(builder: (context) => const CustomerHomeScreen()),
           (route) => false,
         );
       }
@@ -633,7 +697,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               },
               icon: const Icon(Icons.login),
-              label: const Text('Sign In / Create Account'),
+              label: const Text('Sign in or create account'),
             ),
             const SizedBox(height: 24),
 
@@ -642,19 +706,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: Icons.edit,
               title: 'Edit Profile',
               subtitle: 'Sign in to manage your personal details',
-              onTap: () => _showProtectedActionDialog('Edit Profile'),
+              onTap: () => _showProtectedActionDialog(
+                actionLabel: 'Edit Profile',
+                intent: PostAuthIntentType.editProfile,
+              ),
             ),
             _buildSettingsTile(
               icon: Icons.favorite_border,
               title: 'Saved Favorites',
               subtitle: 'Sign in to save and sync favorites',
-              onTap: () => _showProtectedActionDialog('Saved Favorites'),
+              onTap: () => _showProtectedActionDialog(
+                actionLabel: 'Saved Favorites',
+                intent: PostAuthIntentType.openFavorites,
+              ),
             ),
             _buildSettingsTile(
               icon: Icons.book_online_outlined,
               title: 'My Reservations',
               subtitle: 'Sign in to view booking history',
-              onTap: () => _showProtectedActionDialog('My Reservations'),
+              onTap: () => _showProtectedActionDialog(
+                actionLabel: 'My Reservations',
+                intent: PostAuthIntentType.openReservations,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -734,7 +807,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showProtectedActionDialog(String actionLabel) {
+  void _showProtectedActionDialog({
+    required String actionLabel,
+    required PostAuthIntentType intent,
+  }) {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -750,10 +826,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
+              PostAuthIntentService.instance.setIntent(
+                PostAuthIntent(type: intent),
+              );
               Navigator.push(
                 this.context,
                 MaterialPageRoute(
-                  builder: (context) => const WelcomeScreen(),
+                  builder: (context) => const LoginScreen(),
                 ),
               );
             },
@@ -947,6 +1026,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               vertical: 4,
             ),
             childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            initiallyExpanded: _expandReservationsSection,
             leading: const Icon(
               Icons.book_online_outlined,
               color: AppColors.primary,
@@ -2864,7 +2944,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+            MaterialPageRoute(builder: (_) => const CustomerHomeScreen()),
             (route) => false,
           );
         }
