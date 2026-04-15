@@ -28,6 +28,7 @@ class PropertyDetailsScreen extends StatefulWidget {
 }
 
 class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
+  static const String _publicWebAppBaseUrl = 'https://truehome-9a244.web.app';
   int _currentImageIndex = 0;
   bool _isFavorite = false;
   static const String _favoritesKey = 'favorite_properties';
@@ -179,6 +180,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
   Future<void> _toggleFavorite() async {
+    if (!_requireAuthentication(
+      title: 'Login Required',
+      message: 'Create an account or log in to save properties to favorites.',
+    )) return;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       List<String> favorites = prefs.getStringList(_favoritesKey) ?? [];
@@ -895,11 +901,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                               title: 'Login To Book',
                                               message:
                                                   'Bookings require an account so we can connect you with the hostel and keep your reservation records.',
-                                              postAuthIntent: PostAuthIntent(
-                                                type: PostAuthIntentType
-                                                    .openPropertyDetails,
-                                                propertyId: widget.property.id,
-                                              ),
                                             )) return;
 
                                             Navigator.push(
@@ -1241,7 +1242,52 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     ),
                   ),
                   // ── End Agent Profile Card ──────────────────────────────
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+
+                  // ── Contact Buttons ──────────────────────────────────────
+                  if (widget.property.contactPhone.isNotEmpty ||
+                      widget.property.whatsappPhone.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        if (widget.property.whatsappPhone.isNotEmpty) ...[
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                _openWhatsApp(widget.property.whatsappPhone);
+                              },
+                              icon: const Icon(Icons.chat_bubble),
+                              label: const Text('WhatsApp'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        if (widget.property.contactPhone.isNotEmpty)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                _makePhoneCall(widget.property.contactPhone);
+                              },
+                              icon: const Icon(Icons.phone),
+                              label: const Text('Call'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  // ── End Contact Buttons ──────────────────────────────────
 
                   // Inspection Fee Section
                   if (widget.property.inspectionFee != null &&
@@ -1738,16 +1784,88 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     }
   }
 
-  Future<void> _openWhatsApp(String phoneNumber) async {
+  String _normalizeWhatsAppNumber(String phoneNumber) {
     String cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
 
-    if (cleanNumber.startsWith('0')) {
-      cleanNumber = '256${cleanNumber.substring(1)}';
-    } else if (phoneNumber.startsWith('+')) {
-      cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
+    if (cleanNumber.startsWith('0') && cleanNumber.length > 1) {
+      return '256${cleanNumber.substring(1)}';
     }
 
-    final Uri whatsappUri = Uri.parse('https://wa.me/$cleanNumber');
+    if (cleanNumber.length == 9) {
+      return '256$cleanNumber';
+    }
+
+    return cleanNumber;
+  }
+
+  Uri _publicSiteBaseUri() {
+    final baseUri = Uri.base;
+    final isHttpBase = baseUri.scheme == 'http' || baseUri.scheme == 'https';
+    final isLocalHost =
+        baseUri.host == 'localhost' || baseUri.host == '127.0.0.1';
+
+    if (isHttpBase && baseUri.host.isNotEmpty && !isLocalHost) {
+      return Uri(
+        scheme: baseUri.scheme,
+        host: baseUri.host,
+        port: baseUri.hasPort &&
+                baseUri.port != 80 &&
+                baseUri.port != 443
+            ? baseUri.port
+            : null,
+      );
+    }
+
+    return Uri.parse(_publicWebAppBaseUrl);
+  }
+
+  String _buildPropertyShareUrl() {
+    return _publicSiteBaseUri()
+        .replace(pathSegments: ['property', widget.property.id]).toString();
+  }
+
+  String _buildPropertyReference() {
+    final normalizedId = widget.property.id
+        .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
+        .toUpperCase();
+
+    if (normalizedId.isEmpty) {
+      return widget.property.id;
+    }
+
+    final shortId =
+        normalizedId.length > 10 ? normalizedId.substring(0, 10) : normalizedId;
+    return 'TH-$shortId';
+  }
+
+  String _buildWhatsAppMessage() {
+    final propertyUrl = _buildPropertyShareUrl();
+    final propertyRef = _buildPropertyReference();
+    final priceText = _canShowHostelPriceToCustomers(widget.property) &&
+            widget.property.price > 0
+        ? '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}'
+        : 'Price on request';
+
+    // Format: property link on first line to generate link preview
+    final lines = <String>[
+      propertyUrl,
+      '',
+      '📍 Property on True Home',
+      'Title: ${widget.property.title}',
+      'Location: ${widget.property.location}',
+      'Price: $priceText',
+      'Ref: $propertyRef',
+    ];
+
+    return lines.join('\n');
+  }
+
+  Future<void> _openWhatsApp(String phoneNumber) async {
+    final cleanNumber = _normalizeWhatsAppNumber(phoneNumber);
+    final message = _buildWhatsAppMessage();
+    final Uri whatsappUri = Uri.parse(
+      'https://wa.me/$cleanNumber?text=${Uri.encodeComponent(message)}',
+    );
 
     if (await canLaunchUrl(whatsappUri)) {
       await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
