@@ -34,12 +34,13 @@
 </head>
 <body>
   <script>
-    const flutterCleanupKey = 'truehome_flutter_cleanup_v1';
+    const serviceWorkerCleanupKey = 'truehome_service_worker_cleanup_v2';
 
-    async function cleanupOldFlutterCacheOnce() {
+    async function cleanupLegacyServiceWorkersOnce() {
       if (!('serviceWorker' in navigator)) return;
 
-      const alreadyCleaned = localStorage.getItem(flutterCleanupKey) === 'done';
+      const alreadyCleaned =
+        localStorage.getItem(serviceWorkerCleanupKey) === 'done';
       if (alreadyCleaned) return;
 
       try {
@@ -51,7 +52,9 @@
             registration.installing?.scriptURL ||
             '';
 
-          if (scriptUrl.includes('flutter_service_worker.js')) {
+          // Older builds registered a separate Firebase messaging service worker
+          // at the root scope, which conflicts with Flutter's own root worker.
+          if (scriptUrl.includes('firebase-messaging-sw.js')) {
             await registration.unregister();
           }
         }
@@ -66,28 +69,23 @@
           await Promise.all(flutterCacheKeys.map((key) => caches.delete(key)));
         }
 
-        localStorage.setItem(flutterCleanupKey, 'done');
+        localStorage.setItem(serviceWorkerCleanupKey, 'done');
       } catch (error) {
-        console.log('Flutter cache cleanup failed:', error);
+        console.log('Legacy service worker cleanup failed:', error);
       }
     }
 
-    async function registerFirebaseMessagingServiceWorker() {
-      if (!('serviceWorker' in navigator)) return;
-
-      try {
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('Firebase messaging service worker registered:', registration.scope);
-      } catch (error) {
-        console.log('Firebase messaging service worker registration failed:', error);
-      }
+    function loadFlutterEntrypoint() {
+      const script = document.createElement('script');
+      script.src = 'flutter_bootstrap.js';
+      script.async = true;
+      document.body.appendChild(script);
     }
 
     window.addEventListener('load', async function () {
-      await cleanupOldFlutterCacheOnce();
-      await registerFirebaseMessagingServiceWorker();
+      await cleanupLegacyServiceWorkersOnce();
+      loadFlutterEntrypoint();
     });
   </script>
-  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
