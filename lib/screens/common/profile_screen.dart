@@ -50,9 +50,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _currentUser != null && _currentUser!.activeRole == UserRole.customer;
 
   bool get _isEmailVerified => _auth.currentUser?.emailVerified ?? false;
+  bool get _isPhoneVerified =>
+      (_auth.currentUser?.phoneNumber ?? '').trim().isNotEmpty;
 
-    Color get _themePrimaryText => Theme.of(context).colorScheme.onSurface;
-    Color get _themeSecondaryText =>
+  Color get _themePrimaryText => Theme.of(context).colorScheme.onSurface;
+  Color get _themeSecondaryText =>
       Theme.of(context).colorScheme.onSurface.withOpacity(0.72);
 
   @override
@@ -204,12 +206,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildInfoCard(
                     title: 'Contact Information',
                     items: [
-                      _buildInfoRow(Icons.email, 'Email', _currentUser!.email),
+                      _buildInfoRow(
+                        Icons.email,
+                        'Email',
+                        _currentUser!.email,
+                        trailing: _buildVerificationAction(
+                          isVerified: _isEmailVerified,
+                          onTap: _showEmailVerificationDialog,
+                        ),
+                      ),
                       if (_currentUser!.phoneNumber.isNotEmpty)
                         _buildInfoRow(
                           Icons.phone,
                           'Phone',
                           _currentUser!.phoneNumber,
+                          trailing: _buildVerificationAction(
+                            isVerified: _isPhoneVerified,
+                            onTap: _showPhoneVerificationDialog,
+                          ),
                         ),
                       if (_currentUser!.whatsappNumber != null &&
                           _currentUser!.whatsappNumber!.isNotEmpty)
@@ -591,7 +605,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value, {
+    Widget? trailing,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -619,8 +638,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 10),
+            trailing,
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildVerificationAction({
+    required bool isVerified,
+    required VoidCallback onTap,
+  }) {
+    if (isVerified) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Text(
+          'Verified',
+          style: TextStyle(
+            color: Colors.green,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: const Size(0, 0),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: const Text('Verify'),
     );
   }
 
@@ -1589,6 +1645,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showPhoneVerificationDialog() {
+    final phone = _currentUser?.phoneNumber ?? '';
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              _isPhoneVerified ? Icons.verified : Icons.phone_android,
+              color: _isPhoneVerified ? Colors.green : Colors.orange,
+            ),
+            const SizedBox(width: 8),
+            const Text('Phone Verification'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (phone.isNotEmpty)
+              Text(
+                'Phone: $phone',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            const SizedBox(height: 10),
+            Text(
+              _isPhoneVerified
+                  ? 'Your phone number is already verified.'
+                  : 'Your phone number is not verified yet. You can complete phone verification when prompted during protected actions like payments.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }

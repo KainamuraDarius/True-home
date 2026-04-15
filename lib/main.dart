@@ -14,7 +14,6 @@ import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_service.dart';
 import 'services/maintenance_service.dart';
-import 'services/auth_service.dart';
 import 'services/auth_action_link_service.dart';
 
 /// Customer/Agent app entry point
@@ -199,12 +198,6 @@ class AuthenticationWrapper extends StatelessWidget {
 
         // User is logged in
         if (snapshot.hasData && snapshot.data != null) {
-          final firebaseUser = snapshot.data!;
-          if ((firebaseUser.email ?? '').isNotEmpty &&
-              !firebaseUser.emailVerified) {
-            return const UnverifiedEmailGateScreen();
-          }
-
           return FutureBuilder<DocumentSnapshot>(
             future: FirebaseFirestore.instance
                 .collection('users')
@@ -321,119 +314,6 @@ class AuthenticationWrapper extends StatelessWidget {
         // User not logged in: allow guest browsing for customer-facing flows.
         return const CustomerHomeScreen();
       },
-    );
-  }
-}
-
-class UnverifiedEmailGateScreen extends StatefulWidget {
-  const UnverifiedEmailGateScreen({super.key});
-
-  @override
-  State<UnverifiedEmailGateScreen> createState() =>
-      _UnverifiedEmailGateScreenState();
-}
-
-class _UnverifiedEmailGateScreenState extends State<UnverifiedEmailGateScreen> {
-  final AuthService _authService = AuthService();
-  bool _sending = false;
-
-  Future<void> _resendVerificationEmail() async {
-    setState(() {
-      _sending = true;
-    });
-
-    try {
-      await _authService.sendEmailVerification();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verification email sent. Check your inbox.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _sending = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.mark_email_unread_outlined,
-                  size: 72,
-                  color: Colors.orange,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Verify Your Email',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  userEmail.isEmpty
-                      ? 'Please verify your email to continue.'
-                      : 'We sent a verification link to\n$userEmail',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 15),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _sending ? null : _resendVerificationEmail,
-                    child: _sending
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Resend Verification Email'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => FirebaseAuth.instance.signOut(),
-                    child: const Text('Sign Out'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.currentUser?.reload();
-                    if (mounted) {
-                      setState(() {});
-                    }
-                  },
-                  child: const Text('I already verified, refresh'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
