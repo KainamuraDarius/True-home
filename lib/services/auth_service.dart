@@ -7,7 +7,7 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _emailActionRedirectUrl =
-      'https://truehome.com.ug/action';
+      'https://truehome-9a244.web.app/';
 
   ActionCodeSettings get _emailActionCodeSettings => ActionCodeSettings(
     url: _emailActionRedirectUrl,
@@ -83,7 +83,7 @@ class AuthService {
       // Update display name
       await credential.user!.updateDisplayName(name);
 
-      // Always send the Firebase Auth verification email for login gating reliability.
+      // Send verification email so users can verify later from their profile.
       await credential.user!.sendEmailVerification(_emailActionCodeSettings);
 
       // Keep user logged in for email verification
@@ -121,16 +121,6 @@ class AuthService {
 
       if (credential.user == null) {
         throw Exception('Failed to sign in');
-      }
-
-      // Enforce verification for email/password accounts.
-      final signedInUser = credential.user!;
-      if ((signedInUser.email ?? '').isNotEmpty && !signedInUser.emailVerified) {
-        await _auth.signOut();
-        throw Exception(
-          'Please verify your email before logging in. '
-          'Check your inbox and try again.',
-        );
       }
 
       // Get user data from Firestore

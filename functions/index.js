@@ -239,7 +239,7 @@ function buildAuthEmailHtml({ heading, greeting, body, actionText, actionLink, f
 
 function buildActionCodeSettings(continueUrl) {
   return {
-    url: continueUrl || 'https://truehome.com.ug/action',
+    url: continueUrl || 'https://truehome-9a244.web.app/',
     handleCodeInApp: true,
     android: {
       packageName: 'com.truehome.app',
