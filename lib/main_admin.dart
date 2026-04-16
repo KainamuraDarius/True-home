@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'utils/app_theme.dart';
+import 'models/user_model.dart';
 import 'screens/auth/admin_login_screen.dart';
 import 'screens/admin/admin_panel_screen.dart';
 import 'services/preferences_service.dart';
@@ -14,12 +15,10 @@ import 'services/preferences_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const AdminApp());
 }
 
@@ -49,8 +48,8 @@ class AdminAppState extends State<AdminApp> {
       _themeMode = theme == 'dark'
           ? ThemeMode.dark
           : theme == 'system'
-              ? ThemeMode.system
-              : ThemeMode.light;
+          ? ThemeMode.system
+          : ThemeMode.light;
     });
   }
 
@@ -121,14 +120,15 @@ class AdminAuthWrapper extends StatelessWidget {
               }
 
               if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                
-                // Get active role
-                String? activeRole = userData['activeRole'] as String? ?? 
-                                     userData['role'] as String?;
+                final userData =
+                    userSnapshot.data!.data() as Map<String, dynamic>;
+                final userModel = UserModel.fromJson({
+                  ...userData,
+                  'id': userSnapshot.data!.id,
+                });
 
-                // Only allow admin role
-                if (activeRole == 'admin') {
+                if (userModel.activeRole == UserRole.admin ||
+                    userModel.roles.contains(UserRole.admin)) {
                   return const AdminPanelScreen();
                 }
 
@@ -143,7 +143,10 @@ class AdminAuthWrapper extends StatelessWidget {
                         const SizedBox(height: 16),
                         const Text(
                           'Access Denied',
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text('This portal is for administrators only.'),

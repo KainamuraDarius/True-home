@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'firebase_options.dart';
 import 'utils/app_theme.dart';
 import 'screens/auth/welcome_screen.dart';
@@ -17,7 +17,9 @@ import 'services/maintenance_service.dart';
 import 'services/auth_service.dart';
 import 'services/auth_action_link_service.dart';
 import 'models/property_model.dart';
+import 'models/user_model.dart';
 import 'screens/property/property_details_screen.dart';
+import 'services/role_service.dart';
 
 /// Customer/Agent app entry point
 /// Build with: flutter build web --release
@@ -25,24 +27,22 @@ import 'screens/property/property_details_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   // Initialize local notifications (non-blocking)
   NotificationService.initialize().catchError((e) {
     print('Notification initialization error: $e');
   });
-  
+
   // Initialize FCM in background (only on mobile, not web)
   if (!kIsWeb) {
     FCMService().initialize().catchError((e) {
       print('FCM initialization error: $e');
     });
   }
-  
+
   runApp(const MyApp());
 }
 
@@ -65,9 +65,7 @@ class MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _authActionLinkService = AuthActionLinkService(
-      navigatorKey: _navigatorKey,
-    );
+    _authActionLinkService = AuthActionLinkService(navigatorKey: _navigatorKey);
     unawaited(_authActionLinkService.initialize());
     _loadTheme();
   }
@@ -84,8 +82,8 @@ class MyAppState extends State<MyApp> {
       _themeMode = theme == 'dark'
           ? ThemeMode.dark
           : theme == 'system'
-              ? ThemeMode.system
-              : ThemeMode.light;
+          ? ThemeMode.system
+          : ThemeMode.light;
     });
   }
 
@@ -118,9 +116,7 @@ class LaunchLoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const ColoredBox(
       color: Colors.white,
-      child: Center(
-        child: CircularProgressIndicator(),
-      ),
+      child: Center(child: CircularProgressIndicator()),
     );
   }
 }
@@ -161,13 +157,18 @@ class _MaintenanceWithSplash extends StatelessWidget {
                       .doc(authSnapshot.data!.uid)
                       .get(),
                   builder: (context, userSnapshot) {
-                    if (userSnapshot.connectionState == ConnectionState.waiting) {
+                    if (userSnapshot.connectionState ==
+                        ConnectionState.waiting) {
                       return const LaunchLoadingScreen();
                     }
                     if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                      final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                      final role = userData['activeRole'] ?? userData['role'];
-                      if (role == 'admin') {
+                      final userData =
+                          userSnapshot.data!.data() as Map<String, dynamic>;
+                      final userModel = UserModel.fromJson({
+                        ...userData,
+                        'id': userSnapshot.data!.id,
+                      });
+                      if (_hasAdminAccess(userModel)) {
                         return const AuthenticationWrapper();
                       }
                     }
@@ -226,8 +227,13 @@ class AuthenticationWrapper extends StatelessWidget {
               }
 
               if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                
+                final userData =
+                    userSnapshot.data!.data() as Map<String, dynamic>;
+                final userModel = UserModel.fromJson({
+                  ...userData,
+                  'id': userSnapshot.data!.id,
+                });
+
                 // Get active role - support both old and new format
                 String? activeRole;
                 if (userData['activeRole'] != null) {
@@ -254,23 +260,34 @@ class AuthenticationWrapper extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                            const Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red,
+                            ),
                             const SizedBox(height: 16),
                             const Text(
                               'Account Setup Incomplete',
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const SizedBox(height: 8),
-                            const Text('Your account is missing required information.'),
+                            const Text(
+                              'Your account is missing required information.',
+                            ),
                             const SizedBox(height: 16),
                             ElevatedButton(
-                                onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (context) => const CustomerHomeScreen(),
+                              onPressed: () =>
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const CustomerHomeScreen(),
+                                    ),
+                                    (route) => false,
                                   ),
-                                  (route) => false,
-                                ),
-                                child: const Text('Back to Login'),
+                              child: const Text('Back to Login'),
                             ),
                           ],
                         ),
@@ -279,47 +296,9 @@ class AuthenticationWrapper extends StatelessWidget {
                   );
                 }
 
-                // Route to appropriate dashboard based on active role
-                switch (activeRole) {
-                  case 'customer':
-                    return _withInitialPropertyLink(const CustomerHomeScreen());
-                  case 'propertyAgent':
-                    return _withInitialPropertyLink(const AgentMainScreen());
-                  default:
-                    // Admin users should use the admin portal
-                    if (activeRole == 'admin') {
-                      return _withInitialPropertyLink(
-                        Scaffold(
-                          body: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.admin_panel_settings, size: 64, color: Colors.orange),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Admin Portal',
-                                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text('Please use the admin portal at:'),
-                                const SizedBox(height: 8),
-                                const SelectableText(
-                                  'https://truehome-admin.web.app',
-                                  style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
-                                ),
-                                const SizedBox(height: 24),
-                                ElevatedButton(
-                                  onPressed: () => FirebaseAuth.instance.signOut(),
-                                  child: const Text('Back to Login'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return _withInitialPropertyLink(const WelcomeScreen());
-                }
+                return _withInitialPropertyLink(
+                  CustomerPortalEntry(user: userModel),
+                );
               }
 
               // Keep auth session; profile may still be syncing/being created.
@@ -335,6 +314,72 @@ class AuthenticationWrapper extends StatelessWidget {
   }
 }
 
+bool _hasAdminAccess(UserModel user) {
+  return user.activeRole == UserRole.admin ||
+      user.roles.contains(UserRole.admin);
+}
+
+UserRole _preferredCustomerPortalRole(UserModel user) {
+  if (user.activeRole != UserRole.admin) {
+    return user.activeRole;
+  }
+
+  for (final role in user.roles) {
+    if (role != UserRole.admin) {
+      return role;
+    }
+  }
+
+  return UserRole.customer;
+}
+
+class CustomerPortalEntry extends StatefulWidget {
+  final UserModel user;
+
+  const CustomerPortalEntry({super.key, required this.user});
+
+  @override
+  State<CustomerPortalEntry> createState() => _CustomerPortalEntryState();
+}
+
+class _CustomerPortalEntryState extends State<CustomerPortalEntry> {
+  late final UserRole _targetRole;
+
+  @override
+  void initState() {
+    super.initState();
+    _targetRole = _preferredCustomerPortalRole(widget.user);
+
+    if (_targetRole != widget.user.activeRole) {
+      unawaited(_syncCustomerPortalRole());
+    }
+  }
+
+  Future<void> _syncCustomerPortalRole() async {
+    try {
+      await RoleService().switchActiveRole(_targetRole);
+    } catch (e) {
+      debugPrint('Customer portal role sync failed: $e');
+    }
+  }
+
+  Widget _buildPortalHome() {
+    switch (_targetRole) {
+      case UserRole.customer:
+        return const CustomerHomeScreen();
+      case UserRole.propertyAgent:
+        return const AgentMainScreen();
+      case UserRole.admin:
+        return const WelcomeScreen();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _buildPortalHome();
+  }
+}
+
 class InitialPropertyLinkHandler extends StatefulWidget {
   final Widget child;
 
@@ -345,7 +390,8 @@ class InitialPropertyLinkHandler extends StatefulWidget {
       _InitialPropertyLinkHandlerState();
 }
 
-class _InitialPropertyLinkHandlerState extends State<InitialPropertyLinkHandler> {
+class _InitialPropertyLinkHandlerState
+    extends State<InitialPropertyLinkHandler> {
   static bool _handledInitialPropertyLink = false;
 
   @override
@@ -400,10 +446,7 @@ class _InitialPropertyLinkHandlerState extends State<InitialPropertyLinkHandler>
 
       if (!isApproved || !isActive) return;
 
-      final property = PropertyModel.fromJson({
-        ...data,
-        'id': propertyDoc.id,
-      });
+      final property = PropertyModel.fromJson({...data, 'id': propertyDoc.id});
 
       if (!mounted) return;
 
