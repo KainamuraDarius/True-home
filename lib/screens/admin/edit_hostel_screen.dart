@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -53,10 +55,10 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
   String _uploadStatus = '';
   double _uploadProgress = 0.0;
   final ImagePicker _picker = ImagePicker();
-  static const int _webMaxImageDimension = 1920;
-  static const int _mobileMaxImageDimension = 1400;
-  static const int _webJpegQuality = 92;
-  static const int _mobileJpegQuality = 86;
+  static const int _webMaxImageDimension = 2560;
+  static const int _mobileMaxImageDimension = 2560;
+  static const int _webJpegQuality = 96;
+  static const int _mobileJpegQuality = 94;
 
   // Amenities
   List<String> _selectedAmenities = [];
@@ -109,10 +111,18 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
     }
 
     if (image.width >= image.height) {
-      return img.copyResize(image, width: maxDimension);
+      return img.copyResize(
+        image,
+        width: maxDimension,
+        interpolation: img.Interpolation.cubic,
+      );
     }
 
-    return img.copyResize(image, height: maxDimension);
+    return img.copyResize(
+      image,
+      height: maxDimension,
+      interpolation: img.Interpolation.cubic,
+    );
   }
 
   @override
@@ -847,6 +857,7 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                                   child: CachedNetworkImage(
                                     imageUrl: url,
                                     fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.high,
                                     placeholder: (_, __) => Container(
                                       color: Colors.grey.shade200,
                                       child: const Center(
@@ -930,7 +941,11 @@ class _EditHostelScreenState extends State<EditHostelScreen> {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: bytes != null
-                                    ? Image.memory(bytes, fit: BoxFit.cover)
+                                    ? Image.memory(
+                                        bytes,
+                                        fit: BoxFit.cover,
+                                        filterQuality: FilterQuality.high,
+                                      )
                                     : const Center(
                                         child: CircularProgressIndicator(),
                                       ),

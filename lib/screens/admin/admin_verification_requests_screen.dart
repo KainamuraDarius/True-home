@@ -1157,6 +1157,7 @@ class _AdminVerificationRequestsScreenState
           width: width,
           height: height,
           fit: fit,
+          filterQuality: FilterQuality.high,
           errorBuilder: (context, error, stackTrace) {
             return Container(
               width: width,
@@ -1183,6 +1184,7 @@ class _AdminVerificationRequestsScreenState
       width: width,
       height: height,
       fit: fit,
+      filterQuality: FilterQuality.high,
       errorBuilder: (context, error, stackTrace) {
         return Container(
           width: width,

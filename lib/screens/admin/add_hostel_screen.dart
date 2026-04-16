@@ -106,10 +106,10 @@ class _AddHostelScreenState extends State<AddHostelScreen>
   };
 
   bool _isPickingImages = false;
-  static const int _webMaxImageDimension = 1920;
-  static const int _mobileMaxImageDimension = 1400;
-  static const int _webJpegQuality = 92;
-  static const int _mobileJpegQuality = 86;
+  static const int _webMaxImageDimension = 2560;
+  static const int _mobileMaxImageDimension = 2560;
+  static const int _webJpegQuality = 96;
+  static const int _mobileJpegQuality = 94;
 
   img.Image _resizeImageForUpload(img.Image image) {
     final maxDimension = kIsWeb
@@ -124,10 +124,18 @@ class _AddHostelScreenState extends State<AddHostelScreen>
     }
 
     if (image.width >= image.height) {
-      return img.copyResize(image, width: maxDimension);
+      return img.copyResize(
+        image,
+        width: maxDimension,
+        interpolation: img.Interpolation.cubic,
+      );
     }
 
-    return img.copyResize(image, height: maxDimension);
+    return img.copyResize(
+      image,
+      height: maxDimension,
+      interpolation: img.Interpolation.cubic,
+    );
   }
 
   Widget _buildGenderPolicyOption(
@@ -1031,7 +1039,11 @@ class _AddHostelScreenState extends State<AddHostelScreen>
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: bytes != null
-                                ? Image.memory(bytes, fit: BoxFit.cover)
+                                ? Image.memory(
+                                    bytes,
+                                    fit: BoxFit.cover,
+                                    filterQuality: FilterQuality.high,
+                                  )
                                 : const Center(
                                     child: CircularProgressIndicator(),
                                   ),

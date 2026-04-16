@@ -242,6 +242,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                         height: 240,
                                         width: double.infinity,
                                         fit: BoxFit.cover,
+                                        filterQuality: FilterQuality.high,
                                         loadingBuilder:
                                             (context, child, loadingProgress) {
                                               if (loadingProgress == null) {
@@ -1291,6 +1292,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                         width: 74,
                                         height: 74,
                                         fit: BoxFit.cover,
+                                        filterQuality: FilterQuality.high,
                                         errorBuilder:
                                             (context, error, stackTrace) =>
                                                 Container(

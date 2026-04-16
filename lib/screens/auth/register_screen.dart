@@ -32,9 +32,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _termsAccepted = false;
   late UserRole _selectedRole;
 
-  // Set to false to use real backend
-  static const bool _bypassBackend = false;
-
   @override
   void initState() {
     super.initState();

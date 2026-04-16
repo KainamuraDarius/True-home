@@ -63,7 +63,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 80,
+        imageQuality: 95,
       );
 
       if (image != null) {
@@ -84,7 +84,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 80,
+        imageQuality: 95,
       );
 
       if (image != null) {
@@ -140,19 +140,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (image == null) return null;
 
-      // Resize to 400x400 for profile image
-      if (image.width > 400 || image.height > 400) {
-        image = img.copyResize(image, width: 400, height: 400);
-      }
+      // Crop to a square without distorting the subject, then keep enough
+      // resolution for sharp profile images on large screens.
+      image = img.copyResizeCropSquare(
+        image,
+        size: 1024,
+        interpolation: img.Interpolation.cubic,
+      );
 
-      // Compress to 70% quality
       final compressedBytes = Uint8List.fromList(
-        img.encodeJpg(image, quality: 70),
+        img.encodeJpg(image, quality: 92),
       );
 
       // Check size
-      if (compressedBytes.length > 500000) {
-        // 500KB limit for profile images
+      if (compressedBytes.length > 2000000) {
+        // Keep uploads manageable while preserving detail.
         throw Exception('Image too large. Please choose a smaller image.');
       }
 
@@ -317,6 +319,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               width: 120,
                               height: 120,
                               fit: BoxFit.cover,
+                              filterQuality: FilterQuality.high,
                               errorBuilder: (context, error, stackTrace) {
                                 return Text(
                                   widget.user.name.isNotEmpty

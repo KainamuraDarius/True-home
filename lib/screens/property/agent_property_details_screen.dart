@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -74,6 +76,7 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                           widget.property.imageUrls[index],
                           fit: BoxFit.cover,
                           width: double.infinity,
+                          filterQuality: FilterQuality.high,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
                             return const Center(child: CircularProgressIndicator());

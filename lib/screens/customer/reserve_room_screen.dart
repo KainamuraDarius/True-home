@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,8 +28,6 @@ class ReserveRoomScreen extends StatefulWidget {
 }
 
 class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
-  final bool _useDifferentPaymentNumber = false;
-  User? _firebaseUser;
   Map<String, dynamic>? _userProfile;
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -43,7 +43,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   bool _roomAvailable = false;
 
   String? _currentTransactionId; // Track current payment transaction
-  bool _paymentInitialized = false;
 
   @override
   void initState() {
@@ -55,9 +54,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   Future<void> _prefillUserInfo() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    setState(() {
-      _firebaseUser = user;
-    });
     // Try to get extra profile info from Firestore
     String? firestorePhone;
     try {
@@ -289,7 +285,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
       }
 
       _currentTransactionId = response.transactionReference;
-      _paymentInitialized = true;
 
       if (!mounted) return;
       Navigator.pop(context); // Close processing dialog
@@ -327,8 +322,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   /// Show dialog that checks payment status
   /// Polls Pandora API and waits for payment to complete
   void _showPaymentStatusDialog(String transactionRef) {
-    bool paymentCompleted = false;
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -524,7 +517,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
     setState(() {
       _isProcessing = false;
       _currentTransactionId = null;
-      _paymentInitialized = false;
     });
   }
 

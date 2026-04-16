@@ -250,8 +250,9 @@ class _MyProjectsScreenState extends State<MyProjectsScreen>
                 height: 240,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                memCacheWidth: 900,
-                memCacheHeight: 450,
+                filterQuality: FilterQuality.high,
+                memCacheWidth: 1600,
+                memCacheHeight: 900,
                 fadeInDuration: const Duration(milliseconds: 300),
                 fadeOutDuration: const Duration(milliseconds: 100),
                 placeholder: (context, url) => Container(

@@ -122,6 +122,7 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
                         width: 100,
                         height: 100,
                         fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
                         errorBuilder: (_, __, ___) => _buildPlaceholder(Icons.broken_image),
                       )
                     : _buildPlaceholder(Icons.home),
@@ -276,6 +277,7 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
                         width: 100,
                         height: 100,
                         fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
                         errorBuilder: (_, __, ___) => _buildPlaceholder(Icons.broken_image),
                       )
                     : _buildPlaceholder(Icons.apartment),

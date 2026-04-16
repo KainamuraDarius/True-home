@@ -57,7 +57,7 @@ class ProjectService {
     // Wakiso Town & Surroundings
     'Wakiso', 'Namere', 'Kasangati', 'Matugga', 'Kira Town',
     // Others
-    'Kampala', 'Bunga', 'Seeta', 'Mukono'
+    'Kampala', 'Bunga', 'Seeta', 'Mukono',
   ]..sort();
 
   // Get projects for a specific location with rotation logic
@@ -78,17 +78,17 @@ class ProjectService {
           .where((doc) => doc.data()['isDeleted'] != true)
           .map((doc) => Project.fromFirestore(doc))
           .where(
-          (p) =>
-            p.location == location &&
-            p.isApproved &&
-            p.adExpiresAt.isAfter(now),
+            (p) =>
+                p.location == location &&
+                p.isApproved &&
+                p.adExpiresAt.isAfter(now),
           )
           .toList();
 
       // With flat pricing, all projects are equal
       // Shuffle to give everyone fair visibility (rotational effect)
       projects.shuffle(_random);
-      
+
       return projects;
     } catch (e) {
       if (_isNetworkFirestoreError(e)) {
@@ -112,14 +112,14 @@ class ProjectService {
 
       final now = DateTime.now();
       Set<String> locations = {};
-      
+
       for (var doc in querySnapshot.docs) {
         final data = doc.data();
 
         if (data['isDeleted'] == true) {
           continue;
         }
-        
+
         // Filter by expiry date in memory
         if (data['location'] != null && data['adExpiresAt'] != null) {
           final expiresAt = (data['adExpiresAt'] as Timestamp).toDate();
@@ -127,16 +127,18 @@ class ProjectService {
             locations.add(data['location'] as String);
             print('Added location: ${data['location']}');
           } else {
-            print('Project expired: ${data['location']} - expired on $expiresAt');
+            print(
+              'Project expired: ${data['location']} - expired on $expiresAt',
+            );
           }
         }
       }
 
       print('Total unique locations: ${locations.length}');
-      
+
       // Only return locations that have active projects
       List<String> sortedLocations = locations.toList()..sort();
-      
+
       return sortedLocations;
     } catch (e) {
       if (_isNetworkFirestoreError(e)) {
@@ -150,10 +152,9 @@ class ProjectService {
   // Increment view count when project is displayed
   Future<void> incrementViewCount(String projectId) async {
     try {
-      await _firestore
-          .collection('advertised_projects')
-          .doc(projectId)
-          .update({'viewCount': FieldValue.increment(1)});
+      await _firestore.collection('advertised_projects').doc(projectId).update({
+        'viewCount': FieldValue.increment(1),
+      });
     } catch (e) {
       print('Error incrementing view count: $e');
     }
@@ -162,23 +163,25 @@ class ProjectService {
   // Increment click count when project is clicked
   Future<void> incrementClickCount(String projectId) async {
     try {
-      await _firestore
-          .collection('advertised_projects')
-          .doc(projectId)
-          .update({'clickCount': FieldValue.increment(1)});
+      await _firestore.collection('advertised_projects').doc(projectId).update({
+        'clickCount': FieldValue.increment(1),
+      });
     } catch (e) {
       print('Error incrementing click count: $e');
     }
   }
 
   // Admin: Get all projects (for management)
-  Future<List<Project>> getAllProjects({bool? isApproved, bool includeDeleted = false}) async {
+  Future<List<Project>> getAllProjects({
+    bool? isApproved,
+    bool includeDeleted = false,
+  }) async {
     try {
       // Simplified query - get all projects first
       final querySnapshot = await _firestore
           .collection('advertised_projects')
           .get();
-      
+
       // Convert to Project objects
       List<Project> projects = querySnapshot.docs
           .map((doc) => Project.fromFirestore(doc))
@@ -187,7 +190,9 @@ class ProjectService {
       // Filter out deleted projects unless includeDeleted is true
       if (!includeDeleted) {
         projects = projects.where((p) {
-          final data = querySnapshot.docs.firstWhere((d) => d.id == p.id).data();
+          final data = querySnapshot.docs
+              .firstWhere((d) => d.id == p.id)
+              .data();
           return data['isDeleted'] != true;
         }).toList();
       }
@@ -199,7 +204,7 @@ class ProjectService {
 
       // Sort by creation date (newest first)
       projects.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      
+
       return projects;
     } catch (e) {
       if (_isNetworkFirestoreError(e)) {
@@ -255,11 +260,7 @@ class ProjectService {
         await _firestore
             .collection('advertised_projects')
             .doc(projectId)
-            .update({
-              'isApproved': true,
-              'viewCount': 0,
-              'clickCount': 0,
-            });
+            .update({'isApproved': true, 'viewCount': 0, 'clickCount': 0});
       } else {
         // Just reject without modifying counts
         await _firestore
@@ -276,15 +277,52 @@ class ProjectService {
   // Admin: Delete project (soft delete - moves to trash)
   Future<void> deleteProject(String projectId) async {
     try {
-      await _firestore
-          .collection('advertised_projects')
-          .doc(projectId)
-          .update({
+      await _firestore.collection('advertised_projects').doc(projectId).update({
         'isDeleted': true,
         'deletedAt': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       print('Error deleting project: $e');
+      rethrow;
+    }
+  }
+
+  Future<DateTime> extendProjectAdvertisement(
+    String projectId, {
+    required DateTime currentExpiry,
+    required int additionalDays,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final baseDate = currentExpiry.isAfter(now) ? currentExpiry : now;
+      final newExpiry = baseDate.add(Duration(days: additionalDays));
+
+      await _firestore.collection('advertised_projects').doc(projectId).update({
+        'adExpiresAt': Timestamp.fromDate(newExpiry),
+      });
+
+      return newExpiry;
+    } catch (e) {
+      print('Error extending project advertisement: $e');
+      rethrow;
+    }
+  }
+
+  Future<DateTime> restoreExpiredProject(
+    String projectId, {
+    required int activeDays,
+  }) async {
+    try {
+      final restoredUntil = DateTime.now().add(Duration(days: activeDays));
+
+      await _firestore.collection('advertised_projects').doc(projectId).update({
+        'isApproved': true,
+        'adExpiresAt': Timestamp.fromDate(restoredUntil),
+      });
+
+      return restoredUntil;
+    } catch (e) {
+      print('Error restoring expired project: $e');
       rethrow;
     }
   }
@@ -303,7 +341,10 @@ class ProjectService {
   }
 
   // Update existing project
-  Future<void> updateProject(String projectId, Map<String, dynamic> updates) async {
+  Future<void> updateProject(
+    String projectId,
+    Map<String, dynamic> updates,
+  ) async {
     try {
       await _firestore
           .collection('advertised_projects')

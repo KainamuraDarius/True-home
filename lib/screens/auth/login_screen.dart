@@ -151,6 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Image.asset(
                       'assets/images/app_icon.png',
                       fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           color: AppColors.primary,

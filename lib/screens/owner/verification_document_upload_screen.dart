@@ -96,9 +96,9 @@ class _VerificationDocumentUploadScreenState
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 70,
+        maxWidth: 2400,
+        maxHeight: 2400,
+        imageQuality: 95,
       );
 
       if (image != null) {
@@ -1215,6 +1215,7 @@ class _VerificationDocumentUploadScreenState
                     height: 150,
                     width: double.infinity,
                     fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
                   ),
                 ),
                 Positioned(

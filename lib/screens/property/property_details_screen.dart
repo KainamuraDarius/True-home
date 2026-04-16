@@ -425,8 +425,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             imageUrl: imageUrl,
                             fit: BoxFit.cover,
                             width: double.infinity,
-                            memCacheWidth: 1600,
-                            maxWidthDiskCache: 1600,
+                            filterQuality: FilterQuality.high,
+                            memCacheWidth: 2400,
+                            maxWidthDiskCache: 2400,
                             fadeInDuration: Duration.zero,
                             placeholder: (context, url) => Container(
                               color: Colors.grey[300],
@@ -1090,6 +1091,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                         return Image.network(
                                           imageUrl,
                                           fit: BoxFit.cover,
+                                          filterQuality:
+                                              FilterQuality.high,
                                           errorBuilder:
                                               (context, error, stackTrace) =>
                                                   Container(
@@ -1522,6 +1525,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                               height: 150,
                                               width: double.infinity,
                                               fit: BoxFit.cover,
+                                              filterQuality:
+                                                  FilterQuality.high,
                                               placeholder: (context,
                                                       url) =>
                                                   Container(

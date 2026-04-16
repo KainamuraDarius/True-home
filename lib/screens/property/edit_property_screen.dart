@@ -129,7 +129,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile> images = await _picker.pickMultiImage(imageQuality: 95);
+      final List<XFile> images = await _picker.pickMultiImage(
+        imageQuality: 100,
+      );
       if (images.isNotEmpty) {
         final totalImages = _totalImageCount + images.length;
         if (totalImages > 20) {
@@ -180,9 +182,9 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
     final List<String> imageUrls = [];
 
     final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
-    final maxWidth = isMobileWeb ? 1200 : 1920;
-    final maxHeight = isMobileWeb ? 1600 : 2560;
-    final quality = isMobileWeb ? 85 : 92;
+    final maxWidth = isMobileWeb ? 1600 : 2560;
+    final maxHeight = isMobileWeb ? 2400 : 3200;
+    final quality = isMobileWeb ? 92 : 96;
 
     for (int i = 0; i < _newImages.length; i++) {
       try {
@@ -210,9 +212,17 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         print('Original dimensions: ${image.width}x${image.height}');
 
         if (image.width > maxWidth) {
-          image = img.copyResize(image, width: maxWidth);
+          image = img.copyResize(
+            image,
+            width: maxWidth,
+            interpolation: img.Interpolation.cubic,
+          );
         } else if (image.height > maxHeight) {
-          image = img.copyResize(image, height: maxHeight);
+          image = img.copyResize(
+            image,
+            height: maxHeight,
+            interpolation: img.Interpolation.cubic,
+          );
         }
 
         print('Resized dimensions: ${image.width}x${image.height}');
@@ -1067,6 +1077,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                                         _existingImageUrls[index],
                                       ),
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.high,
                                     ),
                                   ),
                                 ),
@@ -1127,6 +1138,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                                         File(_newImages[index].path),
                                       ),
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.high,
                                     ),
                                   ),
                                 ),

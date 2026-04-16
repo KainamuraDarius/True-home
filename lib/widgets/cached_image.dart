@@ -30,6 +30,7 @@ class CachedImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
+      filterQuality: FilterQuality.high,
       placeholder: (context, url) =>
           placeholder ??
           Container(

@@ -10,6 +10,7 @@ import '../../models/project_model.dart';
 import '../../services/project_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/currency_formatter.dart';
 
 /// Screen for agents/developers to edit their advertised projects.
 class EditProjectScreen extends StatefulWidget {
@@ -71,7 +72,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       text: p.priceDescriptor ?? '',
     );
     _bookingDepositController = TextEditingController(
-      text: p.bookingDeposit != null ? p.bookingDeposit.toString() : '',
+      text: p.bookingDeposit != null
+          ? CurrencyFormatter.formatForInput(p.bookingDeposit!)
+          : '',
     );
     _bookingDepositDescriptionController = TextEditingController(
       text: p.bookingDepositDescription ?? '',
@@ -146,9 +149,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
 
     final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
     final batchSize = isMobileWeb ? 1 : 3;
-    final maxWidth = isMobileWeb ? 1200 : 1920;
-    final maxHeight = isMobileWeb ? 1600 : 2560;
-    final quality = isMobileWeb ? 85 : 92;
+    final maxWidth = isMobileWeb ? 1600 : 2560;
+    final maxHeight = isMobileWeb ? 2400 : 3200;
+    final quality = isMobileWeb ? 92 : 96;
 
     for (int start = 0; start < total; start += batchSize) {
       final end = (start + batchSize).clamp(0, total);
@@ -169,8 +172,16 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
 
             if (decoded.width > maxWidth || decoded.height > maxHeight) {
               decoded = decoded.width > decoded.height
-                  ? img.copyResize(decoded, width: maxWidth)
-                  : img.copyResize(decoded, height: maxHeight);
+                  ? img.copyResize(
+                      decoded,
+                      width: maxWidth,
+                      interpolation: img.Interpolation.cubic,
+                    )
+                  : img.copyResize(
+                      decoded,
+                      height: maxHeight,
+                      interpolation: img.Interpolation.cubic,
+                    );
             }
 
             final compressed = Uint8List.fromList(
@@ -209,12 +220,17 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       if (decodedImage == null) return null;
 
       // Resize for icon (make it square and smaller)
-      final size = 256;
-      decodedImage = img.copyResize(decodedImage, width: size, height: size);
+      final size = 512;
+      decodedImage = img.copyResize(
+        decodedImage,
+        width: size,
+        height: size,
+        interpolation: img.Interpolation.cubic,
+      );
 
       // Compress
       final compressedBytes = Uint8List.fromList(
-        img.encodeJpg(decodedImage, quality: 90),
+        img.encodeJpg(decodedImage, quality: 95),
       );
 
       // Upload to Firebase Storage
@@ -295,7 +311,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             ? _priceDescriptorController.text.trim()
             : null,
         'bookingDeposit': _bookingDepositController.text.trim().isNotEmpty
-            ? double.tryParse(_bookingDepositController.text.trim())
+            ? CurrencyFormatter.tryParse(_bookingDepositController.text.trim())
             : null,
         'bookingDepositDescription':
             _bookingDepositDescriptionController.text.trim().isNotEmpty
@@ -534,11 +550,19 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                           controller: _bookingDepositController,
                           decoration: const InputDecoration(
                             labelText: 'Booking Deposit (Optional)',
-                            hintText: 'e.g., 1500',
+                            hintText: 'e.g., 50M, 50,000,000',
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.payment),
                           ),
-                          keyboardType: TextInputType.number,
+                          keyboardType: TextInputType.text,
+                          validator: (value) {
+                            final trimmed = value?.trim() ?? '';
+                            if (trimmed.isEmpty) return null;
+                            if (CurrencyFormatter.tryParse(trimmed) == null) {
+                              return 'Enter an amount like 50M or 50,000,000';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 12),
 
@@ -622,6 +646,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                                     child: Image.file(
                                       File(_newCompanyIcon!.path),
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.high,
                                     ),
                                   )
                                 : _existingCompanyIconUrl != null
@@ -630,6 +655,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                                     child: Image.network(
                                       _existingCompanyIconUrl!,
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.high,
                                       errorBuilder:
                                           (context, error, stackTrace) {
                                             return Column(
@@ -938,6 +964,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
               width: 120,
               height: 120,
               fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
               errorBuilder: (_, __, ___) => Container(
                 width: 120,
                 height: 120,
@@ -994,12 +1021,14 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                     width: 120,
                     height: 120,
                     fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
                   )
                 : Image.file(
                     File(xfile.path),
                     width: 120,
                     height: 120,
                     fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
                   ),
           ),
           Positioned(

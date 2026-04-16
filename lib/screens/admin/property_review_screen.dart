@@ -398,6 +398,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                                 imageUrl,
                                 fit: BoxFit.cover,
                                 width: double.infinity,
+                                filterQuality: FilterQuality.high,
                                 loadingBuilder: (context, child, loadingProgress) {
                                   if (loadingProgress == null) return child;
                                   return Container(

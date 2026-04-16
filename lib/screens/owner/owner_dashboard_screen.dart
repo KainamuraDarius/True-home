@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -709,7 +711,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         ),
         const SizedBox(height: 12),
         // Show 'Manage Plan' for agent and enterprise, and 'Manage Plan & Team' only for enterprise
-        FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        FutureBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
           future: FirebaseAuth.instance.currentUser != null
               ? FirebaseFirestore.instance
                     .collection('users')

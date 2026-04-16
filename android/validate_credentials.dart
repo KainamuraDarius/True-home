@@ -80,7 +80,6 @@ void main() async {
       
       // Test 3: Check if we can prepare a payment request
       print('Test 3: Payment Request Validation...');
-      final testReferenceId = 'TEST${DateTime.now().millisecondsSinceEpoch}';
       
       // We won't actually send it, just validate the format
       print('  ✅ Reference ID format: Valid');

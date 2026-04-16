@@ -14,9 +14,6 @@ void main() async {
   const String pandoraMerchantId = 'YOUR_MERCHANT_ID_HERE';
   const String pandoraApiUrl = 'https://api.pandora.co.ug/v1'; // Update with your API URL
   
-  // If you have a hash instead, it might be a password that needs base64 encoding
-  const String pandoraHash = r'$argon2id$v=19$m=65536,t=4,p=3$TnZqZTdOWEd3enVxVHZyMw$Dvu0B/DsxqDfxoHzQKTgKLUeXZ242xJhooLf7sWUdOM';
-  
   print('Pandora API URL: $pandoraApiUrl');
   print('API Key: ${pandoraApiKey.substring(0, 10)}...');
   print('Client ID: $pandoraClientId');

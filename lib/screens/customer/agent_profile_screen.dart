@@ -28,22 +28,6 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
   bool _isCustomer = false;
   bool _hasRated = false;
 
-  String? _getImageUrl() {
-    if (widget.agent.profileImageUrl == null || widget.agent.profileImageUrl!.isEmpty) {
-      return null;
-    }
-    
-    // If it's already a full URL, return it
-    if (widget.agent.profileImageUrl!.startsWith('http')) {
-      return widget.agent.profileImageUrl;
-    }
-    
-    // Otherwise, it might be stored as an ID in Firestore
-    // We need to fetch the actual URL from Firestore storage or reconstruct it
-    // For now, return null and fetch from Firestore users collection
-    return null;
-  }
-
   Future<String?> _fetchActualImageUrl() async {
     try {
       // First check if it's already a URL
@@ -170,6 +154,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                                 width: 120,
                                 height: 120,
                                 fit: BoxFit.cover,
+                                filterQuality: FilterQuality.high,
                                 errorBuilder: (context, error, stackTrace) {
                                   return const Icon(
                                     Icons.person,

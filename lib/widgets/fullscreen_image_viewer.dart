@@ -68,8 +68,9 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
                   child: CachedNetworkImage(
                     imageUrl: imageUrl,
                     fit: BoxFit.contain,
-                    memCacheWidth: 2048,
-                    maxWidthDiskCache: 2048,
+                    filterQuality: FilterQuality.high,
+                    memCacheWidth: 3200,
+                    maxWidthDiskCache: 3200,
                     fadeInDuration: Duration.zero,
                     placeholder: (context, url) => const Center(
                       child: CircularProgressIndicator(color: Colors.white),

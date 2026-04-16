@@ -7,7 +7,7 @@ class ApiConfig {
   static const String _localhostUrl = 'http://localhost:3000/api';
   
   // OPTION 2: Physical Device via WiFi (use your computer's local IP)
-  static const String _physicalDeviceUrl = 'http://192.168.0.133:3000/api'; // Updated IP
+  static const String physicalDeviceUrl = 'http://192.168.0.133:3000/api'; // Updated IP
   
   // OPTION 3: Firebase (Recommended if you don't have a backend)
   static const bool useFirebase = false;
@@ -20,7 +20,7 @@ class ApiConfig {
   // TROUBLESHOOTING:
   // ============================================
   // Using USB connected device? → Use _localhostUrl + run: adb reverse tcp:3000 tcp:3000
-  // Using Physical Device via WiFi? → Use _physicalDeviceUrl (your computer's IP)
+  // Using Physical Device via WiFi? → Use physicalDeviceUrl (your computer's IP)
   // Your computer's IP: 192.168.0.133
   //
   // Don't forget to:

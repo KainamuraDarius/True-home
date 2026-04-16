@@ -174,6 +174,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                                 return Image.network(
                                   imageUrl,
                                   fit: BoxFit.cover,
+                                  filterQuality: FilterQuality.high,
                                   errorBuilder: (context, error, stackTrace) {
                                     return Container(
                                       color: Colors.white,
@@ -518,6 +519,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                   height: 240,
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  filterQuality: FilterQuality.high,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       height: 240,

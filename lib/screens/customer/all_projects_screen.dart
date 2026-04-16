@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/project_model.dart';
@@ -75,8 +77,9 @@ class AllProjectsScreen extends StatelessWidget {
                           height: 240,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          memCacheWidth: 1000,
-                          memCacheHeight: 500,
+                          filterQuality: FilterQuality.high,
+                          memCacheWidth: 1600,
+                          memCacheHeight: 900,
                           fadeInDuration: const Duration(milliseconds: 300),
                           fadeOutDuration: const Duration(milliseconds: 100),
                           placeholder: (context, url) => Container(

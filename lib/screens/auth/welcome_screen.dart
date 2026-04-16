@@ -23,6 +23,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           image: const DecorationImage(
             image: AssetImage('assets/images/welcome_bg.jpg'),
             fit: BoxFit.cover, // Covers entire screen
+            filterQuality: FilterQuality.high,
             opacity: 1.0, // Full opacity (0.0 - 1.0)
           ),
           // Fallback gradient if image doesn't load
@@ -78,6 +79,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           child: Image.asset(
                             'assets/images/app_icon.png',
                             fit: BoxFit.contain,
+                            filterQuality: FilterQuality.high,
                             errorBuilder: (context, error, stackTrace) {
                               return Container(
                                 color: AppColors.primary,

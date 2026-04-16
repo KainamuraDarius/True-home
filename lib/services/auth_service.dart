@@ -349,13 +349,6 @@ class AuthService {
         }
       }
       print('Cloud Function reset email failed, used Firebase fallback: ${e.message}');
-    } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'invalid-email':
-          throw Exception('Invalid email address');
-        default:
-          throw Exception('Failed to send reset email: ${e.message}');
-      }
     } catch (e) {
       throw Exception('Failed to send reset email: $e');
     }

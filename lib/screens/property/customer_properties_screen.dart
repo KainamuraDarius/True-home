@@ -180,6 +180,7 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                       height: 240,
                       width: double.infinity,
                       fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return Container(

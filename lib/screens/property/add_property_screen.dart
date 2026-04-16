@@ -342,7 +342,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
         );
       }
 
-      final List<XFile> images = await _picker.pickMultiImage(imageQuality: 95);
+      final List<XFile> images = await _picker.pickMultiImage(
+        imageQuality: 100,
+      );
 
       if (images.isNotEmpty) {
         final totalImages = _selectedImages.length + images.length;
@@ -408,11 +410,19 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       }
       img.Image thumbnail;
       if (decodedImage.width > decodedImage.height) {
-        thumbnail = img.copyResize(decodedImage, width: 150);
+        thumbnail = img.copyResize(
+          decodedImage,
+          width: 150,
+          interpolation: img.Interpolation.cubic,
+        );
       } else {
-        thumbnail = img.copyResize(decodedImage, height: 150);
+        thumbnail = img.copyResize(
+          decodedImage,
+          height: 150,
+          interpolation: img.Interpolation.cubic,
+        );
       }
-      return Uint8List.fromList(img.encodeJpg(thumbnail, quality: 60));
+      return Uint8List.fromList(img.encodeJpg(thumbnail, quality: 80));
     } catch (e) {
       print('Error generating thumbnail: $e');
       return await image.readAsBytes();
@@ -1807,6 +1817,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                                               return Image.memory(
                                                 snapshot.data!,
                                                 fit: BoxFit.cover,
+                                                filterQuality:
+                                                    FilterQuality.high,
                                               );
                                             } else if (snapshot.hasError) {
                                               return const Center(

@@ -310,6 +310,7 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                         height: 180,
                         width: double.infinity,
                         fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
                         placeholder: (context, url) => Container(
                           height: 180,
                           color: Colors.grey.shade200,

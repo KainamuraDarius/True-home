@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element, unused_field, use_build_context_synchronously
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -1123,6 +1125,7 @@ class _HomeTabState extends State<HomeTab> {
             .collection('advertised_projects')
             .where('isApproved', isEqualTo: true)
             .get();
+        final now = DateTime.now();
 
         print('   📦 Total projects in DB: ${projectSnapshot.docs.length}');
 
@@ -1137,6 +1140,10 @@ class _HomeTabState extends State<HomeTab> {
 
             if (!_isProjectApproved(projectData)) {
               continue; // Skip unapproved projects
+            }
+
+            if (!project.adExpiresAt.isAfter(now)) {
+              continue; // Skip expired advertised projects
             }
 
             // Match search term
@@ -1406,6 +1413,7 @@ class _HomeTabState extends State<HomeTab> {
               'assets/images/app_icon.png',
               height: 40,
               fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
             ),
           ],
         ),
@@ -5813,11 +5821,7 @@ class _FavoritesTabState extends State<FavoritesTab> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 48),
-                Icon(
-                  Icons.favorite_border,
-                  size: 100,
-                  color: Colors.grey[400],
-                ),
+                Icon(Icons.favorite_border, size: 100, color: Colors.grey[400]),
                 const SizedBox(height: 24),
                 Text(
                   'No Favorites Yet',
@@ -6794,6 +6798,7 @@ class _ZoomableImageCarouselState extends State<ZoomableImageCarousel> {
                   Widget imageWidget = CachedNetworkImage(
                     imageUrl: widget.imageUrls[index],
                     fit: widget.fit,
+                    filterQuality: FilterQuality.high,
                     fadeInDuration: const Duration(milliseconds: 150),
                     placeholder: (context, _) => Container(
                       color: Colors.grey.shade200,
@@ -6928,6 +6933,7 @@ class _FullScreenImageGalleryState extends State<FullScreenImageGallery> {
               child: CachedNetworkImage(
                 imageUrl: widget.imageUrls[index],
                 fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
                 placeholder: (context, _) => const SizedBox(
                   width: 28,
                   height: 28,

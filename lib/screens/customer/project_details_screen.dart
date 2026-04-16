@@ -433,6 +433,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                     ? CachedNetworkImage(
                         imageUrl: iconUrl,
                         fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
                         errorWidget: (context, url, error) => Center(
                           child: Text(
                             _developerInitial(),
@@ -555,8 +556,9 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                               child: CachedNetworkImage(
                                 imageUrl: widget.project.imageUrls[index],
                                 fit: BoxFit.cover,
-                                memCacheWidth: 1600,
-                                maxWidthDiskCache: 1600,
+                                filterQuality: FilterQuality.high,
+                                memCacheWidth: 2400,
+                                maxWidthDiskCache: 2400,
                                 fadeInDuration: Duration.zero,
                                 placeholder: (context, url) => Container(
                                   color: Colors.grey.shade300,

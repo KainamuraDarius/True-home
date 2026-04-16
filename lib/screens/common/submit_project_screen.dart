@@ -270,9 +270,9 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
     final batchSize = isMobileWeb ? 1 : 3;
 
     // Use platform-appropriate settings
-    final maxWidth = isMobileWeb ? 1200 : 1920;
-    final maxHeight = isMobileWeb ? 1600 : 2560;
-    final quality = isMobileWeb ? 85 : 92;
+    final maxWidth = isMobileWeb ? 1600 : 2560;
+    final maxHeight = isMobileWeb ? 2400 : 3200;
+    final quality = isMobileWeb ? 92 : 96;
 
     for (
       int batchStart = 0;
@@ -313,9 +313,17 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
             if (decodedImage.width > maxWidth ||
                 decodedImage.height > maxHeight) {
               if (decodedImage.width > decodedImage.height) {
-                decodedImage = img.copyResize(decodedImage, width: maxWidth);
+                decodedImage = img.copyResize(
+                  decodedImage,
+                  width: maxWidth,
+                  interpolation: img.Interpolation.cubic,
+                );
               } else {
-                decodedImage = img.copyResize(decodedImage, height: maxHeight);
+                decodedImage = img.copyResize(
+                  decodedImage,
+                  height: maxHeight,
+                  interpolation: img.Interpolation.cubic,
+                );
               }
             }
 
@@ -379,12 +387,17 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
       if (decodedImage == null) return null;
 
       // Resize for icon (make it square and smaller)
-      final size = 256;
-      decodedImage = img.copyResize(decodedImage, width: size, height: size);
+      final size = 512;
+      decodedImage = img.copyResize(
+        decodedImage,
+        width: size,
+        height: size,
+        interpolation: img.Interpolation.cubic,
+      );
 
       // Compress
       final compressedBytes = Uint8List.fromList(
-        img.encodeJpg(decodedImage, quality: 90),
+        img.encodeJpg(decodedImage, quality: 95),
       );
 
       // Upload to Firebase Storage
@@ -993,7 +1006,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
             : null,
         currency: _selectedCurrency,
         bookingDeposit: _bookingDepositController.text.trim().isNotEmpty
-            ? double.tryParse(_bookingDepositController.text.trim())
+            ? CurrencyFormatter.tryParse(_bookingDepositController.text.trim())
             : null,
         bookingDepositDescription:
             _bookingDepositDescriptionController.text.trim().isNotEmpty
@@ -1353,11 +1366,19 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                           controller: _bookingDepositController,
                           decoration: const InputDecoration(
                             labelText: 'Booking Deposit (Optional)',
-                            hintText: 'e.g., 1500 (in currency units)',
+                            hintText: 'e.g., 50M, 50,000,000',
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.payment),
                           ),
-                          keyboardType: TextInputType.number,
+                          keyboardType: TextInputType.text,
+                          validator: (value) {
+                            final trimmed = value?.trim() ?? '';
+                            if (trimmed.isEmpty) return null;
+                            if (CurrencyFormatter.tryParse(trimmed) == null) {
+                              return 'Enter an amount like 50M or 50,000,000';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 12),
 
@@ -1442,6 +1463,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                                     child: Image.file(
                                       File(_companyIcon!.path),
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.high,
                                     ),
                                   )
                                 : Column(
@@ -1565,6 +1587,8 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                                           width: 120,
                                           height: 120,
                                           fit: BoxFit.cover,
+                                          filterQuality:
+                                              FilterQuality.high,
                                         ),
                                       ),
                                       Positioned(
