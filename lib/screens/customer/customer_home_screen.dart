@@ -2971,6 +2971,7 @@ class _HomeTabState extends State<HomeTab> {
     ),
   }) {
     final isSelected = _selectedFilter == type;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     // Get icon for each property type
     IconData getIcon(PropertyType t) {
@@ -3042,10 +3043,14 @@ class _HomeTabState extends State<HomeTab> {
       style: ElevatedButton.styleFrom(
         backgroundColor: isSelected
             ? Theme.of(context).colorScheme.primary
-            : Colors.grey.shade100,
+            : isDarkMode
+                ? const Color(0xFF1A2A3A)
+                : Colors.grey.shade100,
         foregroundColor: isSelected
             ? Colors.white
-            : Theme.of(context).textTheme.bodyLarge!.color,
+            : isDarkMode
+                ? const Color(0xFFE5E7EB)
+                : const Color(0xFF212121),
         elevation: isSelected ? 4 : 0,
         padding: padding,
         shape: RoundedRectangleBorder(
@@ -3053,7 +3058,9 @@ class _HomeTabState extends State<HomeTab> {
           side: BorderSide(
             color: isSelected
                 ? Theme.of(context).colorScheme.primary
-                : Colors.grey.shade300,
+                : isDarkMode
+                    ? const Color(0xFF2A3A4A)
+                    : Colors.grey.shade300,
             width: 1,
           ),
         ),

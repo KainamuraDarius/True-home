@@ -340,21 +340,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
                     },
                   ),
-                  _buildSettingsTile(
-                    icon: Icons.lock,
-                    title: 'Change Password',
-                    onTap: () async {
-                      if (_currentUser != null) {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                EditProfileScreen(user: _currentUser!),
-                          ),
-                        );
-                      }
-                    },
-                  ),
+
                   // Show "Become an Agent" only for customers who are not agents
                   // Show "Switch to Customer Mode" for agents
                   if (_currentUser != null &&
@@ -439,16 +425,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _loadUserData();
                     },
                   ),
-                  _buildSettingsTile(
-                    icon: _isEmailVerified
-                      ? Icons.mark_email_read_outlined
-                      : Icons.mark_email_unread_outlined,
-                    title: 'Email Verification',
-                    subtitle: _isEmailVerified
-                      ? 'Email verified'
-                      : 'Email not verified',
-                    onTap: _showEmailVerificationDialog,
-                    ),
+
                     _buildSettingsTile(
                     icon: Icons.verified_user,
                     title: 'Account Verification',
@@ -481,17 +458,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Privacy & Security Section
-                  _buildSectionHeader('Privacy & Security'),
-                  _buildSettingsTile(
-                    icon: Icons.security,
-                    title: 'Security',
-                    subtitle: 'Two-factor authentication',
-                    onTap: () {
-                      _showSecurityDialog();
-                    },
-                  ),
-                  const SizedBox(height: 16),
+
 
                   // App Preferences Section
                   _buildSectionHeader('App Preferences'),
@@ -1561,50 +1528,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showSecurityDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Security'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.phone_android),
-              title: const Text('Two-Factor Authentication'),
-              subtitle: const Text('Not enabled'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Coming soon!')));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.devices),
-              title: const Text('Active Sessions'),
-              subtitle: const Text('Manage logged in devices'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Coming soon!')));
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
   void _showBlockedUsersDialog() async {
     // Load blocked users from Firestore
