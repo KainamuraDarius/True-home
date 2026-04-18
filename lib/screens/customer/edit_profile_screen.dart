@@ -23,6 +23,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _whatsappController = TextEditingController();
+  final _companyNameController = TextEditingController();
+  final _companyAddressController = TextEditingController();
+  final _operatingAreasController = TextEditingController();
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -39,12 +42,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   File? _selectedImage;
   String? _currentProfileImageId;
 
+  bool get _isAgent => widget.user.roles.contains(UserRole.propertyAgent);
+
+  List<String> _parseOperatingAreas(String value) {
+    final areas = <String>[];
+    final seen = <String>{};
+
+    for (final raw in value.split(',')) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      final key = trimmed.toLowerCase();
+      if (seen.add(key)) {
+        areas.add(trimmed);
+      }
+    }
+
+    return areas;
+  }
+
   @override
   void initState() {
     super.initState();
     _nameController.text = widget.user.name;
     _phoneController.text = widget.user.phoneNumber;
     _whatsappController.text = widget.user.whatsappNumber ?? '';
+    _companyNameController.text = widget.user.companyName ?? '';
+    _companyAddressController.text = widget.user.companyAddress ?? '';
+    _operatingAreasController.text = widget.user.operatingAreas.join(', ');
     _currentProfileImageId = widget.user.profileImageUrl;
   }
 
@@ -53,6 +77,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _whatsappController.dispose();
+    _companyNameController.dispose();
+    _companyAddressController.dispose();
+    _operatingAreasController.dispose();
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
@@ -160,8 +187,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       // Upload to Firebase Storage
       print('Uploading profile image to Firebase Storage...');
-      final imageUrl = await StorageService.uploadImage(compressedBytes, folder: 'profiles');
-      
+      final imageUrl = await StorageService.uploadImage(
+        compressedBytes,
+        folder: 'profiles',
+      );
+
       if (imageUrl != null) {
         print('Profile image uploaded successfully: $imageUrl');
         return imageUrl;
@@ -253,13 +283,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final profileImageId = await _uploadProfileImage();
 
       // Update user data in Firestore
-      await _firestore.collection('users').doc(widget.user.id).update({
+      final updateData = <String, dynamic>{
         'name': _nameController.text.trim(),
         'phoneNumber': _phoneController.text.trim(),
         'whatsappNumber': _whatsappController.text.trim(),
         'profileImageUrl': profileImageId,
         'updatedAt': DateTime.now().toIso8601String(),
-      });
+      };
+
+      if (_isAgent) {
+        updateData.addAll({
+          'companyName': _companyNameController.text.trim(),
+          'companyAddress': _companyAddressController.text.trim(),
+          'operatingAreas': _parseOperatingAreas(
+            _operatingAreasController.text.trim(),
+          ),
+        });
+      }
+
+      await _firestore
+          .collection('users')
+          .doc(widget.user.id)
+          .update(updateData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -312,7 +357,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ? null // Will be handled by image picker display
                         : null,
                     child:
-                        _selectedImage == null && _currentProfileImageId != null && _currentProfileImageId!.isNotEmpty
+                        _selectedImage == null &&
+                            _currentProfileImageId != null &&
+                            _currentProfileImageId!.isNotEmpty
                         ? ClipOval(
                             child: Image.network(
                               _currentProfileImageId!,
@@ -422,6 +469,52 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 keyboardType: TextInputType.phone,
               ),
+              if (_isAgent) ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _companyNameController,
+                  decoration: InputDecoration(
+                    labelText: 'Company Name',
+                    prefixIcon: const Icon(Icons.business),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (!_isAgent) return null;
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter your company name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _companyAddressController,
+                  decoration: InputDecoration(
+                    labelText: 'Office Address',
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _operatingAreasController,
+                  decoration: InputDecoration(
+                    labelText: 'Areas of Operation',
+                    hintText: 'e.g., Kampala, Wakiso, Entebbe',
+                    helperText: 'Separate multiple areas with commas',
+                    prefixIcon: const Icon(Icons.map_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
               const SizedBox(height: 24),
 
               // Change Password Section

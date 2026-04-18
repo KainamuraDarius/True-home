@@ -1,10 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum UserRole {
-  customer,
-  propertyAgent,
-  admin,
-}
+enum UserRole { customer, propertyAgent, admin }
 
 class UserModel {
   final String id;
@@ -17,18 +13,19 @@ class UserModel {
   final List<String> favoritePropertyIds;
   final DateTime createdAt;
   final DateTime updatedAt;
-  
+
   // For property managers/owners
   final String? companyName;
   final String? companyAddress;
   final String? whatsappNumber;
+  final List<String> operatingAreas;
   final bool isVerified;
-  
+
   // Agent rating fields
   final double? averageRating; // Average rating from customers (0-5)
   final int totalRatings; // Total number of ratings received
   final int totalReviews; // Total number of reviews with text
-  
+
   // Terms and conditions
   final bool termsAccepted; // Whether user accepted terms
   final DateTime? termsAcceptedAt; // When terms were accepted
@@ -47,6 +44,7 @@ class UserModel {
     this.companyName,
     this.companyAddress,
     this.whatsappNumber,
+    this.operatingAreas = const [],
     this.isVerified = false,
     this.averageRating,
     this.totalRatings = 0,
@@ -70,6 +68,7 @@ class UserModel {
       'companyName': companyName,
       'companyAddress': companyAddress,
       'whatsappNumber': whatsappNumber,
+      'operatingAreas': operatingAreas,
       'isVerified': isVerified,
       'averageRating': averageRating,
       'totalRatings': totalRatings,
@@ -94,17 +93,38 @@ class UserModel {
     return fallback;
   }
 
+  static List<String> _parseStringList(dynamic value) {
+    if (value is List) {
+      return value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    if (value is String) {
+      return value
+          .split(',')
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    return const [];
+  }
+
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
-    
+
     // Handle backward compatibility: if old 'role' field exists, migrate to 'roles'
     List<UserRole> userRoles;
     if (json['roles'] != null) {
       userRoles = (json['roles'] as List)
-          .map((r) => UserRole.values.firstWhere(
-                (e) => e.name == r,
-                orElse: () => UserRole.customer,
-              ))
+          .map(
+            (r) => UserRole.values.firstWhere(
+              (e) => e.name == r,
+              orElse: () => UserRole.customer,
+            ),
+          )
           .toList();
     } else if (json['role'] != null) {
       // Old single role format - migrate to array
@@ -116,7 +136,7 @@ class UserModel {
     } else {
       userRoles = [UserRole.customer];
     }
-    
+
     // Get active role
     final UserRole currentActiveRole;
     if (json['activeRole'] != null) {
@@ -127,7 +147,7 @@ class UserModel {
     } else {
       currentActiveRole = userRoles.first;
     }
-    
+
     return UserModel(
       id: json['id'] ?? '',
       email: json['email'] ?? '',
@@ -145,10 +165,11 @@ class UserModel {
       totalReviews: json['totalReviews'] ?? 0,
       companyAddress: json['companyAddress'],
       whatsappNumber: json['whatsappNumber'],
+      operatingAreas: _parseStringList(json['operatingAreas']),
       isVerified: json['isVerified'] ?? false,
       termsAccepted: json['termsAccepted'] ?? false,
-      termsAcceptedAt: json['termsAcceptedAt'] != null 
-          ? _parseDateTime(json['termsAcceptedAt'], now) 
+      termsAcceptedAt: json['termsAcceptedAt'] != null
+          ? _parseDateTime(json['termsAcceptedAt'], now)
           : null,
     );
   }
@@ -167,6 +188,7 @@ class UserModel {
     String? companyName,
     String? companyAddress,
     String? whatsappNumber,
+    List<String>? operatingAreas,
     bool? isVerified,
     double? averageRating,
     int? totalRatings,
@@ -188,6 +210,7 @@ class UserModel {
       companyName: companyName ?? this.companyName,
       companyAddress: companyAddress ?? this.companyAddress,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
+      operatingAreas: operatingAreas ?? this.operatingAreas,
       isVerified: isVerified ?? this.isVerified,
       averageRating: averageRating ?? this.averageRating,
       totalRatings: totalRatings ?? this.totalRatings,

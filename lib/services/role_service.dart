@@ -6,6 +6,22 @@ class RoleService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  List<String> _normalizeAreas(List<String>? areas) {
+    if (areas == null) return const [];
+
+    final normalized = <String>[];
+    final seen = <String>{};
+    for (final area in areas) {
+      final trimmed = area.trim();
+      if (trimmed.isEmpty) continue;
+      final key = trimmed.toLowerCase();
+      if (seen.add(key)) {
+        normalized.add(trimmed);
+      }
+    }
+    return normalized;
+  }
+
   /// Switch the user's active role
   Future<void> switchActiveRole(UserRole newRole) async {
     final user = _auth.currentUser;
@@ -20,7 +36,8 @@ class RoleService {
 
     // If switching to customer role and user doesn't have it, add it automatically
     // (Everyone should be able to browse as a customer)
-    if (newRole == UserRole.customer && !userModel.roles.contains(UserRole.customer)) {
+    if (newRole == UserRole.customer &&
+        !userModel.roles.contains(UserRole.customer)) {
       final updatedRoles = [...userModel.roles, UserRole.customer];
       await _firestore.collection('users').doc(user.uid).update({
         'roles': updatedRoles.map((r) => r.name).toList(),
@@ -84,11 +101,9 @@ class RoleService {
     final user = _auth.currentUser;
     if (user == null) return Stream.value(null);
 
-    return _firestore
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((snapshot) {
+    return _firestore.collection('users').doc(user.uid).snapshots().map((
+      snapshot,
+    ) {
       if (!snapshot.exists) return null;
       return UserModel.fromJson(snapshot.data()!);
     });
@@ -106,6 +121,7 @@ class RoleService {
     required String companyName,
     String? companyAddress,
     String? whatsappNumber,
+    List<String>? operatingAreas,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No user logged in');
@@ -131,6 +147,7 @@ class RoleService {
       'companyName': companyName,
       'companyAddress': companyAddress,
       'whatsappNumber': whatsappNumber,
+      'operatingAreas': _normalizeAreas(operatingAreas),
       'updatedAt': DateTime.now().toIso8601String(),
     });
   }
@@ -141,7 +158,7 @@ class RoleService {
     if (!userDoc.exists) return;
 
     final data = userDoc.data()!;
-    
+
     // Check if already migrated
     if (data['roles'] != null && data['activeRole'] != null) {
       return; // Already migrated

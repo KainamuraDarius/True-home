@@ -205,8 +205,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final profileContent = _currentUser == null
-      ? _buildGuestProfileContent()
-      : SingleChildScrollView(
+        ? _buildGuestProfileContent()
+        : SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: SizedBox(
               width: double.infinity,
@@ -314,6 +314,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           'Company',
                           _currentUser!.companyName!,
                         ),
+                        if (_currentUser!.companyAddress != null &&
+                            _currentUser!.companyAddress!.trim().isNotEmpty)
+                          _buildInfoRow(
+                            Icons.location_on_outlined,
+                            'Office',
+                            _currentUser!.companyAddress!,
+                          ),
+                        if (_currentUser!.operatingAreas.isNotEmpty)
+                          _buildInfoRow(
+                            Icons.map_outlined,
+                            'Areas',
+                            _currentUser!.operatingAreas.join(', '),
+                          ),
                       ],
                     ),
                   if (_isCustomerMode) ...[
@@ -428,7 +441,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
 
-                    _buildSettingsTile(
+                  _buildSettingsTile(
                     icon: Icons.verified_user,
                     title: 'Account Verification',
                     subtitle: _currentUser!.isVerified
@@ -459,8 +472,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-
-
 
                   // App Preferences Section
                   _buildSectionHeader('App Preferences'),
@@ -800,9 +811,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
               Navigator.push(
                 this.context,
-                MaterialPageRoute(
-                  builder: (context) => const LoginScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
               );
             },
             child: const Text('Sign In'),
@@ -856,25 +865,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _themeSecondaryText,
-                  ),
+                  style: TextStyle(fontSize: 12, color: _themeSecondaryText),
                 ),
                 Text(
                   value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: _themePrimaryText,
-                  ),
+                  style: TextStyle(fontSize: 14, color: _themePrimaryText),
                 ),
               ],
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: 10),
-            trailing,
-          ],
+          if (trailing != null) ...[const SizedBox(width: 10), trailing],
         ],
       ),
     );
@@ -1530,8 +1530,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  
-
   void _showBlockedUsersDialog() async {
     // Load blocked users from Firestore
     final blockedUsersDoc = await _firestore
@@ -1990,7 +1988,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 'Choose how TrueHome looks on this device.',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 12),
               RadioListTile<String>(

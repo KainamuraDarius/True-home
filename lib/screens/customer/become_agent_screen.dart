@@ -14,13 +14,31 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
   final _companyNameController = TextEditingController();
   final _companyAddressController = TextEditingController();
   final _whatsappController = TextEditingController();
+  final _operatingAreasController = TextEditingController();
   bool _isLoading = false;
+
+  List<String> _parseOperatingAreas(String value) {
+    final areas = <String>[];
+    final seen = <String>{};
+
+    for (final raw in value.split(',')) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      final key = trimmed.toLowerCase();
+      if (seen.add(key)) {
+        areas.add(trimmed);
+      }
+    }
+
+    return areas;
+  }
 
   @override
   void dispose() {
     _companyNameController.dispose();
     _companyAddressController.dispose();
     _whatsappController.dispose();
+    _operatingAreasController.dispose();
     super.dispose();
   }
 
@@ -40,6 +58,9 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
         whatsappNumber: _whatsappController.text.trim().isEmpty
             ? null
             : _whatsappController.text.trim(),
+        operatingAreas: _parseOperatingAreas(
+          _operatingAreasController.text.trim(),
+        ),
       );
 
       if (mounted) {
@@ -64,7 +85,9 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
                   Navigator.of(context).pop(); // Close dialog
                   Navigator.of(context).pop(true); // Go back to profile
                   // Force app restart to reload with agent role
-                  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                  Navigator.of(
+                    context,
+                  ).pushNamedAndRemoveUntil('/', (route) => false);
                 },
                 child: const Text('Continue'),
               ),
@@ -75,10 +98,7 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -135,10 +155,7 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
                     const Text(
                       'List properties, manage bookings, and grow your real estate business with TrueHome.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
                     ),
                   ],
                 ),
@@ -149,10 +166,7 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
               // Benefits Section
               const Text(
                 'Agent Benefits',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               _buildBenefitItem(
@@ -181,10 +195,7 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
               // Form Section
               const Text(
                 'Company Information',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
 
@@ -219,6 +230,22 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
                   ),
                 ),
                 maxLines: 2,
+              ),
+
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _operatingAreasController,
+                decoration: InputDecoration(
+                  labelText: 'Areas of Operation',
+                  hintText: 'e.g., Kampala, Wakiso, Entebbe',
+                  helperText: 'Separate multiple areas with commas',
+                  prefixIcon: const Icon(Icons.map_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                textInputAction: TextInputAction.next,
               ),
 
               const SizedBox(height: 16),
@@ -276,10 +303,7 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
               const Text(
                 'By becoming an agent, you agree to follow TrueHome\'s agent guidelines and provide accurate property information.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
@@ -317,10 +341,7 @@ class _BecomeAgentScreenState extends State<BecomeAgentScreen> {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),

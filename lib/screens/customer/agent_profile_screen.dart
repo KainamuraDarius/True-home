@@ -6,6 +6,7 @@ import '../../models/user_model.dart';
 import '../../models/agent_rating_model.dart';
 import '../../services/agent_rating_service.dart';
 import '../../services/role_service.dart';
+import '../../services/url_launcher_service.dart';
 import '../../utils/app_theme.dart';
 import '../../config/api_config.dart';
 import 'rate_agent_screen.dart';
@@ -13,10 +14,7 @@ import 'rate_agent_screen.dart';
 class AgentProfileScreen extends StatefulWidget {
   final UserModel agent;
 
-  const AgentProfileScreen({
-    super.key,
-    required this.agent,
-  });
+  const AgentProfileScreen({super.key, required this.agent});
 
   @override
   State<AgentProfileScreen> createState() => _AgentProfileScreenState();
@@ -24,33 +22,48 @@ class AgentProfileScreen extends StatefulWidget {
 
 class _AgentProfileScreenState extends State<AgentProfileScreen> {
   final AgentRatingService _ratingService = AgentRatingService();
-  
+
   bool _isCustomer = false;
   bool _hasRated = false;
+
+  String? get _preferredWhatsAppNumber {
+    final whatsapp = widget.agent.whatsappNumber?.trim();
+    if (whatsapp != null && whatsapp.isNotEmpty) {
+      return whatsapp;
+    }
+
+    final phone = widget.agent.phoneNumber.trim();
+    if (phone.isNotEmpty) {
+      return phone;
+    }
+
+    return null;
+  }
 
   Future<String?> _fetchActualImageUrl() async {
     try {
       // First check if it's already a URL
-      if (widget.agent.profileImageUrl != null && 
+      if (widget.agent.profileImageUrl != null &&
           widget.agent.profileImageUrl!.startsWith('http')) {
         return widget.agent.profileImageUrl;
       }
-      
+
       // If profileImageUrl exists but is not a URL, try to fetch from backend
-      if (widget.agent.profileImageUrl != null && 
+      if (widget.agent.profileImageUrl != null &&
           widget.agent.profileImageUrl!.isNotEmpty) {
-        
         // Try to fetch the actual URL from your backend
         final response = await http.get(
-          Uri.parse('${ApiConfig.baseUrl}/api/users/${widget.agent.id}/profile-image'),
+          Uri.parse(
+            '${ApiConfig.baseUrl}/api/users/${widget.agent.id}/profile-image',
+          ),
         );
-        
+
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           return data['imageUrl'];
         }
       }
-      
+
       return null;
     } catch (e) {
       print('Error fetching profile image URL: $e');
@@ -69,8 +82,10 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
     if (currentUser != null) {
       final roleService = RoleService();
       final userModel = await roleService.getCurrentUser();
-      final existingRating = await _ratingService.getCustomerRatingForAgent(widget.agent.id);
-      
+      final existingRating = await _ratingService.getCustomerRatingForAgent(
+        widget.agent.id,
+      );
+
       if (mounted && userModel != null) {
         setState(() {
           _isCustomer = userModel.activeRole == UserRole.customer;
@@ -99,12 +114,30 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
     }
   }
 
+  Future<void> _openWhatsAppContact() async {
+    final phoneNumber = _preferredWhatsAppNumber;
+    if (phoneNumber == null) return;
+
+    final message =
+        'Hello ${widget.agent.name}, I found your profile on TrueHome and would like help finding a property.';
+
+    try {
+      await UrlLauncherService.sendWhatsApp(phoneNumber, message: message);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open WhatsApp: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agent Profile'),
-      ),
+      appBar: AppBar(title: const Text('Agent Profile')),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -143,10 +176,11 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                       child: FutureBuilder<String?>(
                         future: _fetchActualImageUrl(),
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
                             return const CircularProgressIndicator();
                           }
-                          
+
                           if (snapshot.hasData && snapshot.data != null) {
                             return ClipOval(
                               child: Image.network(
@@ -165,14 +199,18 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                               ),
                             );
                           }
-                          
-                          return const Icon(Icons.person, size: 60, color: Colors.grey);
+
+                          return const Icon(
+                            Icons.person,
+                            size: 60,
+                            color: Colors.grey,
+                          );
                         },
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Agent Name with Verification Badge
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -200,7 +238,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                       ],
                     ],
                   ),
-                  
+
                   // Company Name
                   if (widget.agent.companyName != null)
                     Padding(
@@ -264,10 +302,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                       ),
                       child: const Text(
                         'No ratings yet',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white70,
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.white70),
                       ),
                     ),
                   ],
@@ -283,19 +318,16 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                 children: [
                   const Text(
                     'Contact Information',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   _buildInfoCard(
                     icon: Icons.email_outlined,
                     label: 'Email',
                     value: widget.agent.email,
                   ),
-                  
+
                   _buildInfoCard(
                     icon: Icons.phone_outlined,
                     label: 'Phone',
@@ -315,33 +347,23 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                       label: 'Office Address',
                       value: widget.agent.companyAddress!,
                     ),
+
+                  if (widget.agent.operatingAreas.isNotEmpty)
+                    _buildInfoCard(
+                      icon: Icons.map_outlined,
+                      label: 'Areas of Operation',
+                      value: widget.agent.operatingAreas.join(', '),
+                    ),
                 ],
               ),
             ),
 
             const Divider(height: 1),
 
-            // Rate Button (only for customers)
-            if (_isCustomer) ...[
+            if (_preferredWhatsAppNumber != null || _isCustomer) ...[
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: ElevatedButton.icon(
-                  onPressed: _navigateToRating,
-                  icon: Icon(_hasRated ? Icons.edit : Icons.star),
-                  label: Text(_hasRated ? 'Update Your Rating' : 'Rate This Agent'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
+                child: _buildActionButtons(),
               ),
               const Divider(height: 1),
             ],
@@ -373,7 +395,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Reviews List
                   StreamBuilder<List<AgentRatingModel>>(
                     stream: _ratingService.getAgentRatings(widget.agent.id),
@@ -389,7 +411,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
 
                       if (snapshot.hasError) {
                         final errorMessage = snapshot.error.toString();
-                        if (errorMessage.contains('FAILED_PRECONDITION') || 
+                        if (errorMessage.contains('FAILED_PRECONDITION') ||
                             errorMessage.contains('index')) {
                           return Center(
                             child: Padding(
@@ -472,7 +494,9 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                       }
 
                       return Column(
-                        children: ratings.map((rating) => _buildReviewCard(rating)).toList(),
+                        children: ratings
+                            .map((rating) => _buildReviewCard(rating))
+                            .toList(),
                       );
                     },
                   ),
@@ -480,6 +504,100 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    final hasWhatsApp = _preferredWhatsAppNumber != null;
+
+    if (hasWhatsApp && _isCustomer) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final useVerticalLayout = constraints.maxWidth < 380;
+
+          if (useVerticalLayout) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildWhatsAppButton(label: 'Contact on WhatsApp'),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(width: 170, child: _buildRatingButton()),
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(
+                child: _buildWhatsAppButton(label: 'Contact on WhatsApp'),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(width: 170, child: _buildRatingButton()),
+            ],
+          );
+        },
+      );
+    }
+
+    if (hasWhatsApp) {
+      return _buildWhatsAppButton(label: 'Contact on WhatsApp');
+    }
+
+    return _buildRatingButton();
+  }
+
+  Widget _buildWhatsAppButton({required String label}) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: _openWhatsAppContact,
+        icon: const Icon(Icons.chat_outlined, size: 18),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF16A34A),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatingButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 42,
+      child: OutlinedButton.icon(
+        onPressed: _navigateToRating,
+        icon: Icon(_hasRated ? Icons.edit_outlined : Icons.star_outline),
+        label: Text(
+          _hasRated ? 'Update Rating' : 'Rate Agent',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: BorderSide(color: AppColors.primary.withOpacity(0.35)),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );
@@ -496,17 +614,11 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
         leading: Icon(icon, color: AppColors.primary),
         title: Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
         subtitle: Text(
           value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
       ),
     );
@@ -543,10 +655,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                       ),
                       Text(
                         _formatDate(rating.createdAt),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -564,10 +673,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
             ),
             if (rating.reviewText != null && rating.reviewText!.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text(
-                rating.reviewText!,
-                style: const TextStyle(fontSize: 15),
-              ),
+              Text(rating.reviewText!, style: const TextStyle(fontSize: 15)),
             ],
           ],
         ),

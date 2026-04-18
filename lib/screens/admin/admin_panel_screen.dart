@@ -15,6 +15,7 @@ import 'add_hostel_screen.dart';
 import 'manage_hostels_screen.dart';
 import 'admin_reservations_screen.dart';
 import 'admin_verification_requests_screen.dart';
+import 'admin_verified_agents_screen.dart';
 import 'send_notification_screen.dart';
 import 'add_admin_role_screen.dart';
 import 'manage_room_availability_screen.dart';
@@ -60,10 +61,31 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       icon: Icons.people_rounded,
       color: const Color(0xFF10b981),
       subItems: [
-        MenuItem(id: 'all_users', title: 'All Users', icon: Icons.group_rounded),
-        MenuItem(id: 'verification', title: 'Verification Requests', icon: Icons.verified_user_rounded),
-        MenuItem(id: 'create_admin', title: 'Create Admin', icon: Icons.person_add_rounded),
-        MenuItem(id: 'add_admin_role', title: 'Add Admin Role', icon: Icons.admin_panel_settings_rounded),
+        MenuItem(
+          id: 'all_users',
+          title: 'All Users',
+          icon: Icons.group_rounded,
+        ),
+        MenuItem(
+          id: 'verification',
+          title: 'Verification Requests',
+          icon: Icons.verified_user_rounded,
+        ),
+        MenuItem(
+          id: 'verified_agents',
+          title: 'Verified Agents',
+          icon: Icons.workspace_premium_rounded,
+        ),
+        MenuItem(
+          id: 'create_admin',
+          title: 'Create Admin',
+          icon: Icons.person_add_rounded,
+        ),
+        MenuItem(
+          id: 'add_admin_role',
+          title: 'Add Admin Role',
+          icon: Icons.admin_panel_settings_rounded,
+        ),
       ],
     ),
     MenuSection(
@@ -72,8 +94,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       icon: Icons.home_work_rounded,
       color: const Color(0xFF06b6d4),
       subItems: [
-        MenuItem(id: 'review_properties', title: 'Review Properties', icon: Icons.rate_review_rounded),
-        MenuItem(id: 'manage_projects', title: 'Advertised Projects', icon: Icons.apartment_rounded),
+        MenuItem(
+          id: 'review_properties',
+          title: 'Review Properties',
+          icon: Icons.rate_review_rounded,
+        ),
+        MenuItem(
+          id: 'manage_projects',
+          title: 'Advertised Projects',
+          icon: Icons.apartment_rounded,
+        ),
         MenuItem(id: 'admin_trash', title: 'Trash', icon: Icons.delete_outline),
       ],
     ),
@@ -83,10 +113,26 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       icon: Icons.school_rounded,
       color: _accentPurple,
       subItems: [
-        MenuItem(id: 'add_hostel', title: 'Add New Hostel', icon: Icons.add_home_rounded),
-        MenuItem(id: 'manage_hostels', title: 'Manage Hostels', icon: Icons.edit_rounded),
-        MenuItem(id: 'hostel_reservations', title: 'Reservations', icon: Icons.calendar_today_rounded),
-        MenuItem(id: 'room_availability', title: 'Room Availability', icon: Icons.bed_rounded),
+        MenuItem(
+          id: 'add_hostel',
+          title: 'Add New Hostel',
+          icon: Icons.add_home_rounded,
+        ),
+        MenuItem(
+          id: 'manage_hostels',
+          title: 'Manage Hostels',
+          icon: Icons.edit_rounded,
+        ),
+        MenuItem(
+          id: 'hostel_reservations',
+          title: 'Reservations',
+          icon: Icons.calendar_today_rounded,
+        ),
+        MenuItem(
+          id: 'room_availability',
+          title: 'Room Availability',
+          icon: Icons.bed_rounded,
+        ),
       ],
     ),
     MenuSection(
@@ -95,8 +141,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       icon: Icons.notifications_active_rounded,
       color: const Color(0xFFf59e0b),
       subItems: [
-        MenuItem(id: 'send_notifications', title: 'Send Notifications', icon: Icons.send_rounded),
-        MenuItem(id: 'scheduled_notifications', title: 'Scheduled Notifications', icon: Icons.schedule_send_rounded),
+        MenuItem(
+          id: 'send_notifications',
+          title: 'Send Notifications',
+          icon: Icons.send_rounded,
+        ),
+        MenuItem(
+          id: 'scheduled_notifications',
+          title: 'Scheduled Notifications',
+          icon: Icons.schedule_send_rounded,
+        ),
       ],
     ),
     MenuSection(
@@ -105,7 +159,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       icon: Icons.settings_applications_rounded,
       color: const Color(0xFFef4444),
       subItems: [
-        MenuItem(id: 'maintenance_mode', title: 'Maintenance Mode', icon: Icons.build_rounded),
+        MenuItem(
+          id: 'maintenance_mode',
+          title: 'Maintenance Mode',
+          icon: Icons.build_rounded,
+        ),
       ],
     ),
     MenuSection(
@@ -316,13 +374,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [_accentBlue, _accentPurple],
-              ),
+              gradient: LinearGradient(colors: [_accentBlue, _accentPurple]),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.admin_panel_settings_rounded,
-                color: Colors.white, size: 22),
+            child: const Icon(
+              Icons.admin_panel_settings_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           const Text(
@@ -374,7 +433,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         ),
                       ],
                     ),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
                     child: Text(
                       _unreadCount > 9 ? '9+' : '$_unreadCount',
                       style: const TextStyle(
@@ -462,8 +524,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.green.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -496,9 +560,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ),
           const Divider(color: Colors.white12, height: 1),
           // Menu List
-          Expanded(
-            child: _buildModernMenuList(),
-          ),
+          Expanded(child: _buildModernMenuList()),
           // Footer
           Container(
             padding: const EdgeInsets.all(16),
@@ -514,8 +576,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       ),
     );
   }
-
-
 
   Widget _buildDrawer() {
     return Drawer(
@@ -581,8 +641,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
       children: _menuSections.map((section) {
-        final isSelected = _selectedSection == section.id ||
-            section.subItems?.any((item) => _selectedSection == item.id) == true;
+        final isSelected =
+            _selectedSection == section.id ||
+            section.subItems?.any((item) => _selectedSection == item.id) ==
+                true;
 
         if (section.subItems == null || section.subItems!.isEmpty) {
           return _buildModernMenuItem(
@@ -598,13 +660,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         return Container(
           margin: const EdgeInsets.only(bottom: 4),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white.withOpacity(0.08) : Colors.transparent,
+            color: isSelected
+                ? Colors.white.withOpacity(0.08)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Theme(
-            data: Theme.of(context).copyWith(
-              dividerColor: Colors.transparent,
-            ),
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
               leading: Container(
                 padding: const EdgeInsets.all(8),
@@ -643,8 +705,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     title: Text(
                       subItem.title,
                       style: TextStyle(
-                        fontWeight:
-                            isSubSelected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isSubSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                         color: isSubSelected ? Colors.white : Colors.white60,
                         fontSize: 13,
                       ),
@@ -679,16 +742,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       child: ListTile(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: isSelected ? color.withOpacity(0.2) : color.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: isSelected ? color : color.withOpacity(0.8), size: 20),
+          child: Icon(
+            icon,
+            color: isSelected ? color : color.withOpacity(0.8),
+            size: 20,
+          ),
         ),
         title: Text(
           title,
@@ -720,6 +785,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         return const AdminUsersScreen(embedded: true);
       case 'verification':
         return const AdminVerificationRequestsScreen(embedded: true);
+      case 'verified_agents':
+        return const AdminVerifiedAgentsScreen(embedded: true);
       case 'create_admin':
         return _buildCreateAdminContent();
       case 'add_admin_role':
@@ -796,7 +863,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             ),
           );
         }
-        
+
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -824,7 +891,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
             final hostel = hostels[index - 1];
             final data = hostel.data() as Map<String, dynamic>;
-            
+
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
@@ -842,9 +909,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ManageRoomAvailabilityScreen(
-                        property: property,
-                      ),
+                      builder: (context) =>
+                          ManageRoomAvailabilityScreen(property: property),
                     ),
                   );
                 },
@@ -928,13 +994,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             stream: _firestore.collection('users').snapshots(),
             builder: (context, userSnapshot) {
               if (userSnapshot.hasError) {
-                return _buildErrorCard('Error loading stats: ${userSnapshot.error}');
+                return _buildErrorCard(
+                  'Error loading stats: ${userSnapshot.error}',
+                );
               }
               return StreamBuilder<QuerySnapshot>(
                 stream: _firestore.collection('properties').snapshots(),
                 builder: (context, propertySnapshot) {
                   if (propertySnapshot.hasError) {
-                    return _buildErrorCard('Error loading properties: ${propertySnapshot.error}');
+                    return _buildErrorCard(
+                      'Error loading properties: ${propertySnapshot.error}',
+                    );
                   }
                   final users = userSnapshot.data?.docs ?? [];
                   final properties = propertySnapshot.data?.docs ?? [];
@@ -963,18 +1033,48 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     spacing: 16,
                     runSpacing: 16,
                     children: [
-                      _buildModernStatCard('Total Users', '${users.length}',
-                          Icons.people_rounded, _accentBlue, '+12%'),
-                      _buildModernStatCard('Customers', '$customers',
-                          Icons.person_rounded, const Color(0xFF10b981), '+8%'),
-                      _buildModernStatCard('Agents', '$agents',
-                          Icons.business_rounded, const Color(0xFFf59e0b), '+5%'),
-                      _buildModernStatCard('Properties', '${properties.length}',
-                          Icons.home_rounded, const Color(0xFF06b6d4), '+3%'),
-                      _buildModernStatCard('Hostels', '$hostels',
-                          Icons.school_rounded, _accentPurple, '+15%'),
-                      _buildModernStatCard('Pending Review', '$pendingProperties',
-                          Icons.pending_actions_rounded, Colors.red.shade400, ''),
+                      _buildModernStatCard(
+                        'Total Users',
+                        '${users.length}',
+                        Icons.people_rounded,
+                        _accentBlue,
+                        '+12%',
+                      ),
+                      _buildModernStatCard(
+                        'Customers',
+                        '$customers',
+                        Icons.person_rounded,
+                        const Color(0xFF10b981),
+                        '+8%',
+                      ),
+                      _buildModernStatCard(
+                        'Agents',
+                        '$agents',
+                        Icons.business_rounded,
+                        const Color(0xFFf59e0b),
+                        '+5%',
+                      ),
+                      _buildModernStatCard(
+                        'Properties',
+                        '${properties.length}',
+                        Icons.home_rounded,
+                        const Color(0xFF06b6d4),
+                        '+3%',
+                      ),
+                      _buildModernStatCard(
+                        'Hostels',
+                        '$hostels',
+                        Icons.school_rounded,
+                        _accentPurple,
+                        '+15%',
+                      ),
+                      _buildModernStatCard(
+                        'Pending Review',
+                        '$pendingProperties',
+                        Icons.pending_actions_rounded,
+                        Colors.red.shade400,
+                        '',
+                      ),
                     ],
                   );
                 },
@@ -999,14 +1099,36 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             spacing: 16,
             runSpacing: 16,
             children: [
-              _buildModernQuickAction('Add Hostel', Icons.add_home_rounded,
-                  _accentPurple, () => setState(() => _selectedSection = 'add_hostel')),
-              _buildModernQuickAction('Review Properties', Icons.rate_review_rounded,
-                  const Color(0xFF10b981), () => setState(() => _selectedSection = 'review_properties')),
-              _buildModernQuickAction('Verification', Icons.verified_user_rounded,
-                  const Color(0xFFf59e0b), () => setState(() => _selectedSection = 'verification')),
-              _buildModernQuickAction('Send Notification', Icons.send_rounded,
-                  const Color(0xFF06b6d4), () => setState(() => _selectedSection = 'send_notifications')),
+              _buildModernQuickAction(
+                'Add Hostel',
+                Icons.add_home_rounded,
+                _accentPurple,
+                () => setState(() => _selectedSection = 'add_hostel'),
+              ),
+              _buildModernQuickAction(
+                'Review Properties',
+                Icons.rate_review_rounded,
+                const Color(0xFF10b981),
+                () => setState(() => _selectedSection = 'review_properties'),
+              ),
+              _buildModernQuickAction(
+                'Verification',
+                Icons.verified_user_rounded,
+                const Color(0xFFf59e0b),
+                () => setState(() => _selectedSection = 'verification'),
+              ),
+              _buildModernQuickAction(
+                'Verified Agents',
+                Icons.workspace_premium_rounded,
+                const Color(0xFF2563EB),
+                () => setState(() => _selectedSection = 'verified_agents'),
+              ),
+              _buildModernQuickAction(
+                'Send Notification',
+                Icons.send_rounded,
+                const Color(0xFF06b6d4),
+                () => setState(() => _selectedSection = 'send_notifications'),
+              ),
             ],
           ),
 
@@ -1025,12 +1147,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ),
               ),
               TextButton.icon(
-                onPressed: () => setState(() => _selectedSection = 'manage_hostels'),
+                onPressed: () =>
+                    setState(() => _selectedSection = 'manage_hostels'),
                 icon: const Icon(Icons.arrow_forward_rounded, size: 18),
                 label: const Text('View All'),
-                style: TextButton.styleFrom(
-                  foregroundColor: _accentPurple,
-                ),
+                style: TextButton.styleFrom(foregroundColor: _accentPurple),
               ),
             ],
           ),
@@ -1082,7 +1203,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       children: [
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 8),
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
                           leading: Container(
                             width: 50,
                             height: 50,
@@ -1095,8 +1218,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                               ),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.school_rounded,
-                                color: Colors.white, size: 24),
+                            child: const Icon(
+                              Icons.school_rounded,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                           ),
                           title: Text(
                             data['title'] ?? 'Unnamed',
@@ -1107,8 +1233,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                           ),
                           subtitle: Row(
                             children: [
-                              Icon(Icons.location_on_rounded,
-                                  size: 14, color: Colors.grey.shade500),
+                              Icon(
+                                Icons.location_on_rounded,
+                                size: 14,
+                                color: Colors.grey.shade500,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 data['location'] ?? 'No location',
@@ -1121,7 +1250,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                           ),
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: _accentPurple.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
@@ -1135,15 +1266,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                               ),
                             ),
                           ),
-                          onTap: () =>
-                              setState(() => _selectedSection = 'manage_hostels'),
+                          onTap: () => setState(
+                            () => _selectedSection = 'manage_hostels',
+                          ),
                         ),
                         if (index < hostels.length - 1)
                           Divider(
-                              height: 1,
-                              indent: 20,
-                              endIndent: 20,
-                              color: Colors.grey.shade200),
+                            height: 1,
+                            indent: 20,
+                            endIndent: 20,
+                            color: Colors.grey.shade200,
+                          ),
                       ],
                     );
                   }).toList(),
@@ -1157,7 +1290,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Widget _buildModernStatCard(
-      String label, String value, IconData icon, Color color, String trend) {
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    String trend,
+  ) {
     return Container(
       width: 170,
       padding: const EdgeInsets.all(20),
@@ -1188,8 +1326,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ),
               if (trend.isNotEmpty)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.green.shade50,
                     borderRadius: BorderRadius.circular(20),
@@ -1229,7 +1369,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Widget _buildModernQuickAction(
-      String label, IconData icon, Color color, VoidCallback onTap) {
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -1301,17 +1445,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               color: Colors.red.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.error_outline_rounded,
-                color: Colors.red.shade400, size: 24),
+            child: Icon(
+              Icons.error_outline_rounded,
+              color: Colors.red.shade400,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
-                color: Colors.red.shade700,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.red.shade700, fontSize: 14),
             ),
           ),
         ],
@@ -1355,10 +1499,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           const SizedBox(height: 8),
           Text(
             'Start by adding your first student hostel',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
@@ -1400,9 +1541,5 @@ class MenuItem {
   final String title;
   final IconData icon;
 
-  MenuItem({
-    required this.id,
-    required this.title,
-    required this.icon,
-  });
+  MenuItem({required this.id, required this.title, required this.icon});
 }
