@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/property_model.dart';
@@ -202,7 +203,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
                           color: Colors.red,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(18),
                         ),
                         child: const Icon(
                           Icons.delete,
@@ -221,12 +222,34 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                             ),
                           );
                         },
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.white.withOpacity(0.95),
+                                    Colors.white.withOpacity(0.84),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: AppColors.primary.withOpacity(0.16),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Property Image
@@ -235,7 +258,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                   children: [
                                     ClipRRect(
                                       borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(12),
+                                        top: Radius.circular(20),
                                       ),
                                       child: Image.network(
                                         property.imageUrls.first,
@@ -268,6 +291,21 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                                 ),
                                               );
                                             },
+                                      ),
+                                    ),
+                                    Positioned.fill(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: [
+                                              Colors.black.withOpacity(0.04),
+                                              Colors.transparent,
+                                              Colors.black.withOpacity(0.14),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     // Delete button overlay
@@ -549,6 +587,8 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
                           ),
                         ),
                       ),

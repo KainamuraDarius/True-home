@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import '../../utils/currency_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/property_model.dart';
@@ -153,27 +154,50 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
   }
 
   Widget _buildPropertyCard(PropertyModel property) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PropertyDetailsScreen(property: property),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.95),
+                Colors.white.withOpacity(0.84),
+              ],
             ),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            border: Border.all(color: AppColors.primary.withOpacity(0.16)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PropertyDetailsScreen(property: property),
+                ),
+              );
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             // Property Image
             if (property.imageUrls.isNotEmpty)
               Stack(
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(4),
+                      top: Radius.circular(20),
                     ),
                     child: Image.network(
                       property.imageUrls.first,
@@ -201,6 +225,21 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                           ),
                         );
                       },
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.04),
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.14),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   Positioned(
@@ -232,8 +271,20 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                 ],
               ),
 
-            Padding(
+            Container(
               padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    const Color(0xFF79B8FF).withOpacity(0.18),
+                    const Color(0xFF79B8FF).withOpacity(0.08),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.42, 1.0],
+                ),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -302,6 +353,8 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
               ),
             ),
           ],
+        ),
+      ),
         ),
       ),
     );

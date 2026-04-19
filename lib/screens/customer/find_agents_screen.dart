@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
@@ -18,6 +19,7 @@ class _FindAgentsScreenState extends State<FindAgentsScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   bool _isLoading = true;
+  bool _authRequired = false;
   String? _selectedArea;
   List<_AgentDirectoryEntry> _agents = [];
   List<String> _availableAreas = [];
@@ -94,7 +96,19 @@ class _FindAgentsScreenState extends State<FindAgentsScreen> {
     if (mounted) {
       setState(() {
         _isLoading = true;
+        _authRequired = false;
       });
+    }
+
+    if (FirebaseAuth.instance.currentUser == null) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _authRequired = true;
+        _agents = [];
+        _availableAreas = [];
+      });
+      return;
     }
 
     try {
@@ -186,6 +200,7 @@ class _FindAgentsScreenState extends State<FindAgentsScreen> {
       setState(() {
         _agents = agents;
         _availableAreas = availableAreas;
+        _authRequired = false;
         if (_selectedArea != null &&
             !_availableAreas.any(
               (area) => area.toLowerCase() == _selectedArea!.toLowerCase(),
@@ -194,6 +209,23 @@ class _FindAgentsScreenState extends State<FindAgentsScreen> {
         }
         _isLoading = false;
       });
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+
+      final permissionDenied = e.code == 'permission-denied';
+      setState(() {
+        _isLoading = false;
+        _authRequired = permissionDenied;
+      });
+
+      if (!permissionDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load verified agents: ${e.message ?? e.code}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
 
@@ -553,6 +585,29 @@ class _FindAgentsScreenState extends State<FindAgentsScreen> {
   Widget _buildEmptyState() {
     final hasFilters =
         _searchController.text.trim().isNotEmpty || _selectedArea != null;
+
+    if (_authRequired) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          children: [
+            Icon(Icons.lock_outline_rounded, size: 72, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            const Text(
+              'Login required to find agents',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sign in first, then open this page again to browse verified agents.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
