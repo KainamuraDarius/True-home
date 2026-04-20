@@ -7,7 +7,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/property_model.dart';
 import '../../models/user_model.dart';
-import '../../widgets/agent_name_with_badge.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../auth/login_screen.dart';
