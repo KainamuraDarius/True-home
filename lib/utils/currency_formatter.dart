@@ -52,4 +52,28 @@ class CurrencyFormatter {
   static double parse(String value) {
     return tryParse(value) ?? 0;
   }
+
+  /// Formats a number in compact form (e.g., 10M, 500K, 1.5B)
+  static String formatCompact(double value) {
+    final absValue = value.abs();
+    
+    if (absValue >= 1000000000) {
+      final billions = value / 1000000000;
+      return billions % 1 == 0 
+          ? '${billions.toInt()}B' 
+          : '${billions.toStringAsFixed(1).replaceAll(RegExp(r'\.0+$'), '')}B';
+    } else if (absValue >= 1000000) {
+      final millions = value / 1000000;
+      return millions % 1 == 0 
+          ? '${millions.toInt()}M' 
+          : '${millions.toStringAsFixed(1).replaceAll(RegExp(r'\.0+$'), '')}M';
+    } else if (absValue >= 1000) {
+      final thousands = value / 1000;
+      return thousands % 1 == 0 
+          ? '${thousands.toInt()}K' 
+          : '${thousands.toStringAsFixed(1).replaceAll(RegExp(r'\.0+$'), '')}K';
+    } else {
+      return value.toStringAsFixed(0);
+    }
+  }
 }

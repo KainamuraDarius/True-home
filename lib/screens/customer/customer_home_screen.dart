@@ -2893,6 +2893,9 @@ class _HomeTabState extends State<HomeTab> {
     required VoidCallback onTap,
     bool isSelected = false,
   }) {
+    final isSmallScreen = MediaQuery.of(context).size.width < 400;
+    final fontSize = isSmallScreen ? 13.0 : 15.0;
+    
     return Material(
       color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(24),
@@ -2922,12 +2925,15 @@ class _HomeTabState extends State<HomeTab> {
               Text(
                 title,
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: fontSize,
                   fontWeight: FontWeight.w700,
                   color: isSelected
                       ? accentColor
                       : Theme.of(context).textTheme.bodyLarge?.color,
+                  height: 1.2,
                 ),
               ),
             ],

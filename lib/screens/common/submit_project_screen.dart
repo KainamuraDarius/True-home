@@ -45,6 +45,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
   final _developerTaglineController = TextEditingController();
   final _operationalAreasController = TextEditingController();
   final _companyAboutController = TextEditingController();
+  final _customLocationController = TextEditingController();
 
   String? _selectedLocation;
   ProjectStatus _selectedProjectStatus = ProjectStatus.underConstruction;
@@ -61,6 +62,18 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
   String? _developerAdvertisingAccessMode; // 'paid' or 'testing'
   String? _developerAdvertisingPaymentReference;
   bool _isProcessingAdvertisingPlan = false;
+
+  bool get _isOtherLocationSelected =>
+      _selectedLocation == ProjectService.otherLocationOption;
+
+  String? get _resolvedLocation {
+    if (_selectedLocation == null) return null;
+    if (_isOtherLocationSelected) {
+      final customLocation = _customLocationController.text.trim();
+      return customLocation.isEmpty ? null : customLocation;
+    }
+    return _selectedLocation;
+  }
 
   @override
   void initState() {
@@ -117,6 +130,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
         'operationalAreas': _operationalAreasController.text,
         'companyAbout': _companyAboutController.text,
         'selectedLocation': _selectedLocation,
+        'customLocation': _customLocationController.text,
         'selectedProjectStatus': _selectedProjectStatus.name,
         'selectedCurrency': _selectedCurrency.name,
         'selectedImagePaths': _selectedImages.map((e) => e.path).toList(),
@@ -157,6 +171,8 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
       _companyAboutController.text = decoded['companyAbout']?.toString() ?? '';
 
       final restoredLocation = decoded['selectedLocation']?.toString();
+      final restoredCustomLocation =
+          decoded['customLocation']?.toString().trim() ?? '';
       final restoredProjectStatus = _parseProjectStatus(
         decoded['selectedProjectStatus']?.toString(),
       );
@@ -183,12 +199,25 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
           ? XFile(companyIconPath)
           : null;
 
+      String? restoredLocationSelection;
+      String restoredCustomLocationText = '';
+      if (_projectService.defaultLocations.contains(restoredLocation)) {
+        restoredLocationSelection = restoredLocation;
+      } else if ((restoredLocation ?? '').isNotEmpty) {
+        restoredLocationSelection = ProjectService.otherLocationOption;
+        restoredCustomLocationText =
+            restoredLocation == ProjectService.otherLocationOption
+            ? restoredCustomLocation
+            : restoredLocation!;
+      } else if (restoredCustomLocation.isNotEmpty) {
+        restoredLocationSelection = ProjectService.otherLocationOption;
+        restoredCustomLocationText = restoredCustomLocation;
+      }
+
       if (!mounted) return;
       setState(() {
-        _selectedLocation =
-            _projectService.defaultLocations.contains(restoredLocation)
-            ? restoredLocation
-            : null;
+        _selectedLocation = restoredLocationSelection;
+        _customLocationController.text = restoredCustomLocationText;
         _selectedProjectStatus = restoredProjectStatus;
         _selectedCurrency = restoredCurrency;
         _selectedImages = restoredImages;
@@ -881,7 +910,9 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
       );
       return;
     }
-    if (_selectedLocation == null) {
+    final resolvedLocation = _resolvedLocation;
+
+    if (resolvedLocation == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please select a location')));
@@ -981,7 +1012,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
         organizationId: activeOrganizationId,
         createdByUserId: user.uid,
         developerName: _developerName ?? 'Developer',
-        location: _selectedLocation!,
+        location: resolvedLocation,
         adTier: AdTier.basic, // Single tier for all
         isFirstPlaceSubscriber: false,
         paymentAmount: totalCost,
@@ -1007,6 +1038,9 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
         currency: _selectedCurrency,
         bookingDeposit: _bookingDepositController.text.trim().isNotEmpty
             ? CurrencyFormatter.tryParse(_bookingDepositController.text.trim())
+            : null,
+        bookingDepositText: _bookingDepositController.text.trim().isNotEmpty
+            ? _bookingDepositController.text.trim()
             : null,
         bookingDepositDescription:
             _bookingDepositDescriptionController.text.trim().isNotEmpty
@@ -1247,7 +1281,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                             labelText: 'Location *',
                             border: OutlineInputBorder(),
                           ),
-                          items: _projectService.defaultLocations.map((
+                          items: _projectService.selectableLocations.map((
                             location,
                           ) {
                             return DropdownMenuItem(
@@ -1262,6 +1296,25 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                           validator: (value) =>
                               value == null ? 'Please select a location' : null,
                         ),
+                        if (_isOtherLocationSelected) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _customLocationController,
+                            decoration: const InputDecoration(
+                              labelText: 'Other Location *',
+                              hintText: 'Type the project location',
+                              border: OutlineInputBorder(),
+                            ),
+                            textCapitalization: TextCapitalization.words,
+                            onChanged: (_) => _saveDraft(),
+                            validator: (value) {
+                              if (!_isOtherLocationSelected) return null;
+                              return value == null || value.trim().isEmpty
+                                  ? 'Please enter the project location'
+                                  : null;
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 16),
 
                         // Description
@@ -1587,8 +1640,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                                           width: 120,
                                           height: 120,
                                           fit: BoxFit.cover,
-                                          filterQuality:
-                                              FilterQuality.high,
+                                          filterQuality: FilterQuality.high,
                                         ),
                                       ),
                                       Positioned(
@@ -1783,6 +1835,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
     _developerTaglineController.dispose();
     _operationalAreasController.dispose();
     _companyAboutController.dispose();
+    _customLocationController.dispose();
     super.dispose();
   }
 }

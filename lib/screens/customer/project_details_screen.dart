@@ -38,6 +38,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
   bool get _hasPricingInfo =>
       (widget.project.startingPrice?.trim().isNotEmpty ?? false) ||
       (widget.project.priceDescriptor?.trim().isNotEmpty ?? false) ||
+      (widget.project.bookingDepositText?.trim().isNotEmpty ?? false) ||
       widget.project.bookingDeposit != null ||
       (widget.project.bookingDepositDescription?.trim().isNotEmpty ?? false);
 
@@ -71,22 +72,16 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
   String _formatStartingPrice() {
     final raw = widget.project.startingPrice?.trim();
     if (raw == null || raw.isEmpty) return 'Price on request';
-
-    final code = _currencyCode(widget.project.currency).toUpperCase();
-    final upperRaw = raw.toUpperCase();
-    final alreadyHasCurrency =
-        upperRaw.contains(code) ||
-        raw.contains('\$') ||
-        raw.contains('€') ||
-        raw.contains('£');
-
-    return alreadyHasCurrency ? raw : '$code $raw';
+    return raw;
   }
 
   String _formatBookingDeposit() {
+    final raw = widget.project.bookingDepositText?.trim();
+    if (raw != null && raw.isNotEmpty) return raw;
+
     final deposit = widget.project.bookingDeposit;
     if (deposit == null) return 'Flexible plans';
-    return '${_currencyCode(widget.project.currency)} ${CurrencyFormatter.format(deposit)}';
+    return '${_currencyCode(widget.project.currency)} ${CurrencyFormatter.formatCompact(deposit)}';
   }
 
   String _operationalAreasText() {

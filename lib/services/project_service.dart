@@ -20,6 +20,8 @@ class ProjectServiceException implements Exception {
 }
 
 class ProjectService {
+  static const String otherLocationOption = 'Other';
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _random = Random();
 
@@ -37,28 +39,23 @@ class ProjectService {
   }
 
   // Default locations for project advertisements
-  List<String> get defaultLocations => [
-    // Kampala Central & East
-    'Kololo', 'Nakasero', 'Naguru', 'Bugolobi', 'Muyenga', 'Bukoto',
-    // Kampala North & Suburbs
-    'Ntinda', 'Kyanja', 'Kira', 'Naalya', 'Namugongo', 'Kyaliwajjala',
-    'Kulambiro', 'Kisaasi', 'Najjera', 'Kiwatule', 'Kungu',
-    // Wakiso District Areas
-    'Kansanga', 'Kabalagala', 'Makindye', 'Ggaba', 'Munyonyo',
-    'Lubowa', 'Buziga', 'Kigo', 'Seguku', 'Bbunga',
-    // Entebbe Road & Airport Area
-    'Entebbe', 'Kajjansi', 'Kitende', 'Kisubi', 'Zana', 'Kitooro',
-    // Kampala West & Wakiso
-    'Lubaga', 'Ndeeba', 'Mengo', 'Namirembe', 'Rubaga',
-    'Busega', 'Lungujja', 'Nateete', 'Wakaliga', 'Masanafu',
-    // Northern Bypass & Gayaza Road
-    'Bweyogerere', 'Kireka', 'Banda', 'Mutungo', 'Luzira',
-    'Gayaza', 'Namulonge', 'Mpererwe', 'Kawempe', 'Kalerwe',
-    // Wakiso Town & Surroundings
-    'Wakiso', 'Namere', 'Kasangati', 'Matugga', 'Kira Town',
-    // Others
-    'Kampala', 'Bunga', 'Seeta', 'Mukono',
-  ]..sort();
+  List<String> get defaultLocations => const [
+    'Kololo',
+    'Nakasero',
+    'Naguru',
+    'Bugolobi',
+    'Muyenga',
+    'Ntinda',
+    'Kisaasi',
+    'Naalya',
+    'Najjera',
+    'Kira',
+  ];
+
+  List<String> get selectableLocations => [
+    ...defaultLocations,
+    otherLocationOption,
+  ];
 
   // Get projects for a specific location with rotation logic
   Future<List<Project>> getProjectsByLocation(String location) async {

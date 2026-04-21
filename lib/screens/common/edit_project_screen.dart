@@ -40,6 +40,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   late final TextEditingController _developerTaglineController;
   late final TextEditingController _operationalAreasController;
   late final TextEditingController _companyAboutController;
+  late final TextEditingController _customLocationController;
 
   late String _selectedLocation;
   late ProjectStatus _selectedProjectStatus;
@@ -55,6 +56,13 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   bool _isSaving = false;
   double _uploadProgress = 0.0;
   String _uploadStatus = '';
+
+  bool get _isOtherLocationSelected =>
+      _selectedLocation == ProjectService.otherLocationOption;
+
+  String get _resolvedLocation => _isOtherLocationSelected
+      ? _customLocationController.text.trim()
+      : _selectedLocation;
 
   @override
   void initState() {
@@ -72,7 +80,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       text: p.priceDescriptor ?? '',
     );
     _bookingDepositController = TextEditingController(
-      text: p.bookingDeposit != null
+      text: p.bookingDepositText?.trim().isNotEmpty == true
+          ? p.bookingDepositText!.trim()
+          : p.bookingDeposit != null
           ? CurrencyFormatter.formatForInput(p.bookingDeposit!)
           : '',
     );
@@ -86,7 +96,14 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       text: p.operationalAreas.join(', '),
     );
     _companyAboutController = TextEditingController(text: p.companyAbout ?? '');
-    _selectedLocation = p.location;
+    _customLocationController = TextEditingController(
+      text: _projectService.defaultLocations.contains(p.location)
+          ? ''
+          : p.location,
+    );
+    _selectedLocation = _projectService.defaultLocations.contains(p.location)
+        ? p.location
+        : ProjectService.otherLocationOption;
     _selectedProjectStatus = p.projectStatus;
     _selectedCurrency = p.currency;
     _existingImageUrls = List<String>.from(p.imageUrls);
@@ -107,6 +124,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     _developerTaglineController.dispose();
     _operationalAreasController.dispose();
     _companyAboutController.dispose();
+    _customLocationController.dispose();
     super.dispose();
   }
 
@@ -293,7 +311,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       final updates = <String, dynamic>{
         'name': _nameController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'location': _selectedLocation,
+        'location': _resolvedLocation,
         'projectStatus': _selectedProjectStatus.toString().split('.').last,
         'contactPhone': _phoneController.text.trim().isNotEmpty
             ? _phoneController.text.trim()
@@ -312,6 +330,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             : null,
         'bookingDeposit': _bookingDepositController.text.trim().isNotEmpty
             ? CurrencyFormatter.tryParse(_bookingDepositController.text.trim())
+            : null,
+        'bookingDepositText': _bookingDepositController.text.trim().isNotEmpty
+            ? _bookingDepositController.text.trim()
             : null,
         'bookingDepositDescription':
             _bookingDepositDescriptionController.text.trim().isNotEmpty
@@ -437,7 +458,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                             labelText: 'Location *',
                             border: OutlineInputBorder(),
                           ),
-                          items: _projectService.defaultLocations
+                          items: _projectService.selectableLocations
                               .map(
                                 (loc) => DropdownMenuItem(
                                   value: loc,
@@ -450,6 +471,24 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                           validator: (v) =>
                               v == null ? 'Please select a location' : null,
                         ),
+                        if (_isOtherLocationSelected) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _customLocationController,
+                            decoration: const InputDecoration(
+                              labelText: 'Other Location *',
+                              hintText: 'Type the project location',
+                              border: OutlineInputBorder(),
+                            ),
+                            textCapitalization: TextCapitalization.words,
+                            validator: (value) {
+                              if (!_isOtherLocationSelected) return null;
+                              return value == null || value.trim().isEmpty
+                                  ? 'Please enter the project location'
+                                  : null;
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 16),
 
                         // ── Description ───────────────────────────────────

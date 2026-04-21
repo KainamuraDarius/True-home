@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/currency_formatter.dart';
 
 enum AdTier { basic, premium, firstPlaceRotational }
 
@@ -32,6 +33,7 @@ class Project {
   final String? priceDescriptor;
   final Currency currency;
   final double? bookingDeposit;
+  final String? bookingDepositText;
   final String? bookingDepositDescription;
   final String? developerTagline;
   final List<String> operationalAreas;
@@ -64,6 +66,7 @@ class Project {
     this.priceDescriptor,
     this.currency = Currency.UGX,
     this.bookingDeposit,
+    this.bookingDepositText,
     this.bookingDepositDescription,
     this.developerTagline,
     this.operationalAreas = const [],
@@ -73,6 +76,8 @@ class Project {
 
   factory Project.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final bookingDepositData = data['bookingDeposit'];
+    final rawBookingDepositText = data['bookingDepositText']?.toString().trim();
     return Project(
       id: doc.id,
       name: data['name'] ?? '',
@@ -109,7 +114,17 @@ class Project {
         (e) => e.toString() == 'Currency.${data['currency']}',
         orElse: () => Currency.UGX,
       ),
-      bookingDeposit: (data['bookingDeposit'] as num?)?.toDouble(),
+      bookingDeposit: bookingDepositData is num
+          ? bookingDepositData.toDouble()
+          : bookingDepositData is String
+          ? CurrencyFormatter.tryParse(bookingDepositData)
+          : null,
+      bookingDepositText:
+          rawBookingDepositText != null && rawBookingDepositText.isNotEmpty
+          ? rawBookingDepositText
+          : bookingDepositData is String && bookingDepositData.trim().isNotEmpty
+          ? bookingDepositData.trim()
+          : null,
       bookingDepositDescription: data['bookingDepositDescription'],
       developerTagline: data['developerTagline'],
       operationalAreas: List<String>.from(data['operationalAreas'] ?? []),
@@ -144,6 +159,7 @@ class Project {
       'priceDescriptor': priceDescriptor,
       'currency': currency.toString().split('.').last,
       'bookingDeposit': bookingDeposit,
+      'bookingDepositText': bookingDepositText,
       'bookingDepositDescription': bookingDepositDescription,
       'developerTagline': developerTagline,
       'operationalAreas': operationalAreas,
@@ -178,6 +194,7 @@ class Project {
     String? priceDescriptor,
     Currency? currency,
     double? bookingDeposit,
+    String? bookingDepositText,
     String? bookingDepositDescription,
     String? developerTagline,
     List<String>? operationalAreas,
@@ -211,6 +228,7 @@ class Project {
       priceDescriptor: priceDescriptor ?? this.priceDescriptor,
       currency: currency ?? this.currency,
       bookingDeposit: bookingDeposit ?? this.bookingDeposit,
+      bookingDepositText: bookingDepositText ?? this.bookingDepositText,
       bookingDepositDescription:
           bookingDepositDescription ?? this.bookingDepositDescription,
       developerTagline: developerTagline ?? this.developerTagline,
