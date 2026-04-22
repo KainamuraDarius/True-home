@@ -35,9 +35,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   List<UserRole> _currentUserRoles = [];
   final ViewTrackingService _viewTrackingService = ViewTrackingService();
 
-  // Cache the verification future so we don't fire multiple Firestore reads per build.
   late final Future<bool> _agentVerifiedFuture;
-  // Cache the agent profile image future similarly.
   late final Future<String?> _agentProfileImageFuture;
 
   @override
@@ -95,13 +93,21 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
   Future<void> _trackPropertyView() async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      return;
+    }
+
     try {
       await _viewTrackingService.trackPropertyView(
         propertyId: widget.property.id,
         ownerId: widget.property.ownerId,
       );
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied' && kDebugMode) {
+        debugPrint('Error tracking view: $e');
+      }
     } catch (e) {
-      debugPrint('❌ Error tracking view: $e');
+      if (kDebugMode) debugPrint('Error tracking view: $e');
     }
   }
 
@@ -303,6 +309,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       return widget.property.agentProfileImageUrl;
     }
 
+    if (FirebaseAuth.instance.currentUser == null) {
+      return null;
+    }
+
     try {
       final agentDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -313,11 +323,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         return agentDoc.data()?['profileImageUrl'] as String?;
       }
     } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') {
-        if (kDebugMode) {
-          debugPrint('Guest mode: agent profile image read is not permitted.');
-        }
-        return null;
+      if (e.code != 'permission-denied' && kDebugMode) {
+        debugPrint('Error fetching agent profile image: $e');
       }
     } catch (e) {
       if (kDebugMode) debugPrint('Error fetching agent profile image: $e');
@@ -327,6 +334,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
   Future<bool> _checkAgentVerificationStatus() async {
+    if (FirebaseAuth.instance.currentUser == null) {
+      return false;
+    }
+
     try {
       final agentDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -337,11 +348,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         return agentDoc.data()?['isVerified'] == true;
       }
     } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') {
-        if (kDebugMode) {
-          debugPrint('Guest mode: agent verification read is not permitted.');
-        }
-        return false;
+      if (e.code != 'permission-denied' && kDebugMode) {
+        debugPrint('Error checking agent verification status: $e');
       }
     } catch (e) {
       if (kDebugMode) debugPrint('Error checking agent verification status: $e');
@@ -351,6 +359,14 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   }
 
   Future<void> _navigateToAgentProfile() async {
+    if (!_requireAuthentication(
+      title: 'Login Required',
+      message:
+          'Sign in to view full agent details and rate this agent.',
+    )) {
+      return;
+    }
+
     try {
       final agentDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -368,10 +384,29 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
             builder: (_) => AgentProfileScreen(agent: agentUser),
           ),
         );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Agent details are not available yet.')),
+        );
       }
     } on FirebaseException catch (e) {
-      if (kDebugMode) debugPrint('Error navigating to agent profile: $e');
+      if (!mounted) return;
+      final message = e.code == 'permission-denied'
+          ? 'Please sign in to view full agent details.'
+          : 'Could not open agent details right now. Please try again.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+      if (e.code != 'permission-denied' && kDebugMode) {
+        debugPrint('Error navigating to agent profile: $e');
+      }
     } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open agent details right now. Please try again.'),
+        ),
+      );
       if (kDebugMode) debugPrint('Error navigating to agent profile: $e');
     }
   }
@@ -1028,6 +1063,332 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     const SizedBox(height: 24),
                   ],
 
+                  if (_shouldShowContactCard) ...[
+                    const Divider(),
+                    const SizedBox(height: 24),
+                    // Section Header
+                    Text(
+                      'Contact Support',
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            AppColors.primary.withOpacity(0.08),
+                            AppColors.primary.withOpacity(0.03),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.12),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.08),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: InkWell(
+                        onTap: _navigateToAgentProfile,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                          child: Column(
+                            children: [
+                              // Agent Avatar Section
+                              Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  // Background circle with gradient
+                                  Container(
+                                    width: 100,
+                                    height: 100,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          AppColors.primary.withOpacity(0.15),
+                                          AppColors.primary.withOpacity(0.05),
+                                        ],
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  // Avatar with border
+                                  FutureBuilder<String?>(
+                                    future: _agentProfileImageFuture,
+                                    builder: (context, snapshot) {
+                                      final imageUrl = snapshot.data?.trim();
+                                      final hasImage =
+                                          imageUrl != null && imageUrl.isNotEmpty;
+
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: AppColors.primary,
+                                            width: 3,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  AppColors.primary
+                                                      .withOpacity(0.3),
+                                              blurRadius: 16,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: CircleAvatar(
+                                          radius: 44,
+                                          backgroundColor: Colors.white,
+                                          backgroundImage: hasImage
+                                              ? CachedNetworkImageProvider(
+                                                  imageUrl,
+                                                )
+                                              : null,
+                                          child: hasImage
+                                              ? null
+                                              : Icon(
+                                                  Icons.support_agent,
+                                                  color: AppColors.primary,
+                                                  size: 44,
+                                                ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  // Verified badge
+                                  FutureBuilder<bool>(
+                                    future: _agentVerifiedFuture,
+                                    builder: (context, snapshot) {
+                                      if (snapshot.data == true) {
+                                        return Positioned(
+                                          bottom: 0,
+                                          right: 0,
+                                          child: Container(
+                                            padding:
+                                                const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: AppColors.primary,
+                                                width: 2,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.15),
+                                                  blurRadius: 8,
+                                                )
+                                              ],
+                                            ),
+                                            child: Icon(
+                                              Icons.verified,
+                                              color: AppColors.primary,
+                                              size: 18,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      return const SizedBox.shrink();
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              // Agent Info Section
+                              Column(
+                                children: [
+                                  // Agent Name with Role Badge
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          widget.property.agentName
+                                                  .trim()
+                                                  .isNotEmpty
+                                              ? widget.property.agentName
+                                              : 'Property Agent',
+                                          style:
+                                              textTheme.titleLarge?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  // Company Name
+                                  Text(
+                                    widget.property.companyName
+                                            .trim()
+                                            .isNotEmpty
+                                        ? widget.property.companyName
+                                        : 'Professional Agent',
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 18),
+                              // Divider
+                              Container(
+                                height: 1,
+                                color: AppColors.primary.withOpacity(0.1),
+                              ),
+                              const SizedBox(height: 18),
+                              // CTA Section
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.info_outlined,
+                                      color: AppColors.primary,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'View full profile & rating',
+                                        style: textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      Icons.arrow_forward_ios,
+                                      color: AppColors.primary,
+                                      size: 14,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              // Email Contact (if available)
+                              if (widget.property.contactEmail
+                                  .trim()
+                                  .isNotEmpty) ...[
+                                Container(
+                                  width: double.infinity,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  child: InkWell(
+                                    onTap: () =>
+                                        _sendEmail(widget.property.contactEmail),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: AppColors.primary
+                                                    .withOpacity(0.2),
+                                              ),
+                                            ),
+                                            child: Icon(
+                                              Icons.email_outlined,
+                                              color: AppColors.primary,
+                                              size: 20,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Email',
+                                                  style: textTheme.bodySmall
+                                                      ?.copyWith(
+                                                    color: AppColors
+                                                        .textSecondary,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  widget.property.contactEmail,
+                                                  style: textTheme.bodyMedium
+                                                      ?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                    color:
+                                                        AppColors.textPrimary,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.chevron_right,
+                                            color: AppColors.primary
+                                                .withOpacity(0.5),
+                                            size: 20,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
                   // Inspection Fee Section
                   if (widget.property.inspectionFee != null &&
                       widget.property.inspectionFee! > 0) ...[
@@ -1484,6 +1845,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     );
   }
 
+  // ── Helper widgets ────────────────────────────────────────────────────────
+
   Widget _buildFeatureCard(IconData icon, String value, String label) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1509,9 +1872,66 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     );
   }
 
+  Widget _buildContactRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary.withOpacity(0.12)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.primary, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Business logic helpers ────────────────────────────────────────────────
+
   bool _canShowHostelPriceToCustomers(PropertyModel property) {
     return property.type != PropertyType.hostel ||
         property.showPriceToCustomers;
+  }
+
+  bool get _shouldShowContactCard {
+    if (widget.property.type == PropertyType.hostel) return false;
+
+    return true;
   }
 
   Future<void> _makePhoneCall(String phoneNumber) async {
@@ -1521,6 +1941,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not launch phone call')),
+      );
+    }
+  }
+
+  Future<void> _sendEmail(String email) async {
+    final Uri emailUri = Uri(scheme: 'mailto', path: email);
+    if (await canLaunchUrl(emailUri)) {
+      await launchUrl(emailUri);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open email client')),
       );
     }
   }
@@ -1587,7 +2018,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         ? '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}'
         : 'Price on request';
 
-    // Format: property link on first line to generate link preview
     final lines = <String>[
       propertyUrl,
       '',
