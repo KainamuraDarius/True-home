@@ -1,83 +1,219 @@
-# True Home - Real Estate App
+# True Home - Real Estate & Property Development Platform
 
-A comprehensive Flutter real estate application for browsing rentals, buying condos, and finding student hostels.
+A comprehensive Flutter platform connecting property seekers, real estate agents, property managers, and developers for rentals, property sales, hostel bookings, and real estate project discovery.
 
-## 📱 Features
+## 🎯 Platform Overview
 
-### For Customers (Users)
-- **Browse Properties**: View rentals, condos for sale, and student hostels
-- **Property Details**: 
-  - Price (rent/sale)
-  - Location with map integration
-  - Photos & videos
-  - Property type, rooms, bathrooms, amenities
-- **Contact Management**:
-  - Direct call
-  - WhatsApp integration
-  - Email
-  - In-app contact form
-- **Schedule Property Tours**: Pick date & time for viewings
-- **Search & Filters**:
-  - Filter by location
-  - Price range
-  - Property type (rental/condo/hostel)
-- **Favorites**: Save properties for later
+**True Home** is a multi-role real estate platform with three main product categories:
+1. **Properties** - Rentals, condos, and student hostels
+2. **Projects** - Real estate development projects with Pandora payments integration
+3. **Agents** - Verified property agents with ratings and verification system
 
-### For Property Managers
-- **Property Management**:
-  - Add new properties
-  - Edit prices & availability
-  - Upload photos
-  - Manage property details
-- **Request Management**:
-  - View and manage tour requests
-  - Respond to contact inquiries
-  - Track request status
-- **Dashboard**: Overview of properties and pending requests
+---
 
-### For Property Owners
-- **Submit Properties**: Submit properties to admins for approval
-- **Track Submissions**: View status of submitted properties (pending/approved/rejected)
-- **Property Details**: Provide comprehensive property information
+## 📱 Core Features by User Role
 
-### For Admins
-- **Review Submissions**: Approve or reject property submissions
-- **Content Moderation**: Ensure quality of listed properties
-- **User Management**: Oversee all users and properties
+### 👥 Customers
+- **Browse Properties**: Rentals, condos, student hostels with detailed info
+- **Explore Projects**: Real estate development projects by verified developers
+- **Find Agents**: Discover and rate property agents
+- **Schedule Tours**: Book property viewings with managers
+- **Make Reservations**: Book hostel rooms directly (with Pandora payments)
+- **Query Properties**: Multiple contact methods (call, WhatsApp, email, in-app form)
+- **Favorites**: Save properties and projects for later
 
-## 🏗️ Project Structure
+### 🏢 Property Managers
+- **Property Management**: Add, edit, delete rental properties and condos
+- **Hostel Management**: Manage hostel properties and room availability
+- **Request Handling**: Respond to tour requests and customer inquiries
+- **Dashboard Analytics**: Track property views and booking requests
+- **Featured Promotions**: Promote properties using Pandora payments (UGX 200K)
+
+### 🏭 Project Developers/Agents
+- **Project Submission**: Submit real estate development projects for approval
+- **Project Details**: Include location, pricing, status, amenities, and photos
+- **Payment Integration**: Pay project advertising fee via Pandora (UGX 400K)
+- **Agent Verification**: Verify status and access analytics
+- **Dashboard**: Track submitted projects and performance metrics
+
+### 🛡️ Admins
+- **Content Review**: Approve/reject property submissions and projects
+- **User Management**: Manage all users and their roles
+- **Admin Panel**: Full system analytics and monitoring
+- **Hostel Management**: Create and manage hostel properties
+- **Verification Control**: Approve/reject agent verification requests
+- **Notifications**: Send system-wide announcements to users
+- **Trash Management**: Archive or permanently delete content
+
+## 🏗️ Project Architecture
 
 ```
 lib/
-├── main.dart                    # App entry point
-├── models/                      # Data models
-│   ├── property.dart           # Property model with type & status
-│   ├── user_model.dart         # User model with roles
-│   ├── tour_request.dart       # Tour scheduling model
-│   ├── contact_request.dart    # Contact inquiry model
-│   └── property_submission.dart # Owner submission model
-├── services/                    # Business logic
-│   ├── auth_service.dart       # Authentication
-│   ├── property_service.dart   # Property CRUD
-│   ├── tour_service.dart       # Tour management
-│   ├── contact_service.dart    # Contact handling
-│   ├── property_submission_service.dart # Submission handling
-│   └── url_launcher_service.dart # External communication
-├── screens/                     # UI screens
-│   ├── auth/                   # Authentication screens
+├── main.dart                              # App entry point (Customer/Agent/Manager)
+├── main_admin.dart                        # Admin panel entry point
+│
+├── models/                                # Data Models (9 files)
+│   ├── user_model.dart                   # User accounts with roles
+│   ├── property_model.dart               # Properties (rentals, condos, hostels)
+│   ├── project_model.dart                # Real estate development projects
+│   ├── reservation_model.dart            # Hostel room reservations
+│   ├── tour_request.dart                 # Property tour appointments
+│   ├── contact_request.dart              # Customer inquiries
+│   ├── property_submission.dart          # Property approval workflow
+│   ├── agent_rating_model.dart           # Agent ratings and reviews
+│   └── ... (additional models)
+│
+├── screens/                               # UI Screens (35+ screens)
+│   │
+│   ├── auth/                             # Authentication (4 screens)
 │   │   ├── welcome_screen.dart
 │   │   ├── login_screen.dart
-│   │   └── register_screen.dart
-│   ├── customer/               # Customer screens
-│   │   └── customer_home_screen.dart
-│   ├── manager/                # Property manager screens
+│   │   ├── register_screen.dart
+│   │   └── admin_login_screen.dart
+│   │
+│   ├── customer/                         # Customer Features (10 screens)
+│   │   ├── customer_home_screen.dart
+│   │   ├── all_projects_screen.dart
+│   │   ├── project_details_screen.dart
+│   │   ├── reserve_room_screen.dart
+│   │   ├── find_agents_screen.dart
+│   │   ├── agent_profile_screen.dart
+│   │   ├── rate_agent_screen.dart
+│   │   ├── become_agent_screen.dart
+│   │   ├── edit_profile_screen.dart
+│   │   └── reservation_confirmation_screen.dart
+│   │
+│   ├── property/                         # Property Management (6 screens)
+│   │   ├── my_properties_screen.dart
+│   │   ├── add_property_screen.dart
+│   │   ├── edit_property_screen.dart
+│   │   ├── agent_property_details_screen.dart
+│   │   ├── property_details_screen.dart
+│   │   └── property_review_screen.dart
+│   │
+│   ├── owner/                            # Agent/Developer Management (5 screens)
+│   │   ├── agent_main_screen.dart
+│   │   ├── agent_verification_screen.dart
+│   │   ├── owner_dashboard_screen.dart
+│   │   ├── verification_benefits_screen.dart
+│   │   └── verification_document_upload_screen.dart
+│   │
+│   ├── common/                           # Shared Features (3 screens)
+│   │   ├── submit_project_screen.dart
+│   │   └── ... (common screens)
+│   │
+│   ├── admin/                            # Admin Panel (18 screens)
+│   │   ├── admin_panel_screen.dart
+│   │   ├── admin_dashboard_screen.dart
+│   │   ├── admin_projects_screen.dart
+│   │   ├── admin_properties_screen.dart
+│   │   ├── admin_reservations_screen.dart
+│   │   ├── admin_users_screen.dart
+│   │   ├── admin_verification_requests_screen.dart
+│   │   ├── admin_verified_agents_screen.dart
+│   │   ├── manage_hostels_screen.dart
+│   │   ├── manage_room_availability_screen.dart
+│   │   ├── send_notification_screen.dart
+│   │   ├── admin_trash_screen.dart
+│   │   ├── property_review_screen.dart
+│   │   └── ... (additional admin screens)
+│   │
+│   ├── plan/                             # Subscription/Plan (2 screens)
+│   │   ├── plan_benefits_screen.dart
+│   │   └── plan_selection_screen.dart
+│   │
+│   ├── manager/                          # Manager Features
 │   │   └── manager_dashboard_screen.dart
-│   └── owner/                  # Property owner screens
-│       └── owner_dashboard_screen.dart
-└── utils/                       # Utilities & constants
-    ├── app_theme.dart          # App theme & colors
-    └── app_constants.dart      # Constants & configurations
+│   │
+│   ├── organization/                     # Organization Management
+│   │   └── ... (org screens)
+│   │
+│   ├── agent/                            # Agent Management
+│   │   └── ... (agent screens)
+│   │
+│   ├── maintenance_screen.dart           # Maintenance mode
+│   └── (35+ total screens)
+│
+├── services/                              # Business Logic (27 services)
+│   │
+│   ├── auth_service.dart                 # Firebase authentication
+│   ├── auth_action_link_service.dart     # Email action links
+│   ├── auth_service_old_backend.dart     # Legacy backend (deprecated)
+│   │
+│   ├── property_service.dart             # Property CRUD & search
+│   ├── property_submission_service.dart  # Property approval workflow
+│   ├── tour_service.dart                 # Tour request management
+│   ├── contact_service.dart              # Contact inquiry handling
+│   ├── room_availability_service.dart    # Hostel room availability
+│   │
+│   ├── pandora_payment_service.dart      # 🔑 Pandora payments API
+│   ├── mtn_momo_service.dart             # ⚠️ Deprecated
+│   ├── airtel_money_service.dart         # ⚠️ Deprecated alternative
+│   │
+│   ├── project_service.dart              # Project CRUD & management
+│   ├── agent_rating_service.dart         # Agent ratings system
+│   │
+│   ├── fcm_service.dart                  # Firebase Cloud Messaging
+│   ├── notification_service.dart         # Local notifications
+│   ├── scheduled_notification_service.dart # Scheduled notifications
+│   │
+│   ├── storage_service.dart              # Firebase Storage handling
+│   ├── email_verification_service.dart   # Account verification
+│   │
+│   ├── preferences_service.dart          # Local preferences
+│   ├── role_service.dart                 # Role-based access control
+│   ├── organization_access_service.dart  # Organization management
+│   ├── organization_invite_service.dart  # Org invitations
+│   ├── post_auth_intent_service.dart     # Auth deep linking
+│   ├── url_launcher_service.dart         # Phone/WhatsApp/Email/Maps
+│   ├── view_tracking_service.dart        # Property view analytics
+│   ├── maintenance_service.dart          # App maintenance mode
+│   │
+│   └── api_service.dart                  # HTTP client wrapper
+│
+├── widgets/                               # Reusable Components
+│   ├── web_footer.dart
+│   └── ... (custom widgets)
+│
+├── config/                                # Configuration
+│   ├── firebase_options.dart             # Firebase initialization
+│   └── ... (config files)
+│
+└── utils/                                 # Utilities
+    ├── app_theme.dart                    # Theme & colors
+    ├── app_constants.dart                # App-wide constants
+    ├── currency_formatter.dart           # Currency utilities
+    └── ... (helper utilities)
+
+backend/                                   # Node.js Backend Server
+├── server.js                             # Express API server
+├── package.json
+└── (PostgreSQL integration)
+
+functions/                                 # Firebase Cloud Functions
+├── index.js                              # Main functions
+├── pandora_payment.js                    # Payment gateway proxy
+├── pandora_payment_status.js             # Payment status checker
+├── set_admin_role.js                     # Admin role management
+└── package.json
+
+android/, ios/, web/, linux/, macos/, windows/  # Platform-specific code
 ```
+
+## 🔧 Active Services Summary
+
+### ✅ Currently Active
+- **Pandora Payments**: Hostel reservations & project advertising payments
+- **Firebase**: Auth, Firestore, Storage, Cloud Functions, FCM
+- **Google Maps**: Location and property mapping
+- **Local Storage**: Preferences, draft auto-save
+- **Email/Notifications**: FCM + Local notifications
+
+### ⚠️ Deprecated (Not Used)
+- **MTN MOMO**: Replaced by Pandora Payments
+- **Airtel Money**: Replaced by Pandora Payments  
+- **IMGBB**: Replaced by Firebase Storage
+- **PostgreSQL Backend**: Partially deprecated, Firebase primary
 
 ## 🚀 Getting Started
 
