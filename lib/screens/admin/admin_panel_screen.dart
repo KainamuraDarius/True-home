@@ -20,6 +20,7 @@ import 'send_notification_screen.dart';
 import 'add_admin_role_screen.dart';
 import 'manage_room_availability_screen.dart';
 import 'maintenance_mode_screen.dart';
+import 'platform_settings_screen.dart';
 import 'scheduled_notifications_screen.dart';
 import 'admin_trash_screen.dart';
 
@@ -163,6 +164,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           id: 'maintenance_mode',
           title: 'Maintenance Mode',
           icon: Icons.build_rounded,
+        ),
+        MenuItem(
+          id: 'platform_settings',
+          title: 'Platform Settings',
+          icon: Icons.tune_rounded,
         ),
       ],
     ),
@@ -811,6 +817,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         return const ScheduledNotificationsScreen(embedded: true);
       case 'maintenance_mode':
         return const MaintenanceModeScreen(embedded: true);
+      case 'platform_settings':
+        return const PlatformSettingsScreen(embedded: true);
       case 'profile':
         return const ProfileScreen(embedded: true);
       default:

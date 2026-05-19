@@ -305,7 +305,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isWideScreen = size.width > 900;
+    final isWideScreen = size.width > 1000;
 
     return Scaffold(
       body: Container(
@@ -314,13 +314,13 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF1a1a2e),
-              const Color(0xFF16213e),
-              const Color(0xFF0f3460),
+              const Color(0xFF0f172a),
+              const Color(0xFF1e3a5f),
+              const Color(0xFF1e3a8a),
             ],
           ),
         ),
-        child: isWideScreen ? _buildWideLayout(size) : _buildNarrowLayout(size),
+        child: isWideScreen ? _buildWideLayout(size) : _buildMobileLayout(size),
       ),
     );
   }
@@ -328,175 +328,211 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   Widget _buildWideLayout(Size size) {
     return Row(
       children: [
-        // Left Panel - Branding
         Expanded(
-          flex: 5,
-          child: _buildBrandingPanel(),
+          flex: 55,
+          child: _buildBrandingPanelWide(),
         ),
-        // Right Panel - Login Form
         Expanded(
-          flex: 4,
-          child: _buildLoginPanel(),
+          flex: 45,
+          child: _buildLoginFormPanel(),
         ),
       ],
     );
   }
 
-  Widget _buildNarrowLayout(Size size) {
+  Widget _buildMobileLayout(Size size) {
     return SingleChildScrollView(
       child: ConstrainedBox(
         constraints: BoxConstraints(minHeight: size.height),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Top Branding (compact)
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
-              child: Column(
-                children: [
-                  _buildAnimatedLogo(size: 80),
-                  const SizedBox(height: 20),
-                  FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: const Text(
-                      'True Home Admin',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 60),
+              child: _buildBrandingPanelMobile(),
             ),
-            // Login Form
-            _buildLoginPanel(isNarrow: true),
+            _buildLoginFormPanel(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBrandingPanel() {
+  Widget _buildBrandingPanelWide() {
     return Container(
-      padding: const EdgeInsets.all(48),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildAnimatedLogo(),
-            const SizedBox(height: 40),
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'True Home',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 2,
+      padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.cyan.shade300,
+                          Colors.blue.shade500,
+                        ],
                       ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    const Text(
-                      'Administration Portal',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w300,
-                        color: Colors.white70,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    Container(
-                      width: 60,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                        colors: [Colors.blue.shade400, Colors.purple.shade400],
-                      ),
-                      borderRadius: BorderRadius.circular(2),
+                    child: const Icon(
+                      Icons.admin_panel_settings_rounded,
+                      size: 44,
+                      color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 48),
+                  const Text(
+                    'True Home',
+                    style: TextStyle(
+                      fontSize: 56,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const Text(
+                    'Administration Portal',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w300,
+                      color: Colors.white70,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  Container(
+                    width: 80,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.cyan.shade300, Colors.blue.shade500],
+                      ),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(height: 48),
                   _buildFeatureItem(
-                    Icons.dashboard_rounded,
-                    'Dashboard Analytics',
-                    'Monitor platform metrics in real-time',
+                    Icons.trending_up_rounded,
+                    'Real-time Analytics',
+                    'Monitor all platform metrics and KPIs',
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 28),
                   _buildFeatureItem(
-                    Icons.people_rounded,
-                    'User Management',
-                    'Manage users, agents and permissions',
+                    Icons.verified_user_rounded,
+                    'User & Agent Management',
+                    'Control access, roles, and permissions',
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 28),
                   _buildFeatureItem(
                     Icons.home_work_rounded,
-                    'Property Control',
-                    'Review and approve property listings',
+                    'Property Oversight',
+                    'Review, approve, and manage listings',
+                  ),
+                  const SizedBox(height: 28),
+                  _buildFeatureItem(
+                    Icons.security_rounded,
+                    'Advanced Settings',
+                    'Configure platform rules and features',
                   ),
                 ],
               ),
             ),
           ),
         ],
-        ),
       ),
     );
   }
 
-  Widget _buildAnimatedLogo({double size = 100}) {
+  Widget _buildBrandingPanelMobile() {
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.blue.shade400,
-              Colors.purple.shade500,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(size * 0.25),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.blue.withOpacity(0.3),
-              blurRadius: 30,
-              offset: const Offset(0, 10),
+      child: Column(
+        children: [
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.cyan.shade300,
+                  Colors.blue.shade500,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withOpacity(0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Icon(
-          Icons.admin_panel_settings_rounded,
-          size: size * 0.55,
-          color: Colors.white,
-        ),
+            child: const Icon(
+              Icons.admin_panel_settings_rounded,
+              size: 38,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'True Home Admin',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Administration Portal',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w300,
+              color: Colors.white70,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildFeatureItem(IconData icon, String title, String subtitle) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          width: 50,
+          height: 50,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(icon, color: Colors.white70, size: 24),
+          child: Icon(icon, color: Colors.cyan.shade200, size: 26),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 20),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,15 +541,17 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                 title,
                 style: const TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
+              const SizedBox(height: 4),
               Text(
                 subtitle,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.white.withOpacity(0.6),
+                  color: Colors.white.withOpacity(0.65),
+                  height: 1.4,
                 ),
               ),
             ],
@@ -523,31 +561,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
     );
   }
 
-  Widget _buildLoginPanel({bool isNarrow = false}) {
+  Widget _buildLoginFormPanel() {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: isNarrow
-            ? const BorderRadius.vertical(top: Radius.circular(32))
-            : null,
-        boxShadow: isNarrow
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, -5),
-                ),
-              ]
-            : null,
-      ),
+      color: Colors.white,
       child: Center(
         child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(
-            horizontal: isNarrow ? 24 : 48,
-            vertical: isNarrow ? 40 : 0,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 48),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
+            constraints: const BoxConstraints(maxWidth: 420),
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: SlideTransition(
@@ -558,35 +579,34 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (!isNarrow) ...[
-                        const Text(
-                          'Welcome Back',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1a1a2e),
-                          ),
+                      const Text(
+                        'Welcome Back',
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0f172a),
+                          letterSpacing: -0.5,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Sign in to access the admin dashboard',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade600,
-                          ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Sign in to access the admin dashboard',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
                         ),
-                        const SizedBox(height: 48),
-                      ],
-                      // Email Field
+                      ),
+                      const SizedBox(height: 48),
                       _buildTextField(
                         controller: _emailController,
                         label: 'Email Address',
                         hint: 'admin@truehome.com',
-                        icon: Icons.email_outlined,
+                        icon: Icons.email_rounded,
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Please enter your email';
+                            return 'Email address is required';
                           }
                           if (!value.contains('@')) {
                             return 'Please enter a valid email';
@@ -594,20 +614,20 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                           return null;
                         },
                       ),
-                      const SizedBox(height: 20),
-                      // Password Field
+                      const SizedBox(height: 24),
                       _buildTextField(
                         controller: _passwordController,
                         label: 'Password',
                         hint: '••••••••',
-                        icon: Icons.lock_outline_rounded,
+                        icon: Icons.lock_rounded,
                         obscureText: _obscurePassword,
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            color: Colors.grey.shade600,
+                                ? Icons.visibility_rounded
+                                : Icons.visibility_off_rounded,
+                            color: Colors.grey.shade500,
+                            size: 22,
                           ),
                           onPressed: () {
                             setState(() => _obscurePassword = !_obscurePassword);
@@ -615,25 +635,23 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Please enter your password';
+                            return 'Password is required';
                           }
                           return null;
                         },
                       ),
-                      const SizedBox(height: 32),
-                      // Login Button
+                      const SizedBox(height: 40),
                       _buildLoginButton(),
                       const SizedBox(height: 32),
-                      // Security Notice
                       _buildSecurityNotice(),
-                      const SizedBox(height: 24),
-                      // Footer
+                      const SizedBox(height: 36),
                       Center(
                         child: Text(
                           '© ${DateTime.now().year} True Home. All rights reserved.',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade500,
+                            color: Colors.grey.shade400,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
@@ -665,45 +683,82 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
           label,
           style: const TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1a1a2e),
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0f172a),
+            letterSpacing: 0.3,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
           obscureText: obscureText,
           validator: validator,
-          style: const TextStyle(fontSize: 16),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF0f172a),
+          ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: Colors.grey.shade400),
-            prefixIcon: Icon(icon, color: Colors.grey.shade600, size: 22),
-            suffixIcon: suffixIcon,
+            hintStyle: TextStyle(
+              color: Colors.grey.shade400,
+              fontWeight: FontWeight.w400,
+            ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 12),
+              child: Icon(icon, color: Colors.grey.shade500, size: 22),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+            suffixIcon: suffixIcon != null
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: suffixIcon,
+                  )
+                : null,
             filled: true,
             fillColor: Colors.grey.shade50,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: Colors.grey.shade200,
+                width: 1.5,
+              ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: Colors.grey.shade200,
+                width: 1.5,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF0f3460), width: 2),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: Color(0xFF1e3a8a),
+                width: 2,
+              ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.red.shade400),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: Colors.red.shade400,
+                width: 1.5,
+              ),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: Colors.red.shade400,
+                width: 2,
+              ),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            errorStyle: TextStyle(
+              fontSize: 13,
+              color: Colors.red.shade600,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
@@ -711,53 +766,44 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   }
 
   Widget _buildLoginButton() {
-    return Container(
+    return SizedBox(
       height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFF0f3460),
-            const Color(0xFF16213e),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0f3460).withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
       child: ElevatedButton(
         onPressed: _isLoading ? null : _login,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
+          backgroundColor: const Color(0xFF1e3a8a),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey.shade300,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
+          elevation: 0,
+          shadowColor: Colors.transparent,
         ),
         child: _isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 24,
                 width: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.white.withOpacity(0.8),
+                  ),
                 ),
               )
-            : const Row(
+            : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.login_rounded, size: 22),
-                  SizedBox(width: 12),
+                  if (!_isLoading) ...[
+                    const Icon(Icons.login_rounded, size: 22),
+                    const SizedBox(width: 12),
+                  ],
                   Text(
-                    'Sign In',
-                    style: TextStyle(
+                    _isLoading ? 'Signing in...' : 'Sign In',
+                    style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ],
@@ -770,43 +816,46 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.shade200),
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.blue.shade200, width: 1.5),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.amber.shade100,
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.blue.shade100,
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              Icons.shield_outlined,
-              color: Colors.amber.shade800,
-              size: 20,
+              Icons.shield_rounded,
+              color: Colors.blue.shade700,
+              size: 22,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Secure Access',
+                  'Secure Access Only',
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.amber.shade900,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.blue.shade900,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
-                  'This portal is restricted to authorized administrators only.',
+                  'This portal is restricted to authorized administrators. All login attempts are logged.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.amber.shade800,
+                    color: Colors.blue.shade700,
+                    height: 1.4,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

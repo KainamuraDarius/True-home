@@ -16,6 +16,7 @@ import '../../services/organization_access_service.dart';
 import '../common/legal_policies_screen.dart';
 import 'choose_plan_screen.dart';
 import '../../services/pandora_payment_service.dart';
+import '../../services/platform_config_service.dart';
 
 class AddPropertyScreen extends StatefulWidget {
   const AddPropertyScreen({super.key});
@@ -37,6 +38,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   final PandoraPaymentService _pandoraService = PandoraPaymentService();
   final OrganizationAccessService _organizationAccessService =
       OrganizationAccessService();
+  final PlatformConfigService _platformConfigService = PlatformConfigService();
   final _titleController = TextEditingController();
   // Custom additions for commercial property flexibility
   String? _customCategory;
@@ -479,7 +481,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       return;
     }
 
-    if ((currentUser.email ?? '').isNotEmpty && !currentUser.emailVerified) {
+    // Check platform config: only block if admin requires verification for this role
+    if (await _shouldBlockForUnverifiedEmail()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -965,7 +968,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
     return paymentSuccess;
   }
 
-  bool _canProceedToPlanStep() {
+  Future<bool> _canProceedToPlanStep() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -977,7 +980,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       return false;
     }
 
-    if ((currentUser.email ?? '').isNotEmpty && !currentUser.emailVerified) {
+    if (await _shouldBlockForUnverifiedEmail()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -1007,9 +1010,33 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   }
 
   Future<void> _handleSubmitFlow() async {
-    if (!_canProceedToPlanStep()) return;
+    if (!await _canProceedToPlanStep()) return;
 
     await _submitProperty();
+  }
+
+  /// Return true when the platform config requires email verification for
+  /// this user's role and the current user has an unverified email.
+  Future<bool> _shouldBlockForUnverifiedEmail() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return false;
+
+    // If user has no email or already verified, do not block
+    if ((currentUser.email ?? '').isEmpty || currentUser.emailVerified) {
+      return false;
+    }
+
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+      final role = userDoc.exists ? (userDoc.data()?['role'] as String?) : null;
+      final cfg = await _platformConfigService.getConfig();
+      if (role == 'customer' && cfg.requireEmailVerificationForCustomers) return true;
+      if (role == 'propertyAgent' && cfg.requireEmailVerificationForAgents) return true;
+    } catch (e) {
+      print('Error checking verification requirement: $e');
+    }
+
+    return false;
   }
 
   @override
