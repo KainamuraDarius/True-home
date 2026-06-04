@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../utils/currency_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/property_model.dart';
@@ -184,177 +185,186 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PropertyDetailsScreen(property: property),
+                  builder: (context) =>
+                      PropertyDetailsScreen(property: property),
                 ),
               );
             },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            // Property Image
-            if (property.imageUrls.isNotEmpty)
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
-                    child: Image.network(
-                      property.imageUrls.first,
-                      height: 240,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.high,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
+                // Property Image
+                if (property.imageUrls.isNotEmpty)
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
+                        child: CachedNetworkImage(
+                          imageUrl: property.imageUrls.first,
                           height: 240,
-                          color: Colors.grey[300],
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 240,
-                          color: Colors.grey[300],
-                          child: const Icon(
-                            Icons.image_not_supported,
-                            size: 64,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withOpacity(0.04),
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.14),
-                          ],
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                          memCacheWidth: 1200,
+                          memCacheHeight: 900,
+                          maxWidthDiskCache: 1200,
+                          maxHeightDiskCache: 900,
+                          fadeInDuration: const Duration(milliseconds: 100),
+                          fadeOutDuration: const Duration(milliseconds: 80),
+                          placeholder: (context, url) {
+                            return Container(
+                              height: 240,
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                          errorWidget: (context, url, error) {
+                            return Container(
+                              height: 240,
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.image_not_supported,
+                                size: 64,
+                              ),
+                            );
+                          },
                         ),
                       ),
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withOpacity(0.04),
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.14),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: property.type == PropertyType.sale
+                                ? Colors.green
+                                : Colors.blue,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            property.type == PropertyType.sale
+                                ? 'FOR SALE'
+                                : 'FOR RENT',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        const Color(0xFF79B8FF).withOpacity(0.18),
+                        const Color(0xFF79B8FF).withOpacity(0.08),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.42, 1.0],
                     ),
                   ),
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: property.type == PropertyType.sale
-                            ? Colors.green
-                            : Colors.blue,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        property.type == PropertyType.sale
-                            ? 'FOR SALE'
-                            : 'FOR RENT',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        property.title,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ),
-                ],
-              ),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    const Color(0xFF79B8FF).withOpacity(0.18),
-                    const Color(0xFF79B8FF).withOpacity(0.08),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.42, 1.0],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    property.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    property.type == PropertyType.hostel &&
-                            !property.showPriceToCustomers
-                        ? 'Price on request'
-                        : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                              ? '/month'
-                              : property.type == PropertyType.hostel
-                              ? '/semester'
-                              : ''}',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        size: 16,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          property.location,
-                          style: const TextStyle(color: Colors.grey),
+                      const SizedBox(height: 8),
+                      Text(
+                        property.type == PropertyType.hostel &&
+                                !property.showPriceToCustomers
+                            ? 'Price on request'
+                            : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
+                                  ? '/month'
+                                  : property.type == PropertyType.hostel
+                                  ? '/semester'
+                                  : ''}',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      if (property.type != PropertyType.commercial &&
-                          property.bedrooms > 0) ...[
-                        _buildFeature(Icons.bed, '${property.bedrooms}'),
-                        const SizedBox(width: 16),
-                      ],
-                      if (property.type != PropertyType.commercial &&
-                          property.bathrooms > 0) ...[
-                        _buildFeature(Icons.bathtub, '${property.bathrooms}'),
-                        const SizedBox(width: 16),
-                      ],
-                      _buildFeature(
-                        Icons.square_foot,
-                        '${property.areaSqft.toInt()} sqft',
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              property.location,
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          if (property.type != PropertyType.commercial &&
+                              property.bedrooms > 0) ...[
+                            _buildFeature(Icons.bed, '${property.bedrooms}'),
+                            const SizedBox(width: 16),
+                          ],
+                          if (property.type != PropertyType.commercial &&
+                              property.bathrooms > 0) ...[
+                            _buildFeature(
+                              Icons.bathtub,
+                              '${property.bathrooms}',
+                            ),
+                            const SizedBox(width: 16),
+                          ],
+                          _buildFeature(
+                            Icons.square_foot,
+                            '${property.areaSqft.toInt()} sqft',
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
         ),
       ),
     );

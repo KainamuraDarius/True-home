@@ -79,7 +79,7 @@ class ContactService {
         '${ApiConfig.updateContactRequestStatus}/$requestId',
         data: {
           if (status != null) 'status': status.name,
-          if (managerResponse != null) 'managerResponse': managerResponse,
+          'managerResponse': ?managerResponse,
         },
       );
       return ContactRequest.fromJson(response['contactRequest']);

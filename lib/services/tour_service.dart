@@ -79,7 +79,7 @@ class TourService {
         '${ApiConfig.updateTourRequestStatus}/$requestId',
         data: {
           'status': status.name,
-          if (managerNotes != null) 'managerNotes': managerNotes,
+          'managerNotes': ?managerNotes,
         },
       );
       return TourRequest.fromJson(response['tourRequest']);

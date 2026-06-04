@@ -21,7 +21,12 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.truehome.app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    val localNdkDir = rootProject.file("../.android-sdk-local/ndk/${flutter.ndkVersion}")
+    if (localNdkDir.exists()) {
+        ndkPath = localNdkDir.absolutePath
+    } else {
+        ndkVersion = flutter.ndkVersion
+    }
 
     compileOptions {
         // Enable core library desugaring for flutter_local_notifications
@@ -65,6 +70,7 @@ android {
             }
         }
     }
+
 }
 
 dependencies {

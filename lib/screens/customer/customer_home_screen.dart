@@ -36,6 +36,9 @@ bool _canShowHostelPriceToCustomers(PropertyModel property) {
   return property.type != PropertyType.hostel || property.showPriceToCustomers;
 }
 
+const int _listingImageCacheWidth = 1200;
+const int _listingImageCacheHeight = 900;
+
 String _customerVisiblePriceText(
   PropertyModel property, {
   bool useRawPrice = false,
@@ -699,6 +702,8 @@ class _HomeTabState extends State<HomeTab> {
   final ProjectService _projectService = ProjectService();
   final RoleService _roleService = RoleService();
   final ViewTrackingService _viewTrackingService = ViewTrackingService();
+  late final Stream<QuerySnapshot<Map<String, dynamic>>>
+  _approvedPropertiesStream;
   int _unreadCount = 0;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _propertiesSectionKey = GlobalKey();
@@ -797,6 +802,7 @@ class _HomeTabState extends State<HomeTab> {
   // New Projects Carousel state
   List<PropertyModel> _newProjects = [];
   bool _loadingNewProjects = false;
+  final Set<String> _prefetchedPropertyThumbnails = <String>{};
   final PageController _newProjectsPageController = PageController(
     viewportFraction: 0.9,
   );
@@ -805,6 +811,13 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
+
+    _approvedPropertiesStream = FirebaseFirestore.instance
+        .collection('properties')
+        .where('status', isEqualTo: 'approved')
+        .where('isActive', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
 
     // Initialize price controllers
     _minPriceController.text = '';
@@ -2118,13 +2131,11 @@ class _HomeTabState extends State<HomeTab> {
                       ],
                       const SizedBox(height: 8),
                       // Properties Grid
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('properties')
-                            .where('status', isEqualTo: 'approved')
-                            .where('isActive', isEqualTo: true)
-                            .orderBy('createdAt', descending: true)
-                            .snapshots(),
+                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        key: const ValueKey<String>(
+                          'home-approved-properties-stream',
+                        ),
+                        stream: _approvedPropertiesStream,
                         builder: (context, snapshot) {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
@@ -2186,7 +2197,7 @@ class _HomeTabState extends State<HomeTab> {
 
                           // Get all properties and apply filters
                           var allProperties = snapshot.data!.docs.map((doc) {
-                            final data = doc.data() as Map<String, dynamic>;
+                            final data = Map<String, dynamic>.from(doc.data());
                             data['id'] = doc.id;
 
                             return PropertyModel.fromJson(data);
@@ -2338,6 +2349,12 @@ class _HomeTabState extends State<HomeTab> {
                               .toList();
                           final hasMore =
                               totalProperties > _displayedPropertiesCount;
+
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              _prefetchPropertyThumbnails(propertiesToDisplay);
+                            }
+                          });
 
                           final screenWidth = MediaQuery.of(context).size.width;
                           final useWebGridLayout = kIsWeb && screenWidth >= 900;
@@ -2895,7 +2912,7 @@ class _HomeTabState extends State<HomeTab> {
   }) {
     final isSmallScreen = MediaQuery.of(context).size.width < 400;
     final fontSize = isSmallScreen ? 13.0 : 15.0;
-    
+
     return Material(
       color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(24),
@@ -2961,12 +2978,6 @@ class _HomeTabState extends State<HomeTab> {
         _showUniversityPicker(context);
       });
     }
-
-    Future.delayed(const Duration(milliseconds: 150), () {
-      if (mounted) {
-        _scrollToProperties();
-      }
-    });
   }
 
   Future<void> _openFindAgentsScreen() async {
@@ -4090,10 +4101,17 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildPropertyImage(PropertyModel property, double? height) {
+    final firstImageUrl = property.imageUrls.isNotEmpty
+        ? property.imageUrls.first
+        : 'no-image';
+
     return Stack(
       fit: height == null ? StackFit.expand : StackFit.loose,
       children: [
         ZoomableImageCarousel(
+          key: ValueKey<String>(
+            'home-property-carousel-${property.id}-$firstImageUrl',
+          ),
           imageUrls: property.imageUrls,
           width: double.infinity,
           height: height,
@@ -4154,6 +4172,30 @@ class _HomeTabState extends State<HomeTab> {
         ),
       ],
     );
+  }
+
+  void _prefetchPropertyThumbnails(List<PropertyModel> properties) {
+    final urls = properties
+        .where((property) => property.imageUrls.isNotEmpty)
+        .map((property) => property.imageUrls.first)
+        .take(kIsWeb ? 8 : 4);
+
+    for (final url in urls) {
+      final cacheKey =
+          '$url:$_listingImageCacheWidth:$_listingImageCacheHeight';
+      if (!_prefetchedPropertyThumbnails.add(cacheKey)) {
+        continue;
+      }
+
+      precacheImage(
+        CachedNetworkImageProvider(
+          url,
+          maxWidth: _listingImageCacheWidth,
+          maxHeight: _listingImageCacheHeight,
+        ),
+        context,
+      ).catchError((_) {});
+    }
   }
 
   Widget _buildPropertyDetails(PropertyModel property) {
@@ -6924,8 +6966,15 @@ class _ZoomableImageCarouselState extends State<ZoomableImageCarousel> {
                   Widget imageWidget = CachedNetworkImage(
                     imageUrl: widget.imageUrls[index],
                     fit: widget.fit,
-                    filterQuality: FilterQuality.high,
-                    fadeInDuration: const Duration(milliseconds: 150),
+                    filterQuality: FilterQuality.medium,
+                    memCacheWidth: _listingImageCacheWidth,
+                    memCacheHeight: _listingImageCacheHeight,
+                    maxWidthDiskCache: _listingImageCacheWidth,
+                    maxHeightDiskCache: _listingImageCacheHeight,
+                    useOldImageOnUrlChange: true,
+                    placeholderFadeInDuration: Duration.zero,
+                    fadeInDuration: const Duration(milliseconds: 100),
+                    fadeOutDuration: const Duration(milliseconds: 80),
                     placeholder: (context, _) => Container(
                       color: Colors.grey.shade200,
                       child: const Center(

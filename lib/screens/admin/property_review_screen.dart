@@ -52,12 +52,12 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
       final updateData = {
         'status': status.name,
         'updatedAt': DateTime.now().toIso8601String(),
-        if (reason != null) 'rejectionReason': reason,
-        if (contactPhone != null) 'contactPhone': contactPhone,
-        if (whatsappPhone != null) 'whatsappPhone': whatsappPhone,
-        if (contactEmail != null) 'contactEmail': contactEmail,
-        if (isNewProject != null) 'isNewProject': isNewProject,
-        if (hasActivePromotion != null) 'hasActivePromotion': hasActivePromotion,
+        'rejectionReason': ?reason,
+        'contactPhone': ?contactPhone,
+        'whatsappPhone': ?whatsappPhone,
+        'contactEmail': ?contactEmail,
+        'isNewProject': ?isNewProject,
+        'hasActivePromotion': ?hasActivePromotion,
         if (promotionEndDate != null) 'promotionEndDate': promotionEndDate.toIso8601String(),
       };
 

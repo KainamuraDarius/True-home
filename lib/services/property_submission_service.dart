@@ -76,7 +76,7 @@ class PropertySubmissionService {
       final response = await _apiService.put(
         '${ApiConfig.approveSubmission}/$submissionId',
         data: {
-          if (adminNotes != null) 'adminNotes': adminNotes,
+          'adminNotes': ?adminNotes,
         },
       );
       return PropertySubmission.fromJson(response['submission']);
@@ -96,7 +96,7 @@ class PropertySubmissionService {
         '${ApiConfig.rejectSubmission}/$submissionId',
         data: {
           'rejectionReason': rejectionReason,
-          if (adminNotes != null) 'adminNotes': adminNotes,
+          'adminNotes': ?adminNotes,
         },
       );
       return PropertySubmission.fromJson(response['submission']);

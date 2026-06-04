@@ -766,6 +766,35 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen>
                     ),
                   ),
                 ],
+                if (project.isApproved && !isExpired && !isExpiringSoon) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.update, color: AppColors.primary, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'This project is still active. Admin can add more advertisement days at any time if the campaign needs a longer run.',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (project.isApproved && isExpired) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -860,15 +889,19 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen>
                       ),
                     ),
                   ),
-                if (project.isApproved && isExpiringSoon) ...[
+                if (project.isApproved && !isExpired) ...[
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () => _extendProject(project),
                       icon: const Icon(Icons.add_alarm, size: 18),
-                      label: const Text('Add More Days'),
+                      label: Text(
+                        isExpiringSoon ? 'Add More Days' : 'Extend Ad Time',
+                      ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepOrange,
+                        backgroundColor: isExpiringSoon
+                            ? Colors.deepOrange
+                            : AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),

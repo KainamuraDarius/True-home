@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/property_model.dart';
@@ -345,7 +346,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       }
 
       final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 100,
+        imageQuality: 92,
+        maxWidth: 2560,
+        maxHeight: 2560,
       );
 
       if (images.isNotEmpty) {
@@ -431,6 +434,34 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
     }
   }
 
+  Uint8List _prepareImageForUpload(Uint8List bytes) {
+    final decodedImage = img.decodeImage(bytes);
+    if (decodedImage == null) {
+      return bytes;
+    }
+
+    final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
+    final maxWidth = isMobileWeb ? 1400 : 1800;
+    final maxHeight = isMobileWeb ? 2000 : 2400;
+    final quality = isMobileWeb ? 84 : 88;
+
+    var processedImage = img.bakeOrientation(decodedImage);
+    if (processedImage.width > maxWidth || processedImage.height > maxHeight) {
+      final scale = math.min(
+        maxWidth / processedImage.width,
+        maxHeight / processedImage.height,
+      );
+      processedImage = img.copyResize(
+        processedImage,
+        width: (processedImage.width * scale).round(),
+        height: (processedImage.height * scale).round(),
+        interpolation: img.Interpolation.cubic,
+      );
+    }
+
+    return Uint8List.fromList(img.encodeJpg(processedImage, quality: quality));
+  }
+
   Future<List<String>> _uploadImages() async {
     final List<String> imageUrls = [];
     final totalImages = _selectedImages.length;
@@ -443,10 +474,15 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
 
       try {
         final image = _selectedImages[i];
-        final bytes = await image.readAsBytes();
-        print('Uploading original image ${i + 1} (${(bytes.length / 1024).toStringAsFixed(1)} KB)');
+        final originalBytes = await image.readAsBytes();
+        final uploadBytes = _prepareImageForUpload(originalBytes);
+        print(
+          'Uploading image ${i + 1}: '
+          '${(originalBytes.length / 1024).toStringAsFixed(1)} KB -> '
+          '${(uploadBytes.length / 1024).toStringAsFixed(1)} KB',
+        );
         final imageUrl = await StorageService.uploadImage(
-          bytes,
+          uploadBytes,
           folder: 'properties',
         );
         if (imageUrl != null) {

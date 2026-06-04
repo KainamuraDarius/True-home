@@ -1065,8 +1065,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
             ? 'paid'
             : 'testing',
         'paymentStatus': usesPaidAdvertising ? 'paid' : 'testing_bypass',
-        if (paymentReference != null)
-          'developerAdvertisingPaymentRef': paymentReference,
+        'developerAdvertisingPaymentRef': ?paymentReference,
         if (usesPaidAdvertising) 'developerAdvertisingPaidAt': Timestamp.now(),
         if (usesTestingBypass)
           'developerAdvertisingTestingBypassAt': Timestamp.now(),
