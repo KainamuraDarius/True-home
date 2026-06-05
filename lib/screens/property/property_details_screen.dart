@@ -37,6 +37,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   late final Future<bool> _agentVerifiedFuture;
   late final Future<String?> _agentProfileImageFuture;
+  late final Future<UserModel?> _propertyOwnerFuture;
 
   @override
   void initState() {
@@ -46,6 +47,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     _trackPropertyView();
     _agentVerifiedFuture = _checkAgentVerificationStatus();
     _agentProfileImageFuture = _getAgentProfileImage();
+    _propertyOwnerFuture = _getPropertyOwner();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _prefetchGalleryImages();
     });
@@ -65,8 +67,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   Future<void> _prefetchImageAtIndex(int index) async {
     if (!mounted || widget.property.imageUrls.isEmpty) return;
 
-    final indexes = {index - 1, index, index + 1}
-        .where((i) => i >= 0 && i < widget.property.imageUrls.length);
+    final indexes = {
+      index - 1,
+      index,
+      index + 1,
+    }.where((i) => i >= 0 && i < widget.property.imageUrls.length);
 
     for (final i in indexes) {
       try {
@@ -188,7 +193,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     if (!_requireAuthentication(
       title: 'Login Required',
       message: 'Create an account or log in to save properties to favorites.',
-    )) return;
+    ))
+      return;
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -221,9 +227,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating favorites: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating favorites: $e')));
       }
     }
   }
@@ -264,7 +270,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     onPressed: () {
                       Navigator.pop(context);
                       if (postAuthIntent != null) {
-                        PostAuthIntentService.instance.setIntent(postAuthIntent);
+                        PostAuthIntentService.instance.setIntent(
+                          postAuthIntent,
+                        );
                       }
                       Navigator.push(
                         this.context,
@@ -281,7 +289,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                     onPressed: () {
                       Navigator.pop(context);
                       if (postAuthIntent != null) {
-                        PostAuthIntentService.instance.setIntent(postAuthIntent);
+                        PostAuthIntentService.instance.setIntent(
+                          postAuthIntent,
+                        );
                       }
                       Navigator.push(
                         this.context,
@@ -352,7 +362,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
         debugPrint('Error checking agent verification status: $e');
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('Error checking agent verification status: $e');
+      if (kDebugMode)
+        debugPrint('Error checking agent verification status: $e');
     }
 
     return false;
@@ -361,8 +372,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
   Future<void> _navigateToAgentProfile() async {
     if (!_requireAuthentication(
       title: 'Login Required',
-      message:
-          'Sign in to view full agent details and rate this agent.',
+      message: 'Sign in to view full agent details and rate this agent.',
     )) {
       return;
     }
@@ -394,9 +404,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       final message = e.code == 'permission-denied'
           ? 'Please sign in to view full agent details.'
           : 'Could not open agent details right now. Please try again.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       if (e.code != 'permission-denied' && kDebugMode) {
         debugPrint('Error navigating to agent profile: $e');
       }
@@ -404,11 +414,61 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not open agent details right now. Please try again.'),
+          content: Text(
+            'Could not open agent details right now. Please try again.',
+          ),
         ),
       );
       if (kDebugMode) debugPrint('Error navigating to agent profile: $e');
     }
+  }
+
+  Future<UserModel?> _getPropertyOwner() async {
+    try {
+      final ownerDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.property.ownerId)
+          .get();
+
+      if (!ownerDoc.exists) return null;
+
+      return UserModel.fromJson({...ownerDoc.data()!, 'id': ownerDoc.id});
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied' && kDebugMode) {
+        debugPrint('Error fetching property owner: $e');
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Error fetching property owner: $e');
+    }
+
+    return null;
+  }
+
+  Future<String> _resolveCallPhoneNumber() async {
+    if (widget.property.type != PropertyType.hostel) {
+      return widget.property.contactPhone.trim();
+    }
+
+    final owner = await _propertyOwnerFuture;
+    final ownerPhone = owner?.phoneNumber.trim() ?? '';
+    if (ownerPhone.isNotEmpty) return ownerPhone;
+
+    return widget.property.contactPhone.trim();
+  }
+
+  Future<String> _resolveWhatsAppPhoneNumber() async {
+    if (widget.property.type != PropertyType.hostel) {
+      return widget.property.whatsappPhone.trim();
+    }
+
+    final owner = await _propertyOwnerFuture;
+    final ownerWhatsApp = owner?.whatsappNumber?.trim() ?? '';
+    if (ownerWhatsApp.isNotEmpty) return ownerWhatsApp;
+
+    final ownerPhone = owner?.phoneNumber.trim() ?? '';
+    if (ownerPhone.isNotEmpty) return ownerPhone;
+
+    return widget.property.whatsappPhone.trim();
   }
 
   @override
@@ -605,7 +665,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.school, color: AppColors.primary, size: 28),
+                          Icon(
+                            Icons.school,
+                            color: AppColors.primary,
+                            size: 28,
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -643,8 +707,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            _getGenderPolicyColor(widget.property.genderPolicy)
-                                .withOpacity(0.1),
+                            _getGenderPolicyColor(
+                              widget.property.genderPolicy,
+                            ).withOpacity(0.1),
                             Colors.white,
                           ],
                         ),
@@ -823,22 +888,25 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                 roomType.name,
                                                 style: textTheme.titleMedium
                                                     ?.copyWith(
-                                                  fontWeight: FontWeight.w700,
-                                                  height: 1.2,
-                                                ),
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      height: 1.2,
+                                                    ),
                                               ),
                                               const SizedBox(height: 6),
                                               Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
-                                                  horizontal: 10,
-                                                  vertical: 6,
-                                                ),
+                                                      horizontal: 10,
+                                                      vertical: 6,
+                                                    ),
                                                 decoration: BoxDecoration(
                                                   color: AppColors.primary
                                                       .withOpacity(0.08),
                                                   borderRadius:
-                                                      BorderRadius.circular(999),
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
                                                   border: Border.all(
                                                     color: AppColors.primary
                                                         .withOpacity(0.12),
@@ -846,14 +914,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                 ),
                                                 child: Text(
                                                   _canShowHostelPriceToCustomers(
-                                                          widget.property)
+                                                        widget.property,
+                                                      )
                                                       ? '${widget.property.currency} ${CurrencyFormatter.format(roomType.price)} / ${roomType.pricingPeriod.name}'
                                                       : 'Price on request',
                                                   style: textTheme.labelMedium
                                                       ?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                    color: AppColors.primary,
-                                                  ),
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color:
+                                                            AppColors.primary,
+                                                      ),
                                                 ),
                                               ),
                                               const SizedBox(height: 8),
@@ -866,21 +937,28 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                   Container(
                                                     padding:
                                                         const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 4,
-                                                    ),
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
                                                     decoration: BoxDecoration(
-                                                      color: roomType
+                                                      color:
+                                                          roomType
                                                               .hasAvailability
                                                           ? Colors.green
-                                                              .withOpacity(0.1)
+                                                                .withOpacity(
+                                                                  0.1,
+                                                                )
                                                           : Colors.red
-                                                              .withOpacity(0.1),
+                                                                .withOpacity(
+                                                                  0.1,
+                                                                ),
                                                       borderRadius:
                                                           BorderRadius.circular(
-                                                              999),
+                                                            999,
+                                                          ),
                                                       border: Border.all(
-                                                        color: roomType
+                                                        color:
+                                                            roomType
                                                                 .hasAvailability
                                                             ? Colors.green
                                                             : Colors.red,
@@ -893,14 +971,18 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                       style: textTheme
                                                           .labelMedium
                                                           ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: roomType
-                                                                .hasAvailability
-                                                            ? Colors
-                                                                .green.shade700
-                                                            : Colors.red.shade700,
-                                                      ),
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color:
+                                                                roomType
+                                                                    .hasAvailability
+                                                                ? Colors
+                                                                      .green
+                                                                      .shade700
+                                                                : Colors
+                                                                      .red
+                                                                      .shade700,
+                                                          ),
                                                     ),
                                                   ),
                                                   if (roomType.totalRooms > 0)
@@ -909,9 +991,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                       style: textTheme
                                                           .labelSmall
                                                           ?.copyWith(
-                                                        color: Colors
-                                                            .grey.shade600,
-                                                      ),
+                                                            color: Colors
+                                                                .grey
+                                                                .shade600,
+                                                          ),
                                                     ),
                                                 ],
                                               ),
@@ -923,10 +1006,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                     // Guests can see the CTA; booking itself requires login.
                                     if (FirebaseAuth.instance.currentUser ==
                                             null ||
-                                        _currentUserRole ==
-                                            UserRole.customer ||
-                                        _currentUserRoles
-                                            .contains(UserRole.customer)) ...[
+                                        _currentUserRole == UserRole.customer ||
+                                        _currentUserRoles.contains(
+                                          UserRole.customer,
+                                        )) ...[
                                       const SizedBox(height: 12),
                                       SizedBox(
                                         width: double.infinity,
@@ -936,16 +1019,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                               title: 'Login To Book',
                                               message:
                                                   'Bookings require an account so we can connect you with the hostel and keep your reservation records.',
-                                            )) return;
+                                            ))
+                                              return;
 
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
                                                     ReserveRoomScreen(
-                                                  property: widget.property,
-                                                  roomType: roomType,
-                                                ),
+                                                      property: widget.property,
+                                                      roomType: roomType,
+                                                    ),
                                               ),
                                             );
                                           },
@@ -953,8 +1037,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                             Icons.book_online,
                                             size: 18,
                                           ),
-                                          label:
-                                              const Text('Request Reservation'),
+                                          label: const Text(
+                                            'Request Reservation',
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -1132,7 +1217,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                     builder: (context, snapshot) {
                                       final imageUrl = snapshot.data?.trim();
                                       final hasImage =
-                                          imageUrl != null && imageUrl.isNotEmpty;
+                                          imageUrl != null &&
+                                          imageUrl.isNotEmpty;
 
                                       return Container(
                                         decoration: BoxDecoration(
@@ -1143,9 +1229,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color:
-                                                  AppColors.primary
-                                                      .withOpacity(0.3),
+                                              color: AppColors.primary
+                                                  .withOpacity(0.3),
                                               blurRadius: 16,
                                               offset: const Offset(0, 4),
                                             ),
@@ -1179,8 +1264,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           bottom: 0,
                                           right: 0,
                                           child: Container(
-                                            padding:
-                                                const EdgeInsets.all(6),
+                                            padding: const EdgeInsets.all(6),
                                             decoration: BoxDecoration(
                                               color: Colors.white,
                                               shape: BoxShape.circle,
@@ -1193,7 +1277,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                   color: Colors.black
                                                       .withOpacity(0.15),
                                                   blurRadius: 8,
-                                                )
+                                                ),
                                               ],
                                             ),
                                             child: Icon(
@@ -1215,8 +1299,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                 children: [
                                   // Agent Name with Role Badge
                                   Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Flexible(
                                         child: Text(
@@ -1225,11 +1308,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                   .isNotEmpty
                                               ? widget.property.agentName
                                               : 'Property Agent',
-                                          style:
-                                              textTheme.titleLarge?.copyWith(
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors.textPrimary,
-                                              ),
+                                          style: textTheme.titleLarge?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.textPrimary,
+                                          ),
                                           textAlign: TextAlign.center,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -1274,8 +1356,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
                                       Icons.info_outlined,
@@ -1286,11 +1367,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                     Expanded(
                                       child: Text(
                                         'View full profile & rating',
-                                        style: textTheme.bodySmall
-                                            ?.copyWith(
-                                              color: AppColors.primary,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                         textAlign: TextAlign.center,
                                       ),
                                     ),
@@ -1310,15 +1390,18 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                   .isNotEmpty) ...[
                                 Container(
                                   width: double.infinity,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   child: InkWell(
-                                    onTap: () =>
-                                        _sendEmail(widget.property.contactEmail),
+                                    onTap: () => _sendEmail(
+                                      widget.property.contactEmail,
+                                    ),
                                     borderRadius: BorderRadius.circular(10),
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 12),
+                                        horizontal: 12,
+                                      ),
                                       child: Row(
                                         children: [
                                           Container(
@@ -1348,20 +1431,21 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                   'Email',
                                                   style: textTheme.bodySmall
                                                       ?.copyWith(
-                                                    color: AppColors
-                                                        .textSecondary,
-                                                    fontSize: 12,
-                                                  ),
+                                                        color: AppColors
+                                                            .textSecondary,
+                                                        fontSize: 12,
+                                                      ),
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Text(
                                                   widget.property.contactEmail,
                                                   style: textTheme.bodyMedium
                                                       ?.copyWith(
-                                                    fontWeight: FontWeight.w600,
-                                                    color:
-                                                        AppColors.textPrimary,
-                                                  ),
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: AppColors
+                                                            .textPrimary,
+                                                      ),
                                                   maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
@@ -1445,8 +1529,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: Colors.orange.shade700,
-                                        borderRadius:
-                                            BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
                                         '${widget.property.currency} ${CurrencyFormatter.format(widget.property.inspectionFee ?? 30000)}',
@@ -1468,8 +1551,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                             decoration: BoxDecoration(
                               color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(8),
-                              border:
-                                  Border.all(color: Colors.orange.shade200),
+                              border: Border.all(color: Colors.orange.shade200),
                             ),
                             child: Row(
                               children: [
@@ -1517,14 +1599,12 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('properties')
-                        .where('ownerId',
-                            isEqualTo: widget.property.ownerId)
+                        .where('ownerId', isEqualTo: widget.property.ownerId)
                         .where('status', isEqualTo: 'approved')
                         .limit(10)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20.0),
@@ -1534,17 +1614,14 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       }
 
                       if (snapshot.hasError) {
-                        return Center(
-                            child: Text('Error: ${snapshot.error}'));
+                        return Center(child: Text('Error: ${snapshot.error}'));
                       }
 
-                      if (!snapshot.hasData ||
-                          snapshot.data!.docs.isEmpty) {
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20.0),
-                            child:
-                                Text('No other properties from this agent'),
+                            child: Text('No other properties from this agent'),
                           ),
                         );
                       }
@@ -1563,8 +1640,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(20.0),
-                            child:
-                                Text('No other properties from this agent'),
+                            child: Text('No other properties from this agent'),
                           ),
                         );
                       }
@@ -1581,8 +1657,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        PropertyDetailsScreen(
+                                    builder: (context) => PropertyDetailsScreen(
                                       property: property,
                                     ),
                                   ),
@@ -1590,59 +1665,53 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                               },
                               child: Container(
                                 width: 250,
-                                margin:
-                                    const EdgeInsets.only(right: 16),
+                                margin: const EdgeInsets.only(right: 16),
                                 decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(12),
                                   color: Colors.white,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black
-                                          .withOpacity(0.1),
+                                      color: Colors.black.withOpacity(0.1),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),
                                   ],
                                 ),
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     ClipRRect(
-                                      borderRadius:
-                                          const BorderRadius.vertical(
+                                      borderRadius: const BorderRadius.vertical(
                                         top: Radius.circular(12),
                                       ),
-                                      child: property
-                                              .imageUrls.isNotEmpty
+                                      child: property.imageUrls.isNotEmpty
                                           ? CachedNetworkImage(
-                                              imageUrl: property
-                                                  .imageUrls.first,
+                                              imageUrl:
+                                                  property.imageUrls.first,
                                               height: 150,
                                               width: double.infinity,
                                               fit: BoxFit.cover,
-                                              filterQuality:
-                                                  FilterQuality.high,
-                                              placeholder: (context,
-                                                      url) =>
+                                              filterQuality: FilterQuality.high,
+                                              placeholder: (context, url) =>
                                                   Container(
-                                                color: Colors.grey[300],
-                                                child: const Center(
-                                                  child:
-                                                      CircularProgressIndicator(),
-                                                ),
-                                              ),
-                                              errorWidget: (context,
-                                                      url, error) =>
-                                                  Container(
-                                                color: Colors.grey[300],
-                                                child: const Icon(
-                                                  Icons
-                                                      .image_not_supported,
-                                                  size: 48,
-                                                ),
-                                              ),
+                                                    color: Colors.grey[300],
+                                                    child: const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                  ),
+                                              errorWidget:
+                                                  (
+                                                    context,
+                                                    url,
+                                                    error,
+                                                  ) => Container(
+                                                    color: Colors.grey[300],
+                                                    child: const Icon(
+                                                      Icons.image_not_supported,
+                                                      size: 48,
+                                                    ),
+                                                  ),
                                             )
                                           : Container(
                                               height: 150,
@@ -1654,8 +1723,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                             ),
                                     ),
                                     Padding(
-                                      padding:
-                                          const EdgeInsets.all(12.0),
+                                      padding: const EdgeInsets.all(12.0),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
@@ -1664,12 +1732,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                             property.title,
                                             style: const TextStyle(
                                               fontSize: 16,
-                                              fontWeight:
-                                                  FontWeight.bold,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                             maxLines: 1,
-                                            overflow:
-                                                TextOverflow.ellipsis,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                           const SizedBox(height: 4),
                                           Row(
@@ -1685,12 +1751,11 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                   property.location,
                                                   style: TextStyle(
                                                     fontSize: 13,
-                                                    color:
-                                                        Colors.grey[600],
+                                                    color: Colors.grey[600],
                                                   ),
                                                   maxLines: 1,
-                                                  overflow: TextOverflow
-                                                      .ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
                                             ],
@@ -1698,65 +1763,52 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                           const SizedBox(height: 8),
                                           Text(
                                             property.type ==
-                                                        PropertyType
-                                                            .hostel &&
+                                                        PropertyType.hostel &&
                                                     !property
                                                         .showPriceToCustomers
                                                 ? 'Price on request'
                                                 : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : ''}',
                                             style: const TextStyle(
                                               fontSize: 16,
-                                              fontWeight:
-                                                  FontWeight.bold,
+                                              fontWeight: FontWeight.bold,
                                               color: AppColors.primary,
                                             ),
                                           ),
                                           const SizedBox(height: 4),
                                           if (property.type !=
-                                                  PropertyType
-                                                      .commercial &&
+                                                  PropertyType.commercial &&
                                               (property.bedrooms > 0 ||
-                                                  property.bathrooms >
-                                                      0))
+                                                  property.bathrooms > 0))
                                             Row(
                                               children: [
-                                                if (property.bedrooms >
-                                                    0) ...[
+                                                if (property.bedrooms > 0) ...[
                                                   Icon(
                                                     Icons.bed,
                                                     size: 14,
-                                                    color:
-                                                        Colors.grey[600],
+                                                    color: Colors.grey[600],
                                                   ),
-                                                  const SizedBox(
-                                                      width: 4),
+                                                  const SizedBox(width: 4),
                                                   Text(
                                                     '${property.bedrooms} beds',
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      color: Colors
-                                                          .grey[600],
+                                                      color: Colors.grey[600],
                                                     ),
                                                   ),
-                                                  const SizedBox(
-                                                      width: 12),
+                                                  const SizedBox(width: 12),
                                                 ],
-                                                if (property.bathrooms >
-                                                    0) ...[
+                                                if (property.bathrooms > 0) ...[
                                                   Icon(
                                                     Icons.bathroom,
                                                     size: 14,
-                                                    color:
-                                                        Colors.grey[600],
+                                                    color: Colors.grey[600],
                                                   ),
-                                                  const SizedBox(
-                                                      width: 4),
+                                                  const SizedBox(width: 4),
                                                   Text(
                                                     '${property.bathrooms} baths',
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      color: Colors
-                                                          .grey[600],
+                                                      color: Colors.grey[600],
                                                     ),
                                                   ),
                                                 ],
@@ -1798,13 +1850,16 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (widget.property.contactPhone.isNotEmpty) {
-                      _makePhoneCall(widget.property.contactPhone);
+                  onPressed: () async {
+                    final phoneNumber = await _resolveCallPhoneNumber();
+                    if (phoneNumber.isNotEmpty) {
+                      await _makePhoneCall(phoneNumber);
                     } else {
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text('No contact phone available')),
+                          content: Text('No contact phone available'),
+                        ),
                       );
                     }
                   },
@@ -1819,14 +1874,16 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (widget.property.whatsappPhone.isNotEmpty) {
-                      _openWhatsApp(widget.property.whatsappPhone);
+                  onPressed: () async {
+                    final phoneNumber = await _resolveWhatsAppPhoneNumber();
+                    if (phoneNumber.isNotEmpty) {
+                      await _openWhatsApp(phoneNumber);
                     } else {
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content:
-                                Text('No WhatsApp contact available')),
+                          content: Text('No WhatsApp contact available'),
+                        ),
                       );
                     }
                   },
@@ -1980,9 +2037,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       return Uri(
         scheme: baseUri.scheme,
         host: baseUri.host,
-        port: baseUri.hasPort &&
-                baseUri.port != 80 &&
-                baseUri.port != 443
+        port: baseUri.hasPort && baseUri.port != 80 && baseUri.port != 443
             ? baseUri.port
             : null,
       );
@@ -1993,7 +2048,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   String _buildPropertyShareUrl() {
     return _publicSiteBaseUri()
-        .replace(pathSegments: ['property', widget.property.id]).toString();
+        .replace(pathSegments: ['property', widget.property.id])
+        .toString();
   }
 
   String _buildPropertyReference() {
@@ -2005,15 +2061,17 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
       return widget.property.id;
     }
 
-    final shortId =
-        normalizedId.length > 10 ? normalizedId.substring(0, 10) : normalizedId;
+    final shortId = normalizedId.length > 10
+        ? normalizedId.substring(0, 10)
+        : normalizedId;
     return 'TH-$shortId';
   }
 
   String _buildWhatsAppMessage() {
     final propertyUrl = _buildPropertyShareUrl();
     final propertyRef = _buildPropertyReference();
-    final priceText = _canShowHostelPriceToCustomers(widget.property) &&
+    final priceText =
+        _canShowHostelPriceToCustomers(widget.property) &&
             widget.property.price > 0
         ? '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}'
         : 'Price on request';
@@ -2021,7 +2079,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     final lines = <String>[
       propertyUrl,
       '',
-      '📍 Property on True Home',
+      'Property on True Home',
       'Title: ${widget.property.title}',
       'Location: ${widget.property.location}',
       'Price: $priceText',
@@ -2041,9 +2099,9 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     if (await canLaunchUrl(whatsappUri)) {
       await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open WhatsApp')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open WhatsApp')));
     }
   }
 
