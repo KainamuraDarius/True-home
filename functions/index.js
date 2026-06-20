@@ -1,31 +1,39 @@
-const cors = require('cors');
-const corsHandler = cors({ origin: true }); // Allow all origins, or specify your domain
-// =============================
-// IMPORTS (ALL AT TOP)
-// =============================
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
-const fetch = require('node-fetch');
-const pandoraPayment = require('./pandora_payment');
-const pandoraPaymentStatus = require('./pandora_payment_status');
+const nylonPayment = require('./nylon_payment');
+const nylonPaymentStatus = require('./nylon_payment_status');
 
 admin.initializeApp();
 
-// Register the payment function
-exports.pandoraPayment = pandoraPayment.pandoraPayment;
-exports.pandoraPaymentStatus = pandoraPaymentStatus.pandoraPaymentStatus;
+// Register the payment functions under new 2nd gen-safe names.
+exports.nylonPayment = nylonPayment.nylonPayment;
+exports.nylonPaymentStatus = nylonPaymentStatus.nylonPaymentStatus;
 
-// Configure email transporter
-// For Gmail: Enable 2FA and create an App Password
-// Or use SendGrid, AWS SES, etc.
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: functions.config().email?.user || process.env.EMAIL_USER,
-    pass: functions.config().email?.password || process.env.EMAIL_PASSWORD
-  }
-});
+function getEmailCredentials() {
+  return {
+    user: process.env.EMAIL_USER || '',
+    password: process.env.EMAIL_PASSWORD || '',
+  };
+}
+
+function getEmailUser(fallback = 'noreply@truehome.com') {
+  return getEmailCredentials().user || fallback;
+}
+
+// Create the transporter lazily so 2nd gen payment functions do not crash
+// while loading this shared module.
+function getTransporter() {
+  const credentials = getEmailCredentials();
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: credentials.user,
+      pass: credentials.password,
+    }
+  });
+}
 
 // Trigger when a verification code document is created
 exports.sendVerificationEmail = functions.firestore
@@ -36,7 +44,7 @@ exports.sendVerificationEmail = functions.firestore
     const email = data.email;
 
     const mailOptions = {
-      from: `True Home <${functions.config().email?.user || 'noreply@truehome.com'}>`,
+      from: `True Home <${getEmailUser()}>`,
       to: email,
       subject: 'Verify Your True Home Account',
       html: `
@@ -123,7 +131,7 @@ exports.sendVerificationEmail = functions.firestore
     };
 
     try {
-      await transporter.sendMail(mailOptions);
+      await getTransporter().sendMail(mailOptions);
       console.log(`✅ Verification email sent to ${email}`);
       return null;
     } catch (error) {
@@ -147,7 +155,7 @@ exports.sendVerificationEmailHttp = functions.https.onCall(async (data, context)
   }
 
   const mailOptions = {
-    from: `True Home <${functions.config().email?.user || 'noreply@truehome.com'}>`,
+    from: `True Home <${getEmailUser()}>`,
     to: email,
     subject: 'Verify Your True Home Account',
     html: `
@@ -207,7 +215,7 @@ exports.sendVerificationEmailHttp = functions.https.onCall(async (data, context)
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await getTransporter().sendMail(mailOptions);
     return { success: true, message: 'Email sent successfully' };
   } catch (error) {
     console.error('Error sending email:', error);
@@ -274,8 +282,8 @@ exports.sendPasswordResetEmail = functions.https.onCall(async (data) => {
     footnote: 'This link expires automatically for your security.',
   });
 
-  await transporter.sendMail({
-    from: `TrueHome Support <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+  await getTransporter().sendMail({
+    from: `TrueHome Support <${getEmailUser('noreply@truehome.com.ug')}>`,
     to: email,
     subject: 'Reset your TrueHome password',
     html,
@@ -306,8 +314,8 @@ exports.sendEmailVerificationLink = functions.https.onCall(async (data) => {
     footnote: 'If you did not create this account, you can ignore this message.',
   });
 
-  await transporter.sendMail({
-    from: `TrueHome Support <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+  await getTransporter().sendMail({
+    from: `TrueHome Support <${getEmailUser('noreply@truehome.com.ug')}>`,
     to: email,
     subject: 'Verify your TrueHome email address',
     html,
@@ -342,14 +350,14 @@ exports.sendEmailChangeNotification = functions.https.onCall(async (data) => {
   });
 
   await Promise.all([
-    transporter.sendMail({
-      from: `TrueHome Security <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+    getTransporter().sendMail({
+      from: `TrueHome Security <${getEmailUser('noreply@truehome.com.ug')}>`,
       to: oldEmail,
       subject: 'Your TrueHome email address has changed',
       html: oldHtml,
     }),
-    transporter.sendMail({
-      from: `TrueHome Support <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+    getTransporter().sendMail({
+      from: `TrueHome Support <${getEmailUser('noreply@truehome.com.ug')}>`,
       to: newEmail,
       subject: 'Confirm your new TrueHome email address',
       html: newHtml,
@@ -389,8 +397,8 @@ exports.sendSecurityNotification = functions.https.onCall(async (data) => {
     actionLink,
   });
 
-  await transporter.sendMail({
-    from: `TrueHome Security <${functions.config().email?.user || 'noreply@truehome.com.ug'}>`,
+  await getTransporter().sendMail({
+    from: `TrueHome Security <${getEmailUser('noreply@truehome.com.ug')}>`,
     to: email,
     subject: title,
     html,
@@ -423,7 +431,7 @@ exports.sendTeamInviteCodeEmail = functions.https.onCall(async (data, context) =
   const roleLabel = roleLabelMap[role] || 'Viewer';
 
   const mailOptions = {
-    from: `True Home <${functions.config().email?.user || 'noreply@truehome.com'}>`,
+    from: `True Home <${getEmailUser()}>`,
     to: email,
     subject: `Your ${organizationName} Team Invite Code`,
     html: `
@@ -465,7 +473,7 @@ exports.sendTeamInviteCodeEmail = functions.https.onCall(async (data, context) =
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await getTransporter().sendMail(mailOptions);
     return { success: true, message: 'Team invite email sent successfully' };
   } catch (error) {
     console.error('Error sending team invite email:', error);
@@ -481,7 +489,7 @@ exports.onReservationCreatedNotifyCustodian = functions.firestore
     const reservationId = context.params.reservationId;
 
     const custodianEmail = reservation.hostelManagerEmail;
-    const fallbackAdminEmail = functions.config().email?.user || process.env.EMAIL_USER;
+    const fallbackAdminEmail = getEmailUser('');
     const recipient = custodianEmail || fallbackAdminEmail;
 
     if (!recipient) {
@@ -490,7 +498,7 @@ exports.onReservationCreatedNotifyCustodian = functions.firestore
     }
 
     const mailOptions = {
-      from: `True Home <${functions.config().email?.user || 'noreply@truehome.com'}>`,
+      from: `True Home <${getEmailUser()}>`,
       to: recipient,
       subject: `New Hostel Booking: ${reservation.propertyTitle || 'Hostel Reservation'}`,
       html: `
@@ -511,7 +519,7 @@ exports.onReservationCreatedNotifyCustodian = functions.firestore
     };
 
     try {
-      await transporter.sendMail(mailOptions);
+      await getTransporter().sendMail(mailOptions);
       console.log(`Custodian booking notification sent for reservation ${reservationId} to ${recipient}`);
 
       await admin.firestore().collection('custodian_notifications_log').add({

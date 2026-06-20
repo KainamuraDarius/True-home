@@ -9,7 +9,7 @@ import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../services/notification_service.dart';
 import '../../services/role_service.dart';
-import '../../services/pandora_payment_service.dart';
+import '../../services/nylon_payment_service.dart';
 import '../../widgets/role_switcher.dart';
 import '../common/profile_screen.dart';
 import '../common/notifications_screen.dart';
@@ -48,7 +48,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 
   final NotificationService _notificationService = NotificationService();
   final RoleService _roleService = RoleService();
-  final PandoraPaymentService _pandoraService = PandoraPaymentService();
+  final NylonPaymentService _nylonService = NylonPaymentService();
   int _unreadCount = 0;
   UserModel? _currentUser;
   int _refreshKey = 0;
@@ -475,7 +475,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                               'Agent Plan: ${plan.toUpperCase()} (${(period == 'annual' || period == 'yearly') ? 'Yearly' : 'Monthly'})';
 
                           try {
-                            final response = await _pandoraService
+                            final response = await _nylonService
                                 .initiatePayment(
                                   phoneNumber: phoneController.text.trim(),
                                   amount: price.toDouble(),

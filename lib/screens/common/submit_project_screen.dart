@@ -12,7 +12,7 @@ import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/project_model.dart';
 import '../../services/project_service.dart';
-import '../../services/pandora_payment_service.dart';
+import '../../services/nylon_payment_service.dart';
 import '../../services/organization_access_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/app_theme.dart';
@@ -29,7 +29,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
   final _formKey = GlobalKey<FormState>();
   final _projectService = ProjectService();
   final _imagePicker = ImagePicker();
-  final _pandoraService = PandoraPaymentService();
+  final _nylonService = NylonPaymentService();
   final _organizationAccessService = OrganizationAccessService();
 
   // Form fields
@@ -686,7 +686,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
       if (!mounted || cancelledByUser) break;
 
       try {
-        final statusResponse = await _pandoraService.checkPaymentStatus(
+        final statusResponse = await _nylonService.checkPaymentStatus(
           transactionRef: transactionRef,
         );
         if (!mounted || cancelledByUser) {
@@ -808,7 +808,7 @@ class _SubmitProjectScreenState extends State<SubmitProjectScreen>
                                 'DEVPROJECT_${DateTime.now().millisecondsSinceEpoch}';
 
                             try {
-                              final response = await _pandoraService
+                              final response = await _nylonService
                                   .initiatePayment(
                                     phoneNumber: phoneController.text.trim(),
                                     amount: _developerProjectAdvertisingPrice,

@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
-import '../../services/pandora_payment_service.dart';
+import '../../services/nylon_payment_service.dart';
 import '../../utils/app_theme.dart';
 import '../organization/enterprise_setup_screen.dart';
 import '../organization/team_management_screen.dart';
@@ -49,11 +50,16 @@ class PlanBenefitsScreen extends StatefulWidget {
 }
 
 class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
+  static const Uuid _uuid = Uuid();
   static const double _annualDiscount = 0.20;
   static const int _agentMonthlyPrice = 150000;
   static const int _enterpriseMonthlyPrice = 250000;
 
-  final PandoraPaymentService _pandoraService = PandoraPaymentService();
+  final NylonPaymentService _nylonService = NylonPaymentService();
+
+  String _buildPaymentReference() {
+    return _uuid.v4().replaceAll('-', '').substring(0, 14);
+  }
 
   static int _annualPriceFromMonthly(int monthlyPrice) {
     return (monthlyPrice * 12 * (1 - _annualDiscount)).round();
@@ -173,6 +179,16 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
     _pendingPlanPaymentPlanId = null;
     _pendingPlanPaymentPeriod = null;
     _pendingPlanPaymentPrice = null;
+  }
+
+  void _showPaymentMessage(
+    String message, {
+    Color backgroundColor = Colors.orange,
+  }) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: backgroundColor),
+    );
   }
 
   String _pendingPaymentDescription() {
@@ -323,6 +339,41 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
     return failureStatuses.contains(status.toLowerCase());
   }
 
+  bool _isMissingPaymentTransactionMessage(String message) {
+    final normalized = message.toLowerCase();
+    return normalized.contains('transaction not found') ||
+        normalized.contains('provider transaction id not found');
+  }
+
+  String _normalizePaymentPhoneForInput(String value) {
+    var digits = value.replaceAll(RegExp(r'\D'), '');
+
+    if (digits.startsWith('256256')) {
+      digits = '256${digits.substring(6)}';
+    }
+
+    if (digits.startsWith('2560')) {
+      digits = '256${digits.substring(4)}';
+    }
+
+    if (digits.startsWith('0')) {
+      digits = '256${digits.substring(1)}';
+    } else if (!digits.startsWith('256') && digits.startsWith('7')) {
+      digits = '256$digits';
+    }
+
+    if (digits.startsWith('256') && digits.length > 12) {
+      digits = digits.substring(0, 12);
+    }
+
+    return digits.isEmpty ? '' : '+$digits';
+  }
+
+  bool _isValidPaymentPhoneNumber(String value) {
+    final normalized = _normalizePaymentPhoneForInput(value);
+    return RegExp(r'^\+2567\d{8}$').hasMatch(normalized);
+  }
+
   Future<bool> _waitForPlanPaymentConfirmation({
     required String transactionRef,
     required _PlanBenefit plan,
@@ -334,6 +385,7 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
 
     bool dialogOpen = true;
     bool cancelledByUser = false;
+    int missingTransactionCount = 0;
     final billingLabel = period == 'annual' ? 'Yearly' : 'Monthly';
 
     showDialog<void>(
@@ -393,7 +445,7 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
       if (!mounted || cancelledByUser) break;
 
       try {
-        final statusResponse = await _pandoraService.checkPaymentStatus(
+        final statusResponse = await _nylonService.checkPaymentStatus(
           transactionRef: transactionRef,
         );
         if (!mounted || cancelledByUser) break;
@@ -409,14 +461,27 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
           closeDialogIfOpen();
           _clearPendingPlanPayment();
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(statusResponse.message),
-                backgroundColor: Colors.red,
-              ),
+            _showPaymentMessage(
+              statusResponse.message,
+              backgroundColor: Colors.red,
             );
           }
           return false;
+        }
+      } on PaymentException catch (e) {
+        debugPrint('Plan payment status check error: ${e.message}');
+        if (_isMissingPaymentTransactionMessage(e.message)) {
+          missingTransactionCount += 1;
+          if (missingTransactionCount >= 4) {
+            closeDialogIfOpen();
+            _clearPendingPlanPayment();
+            _showPaymentMessage(
+              'We could not confirm the payment request with the provider. If no prompt reached your phone, please confirm the number and try again.',
+              backgroundColor: Colors.red,
+            );
+            return false;
+          }
+          continue;
         }
       } catch (e) {
         debugPrint('Plan payment status check error: $e');
@@ -427,20 +492,10 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
     if (!mounted) return false;
 
     if (cancelledByUser) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Payment confirmation cancelled.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showPaymentMessage('Payment confirmation was cancelled.');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Payment confirmation timed out. Please complete payment and try again.',
-          ),
-          backgroundColor: Colors.orange,
-        ),
+      _showPaymentMessage(
+        'We could not confirm the payment in time. Please try again if the prompt did not complete.',
       );
     }
 
@@ -454,13 +509,8 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
   }) async {
     if (_hasPendingPaymentFor(plan: plan, period: period, price: price)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Payment was already initiated. Enter PIN on phone to complete.',
-            ),
-            backgroundColor: Colors.orange,
-          ),
+        _showPaymentMessage(
+          'A payment request is already in progress. Please complete it on your phone.',
         );
       }
       return _waitForPlanPaymentConfirmation(
@@ -474,14 +524,8 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
 
     if (_pendingPlanPaymentRef != null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'A payment request is already pending for '
-              '${_pendingPaymentDescription()}. Complete it first.',
-            ),
-            backgroundColor: Colors.orange,
-          ),
+        _showPaymentMessage(
+          'A payment request is already in progress for ${_pendingPaymentDescription()}. Please complete it first.',
         );
       }
       return false;
@@ -532,14 +576,29 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
                         child: TextFormField(
                           controller: phoneController,
                           keyboardType: TextInputType.phone,
+                          onChanged: (value) {
+                            final normalized = _normalizePaymentPhoneForInput(
+                              value,
+                            );
+                            if (normalized == value) return;
+                            phoneController.value = TextEditingValue(
+                              text: normalized,
+                              selection: TextSelection.collapsed(
+                                offset: normalized.length,
+                              ),
+                            );
+                          },
                           decoration: const InputDecoration(
                             labelText: 'Mobile Money Number',
-                            hintText: 'e.g. 2567XXXXXXXX',
+                            hintText: '+2567XXXXXXXX',
                             border: OutlineInputBorder(),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Enter phone number';
+                            }
+                            if (!_isValidPaymentPhoneNumber(value.trim())) {
+                              return 'Use +2567XXXXXXXX with no spaces';
                             }
                             return null;
                           },
@@ -569,14 +628,22 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
                               setState(() {});
                             }
 
-                            selectedPhoneNumber = phoneController.text.trim();
-                            final transactionRef =
-                                'AGENTPLAN_${DateTime.now().millisecondsSinceEpoch}';
+                            selectedPhoneNumber =
+                                _normalizePaymentPhoneForInput(
+                                  phoneController.text.trim(),
+                                );
+                            phoneController.value = TextEditingValue(
+                              text: selectedPhoneNumber!,
+                              selection: TextSelection.collapsed(
+                                offset: selectedPhoneNumber!.length,
+                              ),
+                            );
+                            final transactionRef = _buildPaymentReference();
                             final narrative =
                                 '${plan.title} (${period == 'annual' ? 'Yearly' : 'Monthly'})';
 
                             try {
-                              final response = await _pandoraService
+                              final response = await _nylonService
                                   .initiatePayment(
                                     phoneNumber: selectedPhoneNumber!,
                                     amount: price.toDouble(),
@@ -604,11 +671,14 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
                               }
                             } catch (e) {
                               if (dialogContext.mounted) {
+                                final message = e is PaymentException
+                                    ? e.message
+                                    : 'We could not start the payment right now. Please try again.';
                                 ScaffoldMessenger.of(
                                   dialogContext,
                                 ).showSnackBar(
                                   SnackBar(
-                                    content: Text('Payment Error: $e'),
+                                    content: Text(message),
                                     backgroundColor: Colors.red,
                                   ),
                                 );
@@ -648,13 +718,9 @@ class _PlanBenefitsScreenState extends State<PlanBenefitsScreen> {
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Payment initiated. Enter your PIN on phone to confirm.',
-          ),
-          backgroundColor: Colors.green,
-        ),
+      _showPaymentMessage(
+        'Payment request sent. Please confirm it on your phone.',
+        backgroundColor: Colors.green,
       );
     }
 

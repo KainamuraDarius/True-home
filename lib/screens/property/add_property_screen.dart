@@ -16,7 +16,7 @@ import '../../services/storage_service.dart';
 import '../../services/organization_access_service.dart';
 import '../common/legal_policies_screen.dart';
 import 'choose_plan_screen.dart';
-import '../../services/pandora_payment_service.dart';
+import '../../services/nylon_payment_service.dart';
 import '../../services/platform_config_service.dart';
 
 class AddPropertyScreen extends StatefulWidget {
@@ -36,7 +36,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   bool _planStepCompleted = false;
   bool _submitAfterPlan = false;
   bool _isPaying = false;
-  final PandoraPaymentService _pandoraService = PandoraPaymentService();
+  final NylonPaymentService _nylonService = NylonPaymentService();
   final OrganizationAccessService _organizationAccessService =
       OrganizationAccessService();
   final PlatformConfigService _platformConfigService = PlatformConfigService();
@@ -934,7 +934,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                               'Agent Plan: ${_selectedPlan!.toUpperCase()} (${_selectedPeriod == 'annual' ? 'Annual' : 'Monthly'})';
 
                           try {
-                            final response = await _pandoraService
+                            final response = await _nylonService
                                 .initiatePayment(
                                   phoneNumber: phoneController.text.trim(),
                                   amount: _selectedPlanPrice!.toDouble(),
@@ -1019,9 +1019,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
     if (await _shouldBlockForUnverifiedEmail()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Please verify your email before continuing.',
-          ),
+          content: Text('Please verify your email before continuing.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -1063,11 +1061,16 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
     }
 
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
       final role = userDoc.exists ? (userDoc.data()?['role'] as String?) : null;
       final cfg = await _platformConfigService.getConfig();
-      if (role == 'customer' && cfg.requireEmailVerificationForCustomers) return true;
-      if (role == 'propertyAgent' && cfg.requireEmailVerificationForAgents) return true;
+      if (role == 'customer' && cfg.requireEmailVerificationForCustomers)
+        return true;
+      if (role == 'propertyAgent' && cfg.requireEmailVerificationForAgents)
+        return true;
     } catch (e) {
       print('Error checking verification requirement: $e');
     }
@@ -1324,7 +1327,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                           DropdownButtonFormField<String>(
                             initialValue: _selectedCategory,
                             decoration: InputDecoration(
-                              labelText: _selectedType == PropertyType.commercial
+                              labelText:
+                                  _selectedType == PropertyType.commercial
                                   ? 'Commercial Category *'
                                   : 'Property Category *',
                               border: const OutlineInputBorder(),
@@ -1334,13 +1338,19 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                               ..._availableCategories.map(
                                 (category) => DropdownMenuItem<String>(
                                   value: category,
-                                  child: Text(category, style: const TextStyle(color: Colors.black)),
+                                  child: Text(
+                                    category,
+                                    style: const TextStyle(color: Colors.black),
+                                  ),
                                 ),
                               ),
                               if (_selectedType == PropertyType.commercial)
                                 const DropdownMenuItem<String>(
                                   value: 'Other',
-                                  child: Text('Other', style: TextStyle(color: Colors.black)),
+                                  child: Text(
+                                    'Other',
+                                    style: TextStyle(color: Colors.black),
+                                  ),
                                 ),
                             ],
                             onChanged: (value) {
@@ -1353,13 +1363,16 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                               if (value == null || value.isEmpty) {
                                 return 'Please select a category';
                               }
-                              if (value == 'Other' && (_customCategory == null || _customCategory!.isEmpty)) {
+                              if (value == 'Other' &&
+                                  (_customCategory == null ||
+                                      _customCategory!.isEmpty)) {
                                 return 'Please enter a custom category';
                               }
                               return null;
                             },
                           ),
-                          if (_selectedType == PropertyType.commercial && _selectedCategory == 'Other')
+                          if (_selectedType == PropertyType.commercial &&
+                              _selectedCategory == 'Other')
                             Padding(
                               padding: const EdgeInsets.only(top: 8.0),
                               child: TextFormField(
@@ -1373,7 +1386,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                                   });
                                 },
                                 validator: (val) {
-                                  if (_selectedCategory == 'Other' && (val == null || val.isEmpty)) {
+                                  if (_selectedCategory == 'Other' &&
+                                      (val == null || val.isEmpty)) {
                                     return 'Please enter a custom category';
                                   }
                                   return null;
@@ -1410,7 +1424,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                                   child: TextFormField(
                                     controller: _priceController,
                                     decoration: InputDecoration(
-                                      labelText: _selectedType == PropertyType.rent
+                                      labelText:
+                                          _selectedType == PropertyType.rent
                                           ? 'Monthly Rent *'
                                           : 'Price *',
                                       border: const OutlineInputBorder(),
@@ -1487,17 +1502,31 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                                   border: OutlineInputBorder(),
                                   isDense: true,
                                 ),
-                                style: const TextStyle(fontSize: 14, color: Colors.black),
-                                items: [
-                                  'per hour',
-                                  'per day',
-                                  'per week',
-                                  'per month',
-                                  'per year',
-                                ].map((unit) => DropdownMenuItem(
-                                      value: unit,
-                                      child: Text(unit, style: const TextStyle(fontSize: 14, color: Colors.black)),
-                                    )).toList(),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black,
+                                ),
+                                items:
+                                    [
+                                          'per hour',
+                                          'per day',
+                                          'per week',
+                                          'per month',
+                                          'per year',
+                                        ]
+                                        .map(
+                                          (unit) => DropdownMenuItem(
+                                            value: unit,
+                                            child: Text(
+                                              unit,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
                                 onChanged: (value) {
                                   setState(() {
                                     _rentalUnit = value!;

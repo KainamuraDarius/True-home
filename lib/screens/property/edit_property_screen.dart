@@ -11,7 +11,7 @@ import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
 import '../../services/storage_service.dart';
 import 'choose_plan_screen.dart';
-import '../../services/pandora_payment_service.dart';
+import '../../services/nylon_payment_service.dart';
 
 class EditPropertyScreen extends StatefulWidget {
   final PropertyModel property;
@@ -24,7 +24,7 @@ class EditPropertyScreen extends StatefulWidget {
 
 class _EditPropertyScreenState extends State<EditPropertyScreen> {
   bool _isPaying = false;
-  final PandoraPaymentService _pandoraService = PandoraPaymentService();
+  final NylonPaymentService _nylonService = NylonPaymentService();
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -489,7 +489,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                               'Agent Plan: ${_selectedPlan!.toUpperCase()} (${_selectedPeriod == 'annual' ? 'Annual' : 'Monthly'})';
 
                           try {
-                            final response = await _pandoraService
+                            final response = await _nylonService
                                 .initiatePayment(
                                   phoneNumber: phoneController.text.trim(),
                                   amount: _selectedPlanPrice!.toDouble(),

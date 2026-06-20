@@ -4,7 +4,7 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/property_model.dart';
-import '../../services/pandora_payment_service.dart';
+import '../../services/nylon_payment_service.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/web_footer.dart';
@@ -22,7 +22,7 @@ class MyPropertiesScreen extends StatefulWidget {
 
 class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
   PropertyStatus? _selectedFilter;
-  final PandoraPaymentService _pandoraService = PandoraPaymentService();
+  final NylonPaymentService _nylonService = NylonPaymentService();
   static const double _featuredPromotionPrice = 200000;
   String? _promotingPropertyId;
   bool _isFeaturedPromotionFlowBusy = false;
@@ -250,345 +250,367 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                 ],
                               ),
                               child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Property Image
-                              if (property.imageUrls.isNotEmpty)
-                                Stack(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(20),
-                                      ),
-                                      child: Image.network(
-                                        property.imageUrls.first,
-                                        height: 240,
-                                        width: double.infinity,
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.high,
-                                        loadingBuilder:
-                                            (context, child, loadingProgress) {
-                                              if (loadingProgress == null) {
-                                                return child;
-                                              }
-                                              return Container(
-                                                height: 240,
-                                                color: Colors.grey[300],
-                                                child: const Center(
-                                                  child:
-                                                      CircularProgressIndicator(),
-                                                ),
-                                              );
-                                            },
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                              return Container(
-                                                height: 240,
-                                                color: Colors.grey[300],
-                                                child: const Icon(
-                                                  Icons.image_not_supported,
-                                                  size: 50,
-                                                ),
-                                              );
-                                            },
-                                      ),
-                                    ),
-                                    Positioned.fill(
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            colors: [
-                                              Colors.black.withOpacity(0.04),
-                                              Colors.transparent,
-                                              Colors.black.withOpacity(0.14),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    // Delete button overlay
-                                    Positioned(
-                                      top: 8,
-                                      right: 8,
-                                      child: IconButton(
-                                        icon: const Icon(Icons.delete),
-                                        color: Colors.white,
-                                        style: IconButton.styleFrom(
-                                          backgroundColor: Colors.red
-                                              .withOpacity(0.8),
-                                        ),
-                                        onPressed: () =>
-                                            _showDeleteConfirmDialog(property),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Status Badge and Active/Inactive Toggle
-                                    Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Property Image
+                                  if (property.imageUrls.isNotEmpty)
+                                    Stack(
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _getStatusColor(
-                                              property.status,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            property.status.name.toUpperCase(),
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                        ClipRRect(
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                top: Radius.circular(20),
+                                              ),
+                                          child: Image.network(
+                                            property.imageUrls.first,
+                                            height: 240,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                            filterQuality: FilterQuality.high,
+                                            loadingBuilder:
+                                                (
+                                                  context,
+                                                  child,
+                                                  loadingProgress,
+                                                ) {
+                                                  if (loadingProgress == null) {
+                                                    return child;
+                                                  }
+                                                  return Container(
+                                                    height: 240,
+                                                    color: Colors.grey[300],
+                                                    child: const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                  );
+                                                },
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                                  return Container(
+                                                    height: 240,
+                                                    color: Colors.grey[300],
+                                                    child: const Icon(
+                                                      Icons.image_not_supported,
+                                                      size: 50,
+                                                    ),
+                                                  );
+                                                },
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        // Sold Out Badge if deactivated
-                                        if (!property.isActive)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
+                                        Positioned.fill(
+                                          child: Container(
                                             decoration: BoxDecoration(
-                                              color: Colors.grey[700],
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: const Text(
-                                              'SOLD OUT',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [
+                                                  Colors.black.withOpacity(
+                                                    0.04,
+                                                  ),
+                                                  Colors.transparent,
+                                                  Colors.black.withOpacity(
+                                                    0.14,
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ),
-                                        const Spacer(),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.primary
-                                                .withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
+                                        ),
+                                        // Delete button overlay
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.delete),
+                                            color: Colors.white,
+                                            style: IconButton.styleFrom(
+                                              backgroundColor: Colors.red
+                                                  .withOpacity(0.8),
                                             ),
-                                          ),
-                                          child: Text(
-                                            property.type == PropertyType.sale
-                                                ? 'For Sale'
-                                                : property.type ==
-                                                      PropertyType.rent
-                                                ? 'For Rent'
-                                                : 'Hostel',
-                                            style: TextStyle(
-                                              color: AppColors.primary,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                            onPressed: () =>
+                                                _showDeleteConfirmDialog(
+                                                  property,
+                                                ),
                                           ),
                                         ),
                                       ],
                                     ),
 
-                                    // Active/Inactive Toggle (only for approved properties)
-                                    if (property.status ==
-                                        PropertyStatus.approved)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 12),
-                                        child: Row(
+                                  Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // Status Badge and Active/Inactive Toggle
+                                        Row(
                                           children: [
-                                            Icon(
-                                              property.isActive
-                                                  ? Icons.check_circle
-                                                  : Icons.cancel,
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 6,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: _getStatusColor(
+                                                  property.status,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                property.status.name
+                                                    .toUpperCase(),
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            // Sold Out Badge if deactivated
+                                            if (!property.isActive)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 6,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[700],
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                                child: const Text(
+                                                  'SOLD OUT',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            const Spacer(),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                property.type ==
+                                                        PropertyType.sale
+                                                    ? 'For Sale'
+                                                    : property.type ==
+                                                          PropertyType.rent
+                                                    ? 'For Rent'
+                                                    : 'Hostel',
+                                                style: TextStyle(
+                                                  color: AppColors.primary,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+
+                                        // Active/Inactive Toggle (only for approved properties)
+                                        if (property.status ==
+                                            PropertyStatus.approved)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 12,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  property.isActive
+                                                      ? Icons.check_circle
+                                                      : Icons.cancel,
+                                                  size: 16,
+                                                  color: property.isActive
+                                                      ? Colors.green
+                                                      : Colors.grey,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  property.isActive
+                                                      ? 'Active'
+                                                      : 'Deactivated',
+                                                  style: TextStyle(
+                                                    color: property.isActive
+                                                        ? Colors.green
+                                                        : Colors.grey,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                Switch(
+                                                  value: property.isActive,
+                                                  onChanged: (value) async {
+                                                    await _togglePropertyStatus(
+                                                      property.id,
+                                                      value,
+                                                    );
+                                                  },
+                                                  activeThumbColor:
+                                                      AppColors.primary,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        const SizedBox(height: 12),
+
+                                        // Title
+                                        Text(
+                                          property.title,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // Location
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.location_on,
                                               size: 16,
-                                              color: property.isActive
-                                                  ? Colors.green
-                                                  : Colors.grey,
+                                              color: Colors.grey,
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              property.isActive
-                                                  ? 'Active'
-                                                  : 'Deactivated',
+                                              property.location,
                                               style: TextStyle(
-                                                color: property.isActive
-                                                    ? Colors.green
-                                                    : Colors.grey,
-                                                fontSize: 12,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // Price
+                                        Text(
+                                          '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
+                                              ? '/month'
+                                              : property.type == PropertyType.hostel
+                                              ? '/semester'
+                                              : ''}',
+                                          style: const TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // Property Details
+                                        Row(
+                                          children: [
+                                            _buildFeature(
+                                              Icons.bed,
+                                              '${property.bedrooms} Beds',
+                                            ),
+                                            const SizedBox(width: 16),
+                                            _buildFeature(
+                                              Icons.bathroom,
+                                              '${property.bathrooms} Baths',
+                                            ),
+                                            const SizedBox(width: 16),
+                                            _buildFeature(
+                                              Icons.square_foot,
+                                              '${property.areaSqft.toInt()} sqft',
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // View Count
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.visibility,
+                                              size: 16,
+                                              color: AppColors.primary,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${property.viewCount} ${property.viewCount == 1 ? 'view' : 'views'}',
+                                              style: TextStyle(
+                                                color: AppColors.primary,
+                                                fontSize: 14,
                                                 fontWeight: FontWeight.w600,
                                               ),
                                             ),
-                                            const Spacer(),
-                                            Switch(
-                                              value: property.isActive,
-                                              onChanged: (value) async {
-                                                await _togglePropertyStatus(
-                                                  property.id,
-                                                  value,
-                                                );
-                                              },
-                                              activeThumbColor:
-                                                  AppColors.primary,
-                                            ),
                                           ],
                                         ),
-                                      ),
-                                    const SizedBox(height: 12),
 
-                                    // Title
-                                    Text(
-                                      property.title,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
+                                        if (property.status ==
+                                            PropertyStatus.approved) ...[
+                                          const SizedBox(height: 12),
+                                          _buildPromotionSection(property),
+                                        ],
 
-                                    // Location
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.location_on,
-                                          size: 16,
-                                          color: Colors.grey,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          property.location,
-                                          style: TextStyle(
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-
-                                    // Price
-                                    Text(
-                                      '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                                          ? '/month'
-                                          : property.type == PropertyType.hostel
-                                          ? '/semester'
-                                          : ''}',
-                                      style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-
-                                    // Property Details
-                                    Row(
-                                      children: [
-                                        _buildFeature(
-                                          Icons.bed,
-                                          '${property.bedrooms} Beds',
-                                        ),
-                                        const SizedBox(width: 16),
-                                        _buildFeature(
-                                          Icons.bathroom,
-                                          '${property.bathrooms} Baths',
-                                        ),
-                                        const SizedBox(width: 16),
-                                        _buildFeature(
-                                          Icons.square_foot,
-                                          '${property.areaSqft.toInt()} sqft',
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-
-                                    // View Count
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.visibility,
-                                          size: 16,
-                                          color: AppColors.primary,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${property.viewCount} ${property.viewCount == 1 ? 'view' : 'views'}',
-                                          style: TextStyle(
-                                            color: AppColors.primary,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-
-                                    if (property.status ==
-                                        PropertyStatus.approved) ...[
-                                      const SizedBox(height: 12),
-                                      _buildPromotionSection(property),
-                                    ],
-
-                                    // Rejection Reason
-                                    if (property.status ==
-                                            PropertyStatus.rejected &&
-                                        property.rejectionReason != null)
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 12),
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.red.withOpacity(0.3),
-                                          ),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'Rejection Reason:',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.red,
+                                        // Rejection Reason
+                                        if (property.status ==
+                                                PropertyStatus.rejected &&
+                                            property.rejectionReason != null)
+                                          Container(
+                                            margin: const EdgeInsets.only(
+                                              top: 12,
+                                            ),
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red.withOpacity(
+                                                0.1,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: Colors.red.withOpacity(
+                                                  0.3,
+                                                ),
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              property.rejectionReason!,
-                                              style: const TextStyle(
-                                                color: Colors.red,
-                                              ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const Text(
+                                                  'Rejection Reason:',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  property.rejectionReason!,
+                                                  style: const TextStyle(
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
+                            ),
                           ),
                         ),
                       ),
@@ -948,7 +970,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
       if (!mounted || cancelledByUser) break;
 
       try {
-        final statusResponse = await _pandoraService.checkPaymentStatus(
+        final statusResponse = await _nylonService.checkPaymentStatus(
           transactionRef: transactionRef,
         );
         if (!mounted || cancelledByUser) break;
@@ -1092,7 +1114,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                           final transactionRef =
                               'FEATUREDPLAN_${DateTime.now().millisecondsSinceEpoch}';
                           try {
-                            final response = await _pandoraService
+                            final response = await _nylonService
                                 .initiatePayment(
                                   phoneNumber: phoneController.text.trim(),
                                   amount: _featuredPromotionPrice,
