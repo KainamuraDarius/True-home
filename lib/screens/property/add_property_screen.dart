@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +19,55 @@ import '../common/legal_policies_screen.dart';
 import 'choose_plan_screen.dart';
 import '../../services/nylon_payment_service.dart';
 import '../../services/platform_config_service.dart';
+
+Uint8List _generatePropertyThumbnailBytes(Uint8List bytes) {
+  final decodedImage = img.decodeImage(bytes);
+  if (decodedImage == null) {
+    return bytes;
+  }
+
+  final thumbnail = decodedImage.width > decodedImage.height
+      ? img.copyResize(
+          decodedImage,
+          width: 150,
+          interpolation: img.Interpolation.cubic,
+        )
+      : img.copyResize(
+          decodedImage,
+          height: 150,
+          interpolation: img.Interpolation.cubic,
+        );
+
+  return Uint8List.fromList(img.encodeJpg(thumbnail, quality: 80));
+}
+
+Uint8List _compressPropertyImageForUpload(Map<String, dynamic> request) {
+  final bytes = request['bytes'] as Uint8List;
+  final maxWidth = request['maxWidth'] as int;
+  final maxHeight = request['maxHeight'] as int;
+  final quality = request['quality'] as int;
+
+  final decodedImage = img.decodeImage(bytes);
+  if (decodedImage == null) {
+    return bytes;
+  }
+
+  var processedImage = img.bakeOrientation(decodedImage);
+  if (processedImage.width > maxWidth || processedImage.height > maxHeight) {
+    final scale = math.min(
+      maxWidth / processedImage.width,
+      maxHeight / processedImage.height,
+    );
+    processedImage = img.copyResize(
+      processedImage,
+      width: (processedImage.width * scale).round(),
+      height: (processedImage.height * scale).round(),
+      interpolation: img.Interpolation.cubic,
+    );
+  }
+
+  return Uint8List.fromList(img.encodeJpg(processedImage, quality: quality));
+}
 
 class AddPropertyScreen extends StatefulWidget {
   const AddPropertyScreen({super.key});
@@ -77,6 +127,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   PropertyType _selectedType = PropertyType.sale;
 
   final List<XFile> _selectedImages = [];
+  final Map<String, Future<Uint8List>> _thumbnailFutures = {};
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
   bool _requestSpotlightPromotion = false;
@@ -366,11 +417,18 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
           }
           final remainingSlots = 20 - _selectedImages.length;
           if (remainingSlots > 0) {
+            final imagesToAdd = images.take(remainingSlots).toList();
+            for (final image in imagesToAdd) {
+              _thumbnailFutures[image.path] = _getThumbnail(image);
+            }
             setState(() {
-              _selectedImages.addAll(images.take(remainingSlots));
+              _selectedImages.addAll(imagesToAdd);
             });
           }
         } else {
+          for (final image in images) {
+            _thumbnailFutures[image.path] = _getThumbnail(image);
+          }
           setState(() {
             _selectedImages.addAll(images);
           });
@@ -400,8 +458,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   }
 
   void _removeImage(int index) {
+    final path = _selectedImages[index].path;
     setState(() {
       _selectedImages.removeAt(index);
+      _thumbnailFutures.remove(path);
     });
     _saveDraft();
   }
@@ -409,57 +469,28 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   Future<Uint8List> _getThumbnail(XFile image) async {
     try {
       final bytes = await image.readAsBytes();
-      img.Image? decodedImage = img.decodeImage(bytes);
-      if (decodedImage == null) {
-        return bytes;
-      }
-      img.Image thumbnail;
-      if (decodedImage.width > decodedImage.height) {
-        thumbnail = img.copyResize(
-          decodedImage,
-          width: 150,
-          interpolation: img.Interpolation.cubic,
-        );
-      } else {
-        thumbnail = img.copyResize(
-          decodedImage,
-          height: 150,
-          interpolation: img.Interpolation.cubic,
-        );
-      }
-      return Uint8List.fromList(img.encodeJpg(thumbnail, quality: 80));
+      return compute(_generatePropertyThumbnailBytes, bytes);
     } catch (e) {
       print('Error generating thumbnail: $e');
       return await image.readAsBytes();
     }
   }
 
-  Uint8List _prepareImageForUpload(Uint8List bytes) {
-    final decodedImage = img.decodeImage(bytes);
-    if (decodedImage == null) {
-      return bytes;
-    }
-
+  Future<Uint8List> _prepareImageForUpload(Uint8List bytes) async {
     final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
     final maxWidth = isMobileWeb ? 1400 : 1800;
     final maxHeight = isMobileWeb ? 2000 : 2400;
     final quality = isMobileWeb ? 84 : 88;
 
-    var processedImage = img.bakeOrientation(decodedImage);
-    if (processedImage.width > maxWidth || processedImage.height > maxHeight) {
-      final scale = math.min(
-        maxWidth / processedImage.width,
-        maxHeight / processedImage.height,
-      );
-      processedImage = img.copyResize(
-        processedImage,
-        width: (processedImage.width * scale).round(),
-        height: (processedImage.height * scale).round(),
-        interpolation: img.Interpolation.cubic,
-      );
-    }
-
-    return Uint8List.fromList(img.encodeJpg(processedImage, quality: quality));
+    return compute(
+      _compressPropertyImageForUpload,
+      <String, dynamic>{
+        'bytes': bytes,
+        'maxWidth': maxWidth,
+        'maxHeight': maxHeight,
+        'quality': quality,
+      },
+    );
   }
 
   Future<List<String>> _uploadImages() async {
@@ -475,7 +506,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       try {
         final image = _selectedImages[i];
         final originalBytes = await image.readAsBytes();
-        final uploadBytes = _prepareImageForUpload(originalBytes);
+        final uploadBytes = await _prepareImageForUpload(originalBytes);
         print(
           'Uploading image ${i + 1}: '
           '${(originalBytes.length / 1024).toStringAsFixed(1)} KB -> '
@@ -688,18 +719,20 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
           .where('role', isEqualTo: 'admin')
           .get();
 
-      for (var admin in admins.docs) {
-        await FirebaseFirestore.instance.collection('notifications').add({
-          'userId': admin.id,
-          'title': 'New Property Submitted',
-          'message':
-              '${userData.name} submitted "$_selectedCategory" for review',
-          'propertyId': propertyRef.id,
-          'type': 'property_submission',
-          'isRead': false,
-          'createdAt': DateTime.now().toIso8601String(),
-        });
-      }
+      await Future.wait(
+        admins.docs.map((admin) {
+          return FirebaseFirestore.instance.collection('notifications').add({
+            'userId': admin.id,
+            'title': 'New Property Submitted',
+            'message':
+                '${userData.name} submitted "$_selectedCategory" for review',
+            'propertyId': propertyRef.id,
+            'type': 'property_submission',
+            'isRead': false,
+            'createdAt': DateTime.now().toIso8601String(),
+          });
+        }),
+      );
 
       setState(() {
         _uploadProgress = 1.0;
@@ -1901,8 +1934,11 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
                                         child: FutureBuilder<Uint8List>(
-                                          future: _getThumbnail(
-                                            _selectedImages[index],
+                                          future: _thumbnailFutures.putIfAbsent(
+                                            _selectedImages[index].path,
+                                            () => _getThumbnail(
+                                              _selectedImages[index],
+                                            ),
                                           ),
                                           builder: (context, snapshot) {
                                             if (snapshot.hasData) {

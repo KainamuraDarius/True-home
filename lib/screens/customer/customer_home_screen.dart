@@ -3639,13 +3639,17 @@ class _HomeTabState extends State<HomeTab> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: property.type == PropertyType.sale
+                            ? Colors.red
+                            : property.type == PropertyType.hostel
+                            ? Colors.orange
+                            : property.type == PropertyType.commercial
+                            ? Colors.purple
+                            : Colors.blue,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        property.type == PropertyType.sale
-                            ? 'FOR SALE'
-                            : 'FOR RENT',
+                        property.typeBadgeLabel,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onError,
                           fontWeight: FontWeight.bold,
@@ -4157,11 +4161,7 @@ class _HomeTabState extends State<HomeTab> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              property.type == PropertyType.hostel
-                  ? 'HOSTEL'
-                  : property.type == PropertyType.rent
-                  ? 'RENT'
-                  : 'SALE',
+              property.typeBadgeLabel,
               style: const TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
@@ -6368,7 +6368,7 @@ class _FavoritesTabState extends State<FavoritesTab> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        property.type == PropertyType.rent ? 'RENT' : 'SALE',
+                        property.typeBadgeLabel,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,

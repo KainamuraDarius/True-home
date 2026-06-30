@@ -142,9 +142,7 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          widget.property.type == PropertyType.sale
-                              ? 'For Sale'
-                              : 'For Rent',
+                          widget.property.typeDisplayLabel,
                           style: TextStyle(
                             color: AppColors.primary,
                             fontSize: 12,
@@ -329,7 +327,7 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
 
                   // Price
                   Text(
-                    '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
+                    '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.priceSuffix}',
                     style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -384,7 +382,11 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                     children: [
                       _buildDetailItem(Icons.bed, '${widget.property.bedrooms}', 'Bedrooms'),
                       _buildDetailItem(Icons.bathroom, '${widget.property.bathrooms}', 'Bathrooms'),
-                      _buildDetailItem(Icons.square_foot, '${widget.property.areaSqft.toInt()}', 'sqft'),
+                      _buildDetailItem(
+                        Icons.square_foot,
+                        widget.property.formattedAreaValue,
+                        widget.property.normalizedAreaUnit,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),

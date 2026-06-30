@@ -406,13 +406,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                                     BorderRadius.circular(8),
                                               ),
                                               child: Text(
-                                                property.type ==
-                                                        PropertyType.sale
-                                                    ? 'For Sale'
-                                                    : property.type ==
-                                                          PropertyType.rent
-                                                    ? 'For Rent'
-                                                    : 'Hostel',
+                                                property.typeDisplayLabel,
                                                 style: TextStyle(
                                                   color: AppColors.primary,
                                                   fontSize: 12,
@@ -503,11 +497,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
 
                                         // Price
                                         Text(
-                                          '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                                              ? '/month'
-                                              : property.type == PropertyType.hostel
-                                              ? '/semester'
-                                              : ''}',
+                                          '${property.currency} ${CurrencyFormatter.format(property.price)}${property.priceSuffix}',
                                           style: const TextStyle(
                                             fontSize: 20,
                                             fontWeight: FontWeight.bold,
@@ -531,7 +521,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                                             const SizedBox(width: 16),
                                             _buildFeature(
                                               Icons.square_foot,
-                                              '${property.areaSqft.toInt()} sqft',
+                                              property.formattedArea,
                                             ),
                                           ],
                                         ),

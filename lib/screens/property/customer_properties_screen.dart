@@ -260,13 +260,15 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                           decoration: BoxDecoration(
                             color: property.type == PropertyType.sale
                                 ? Colors.green
+                                : property.type == PropertyType.hostel
+                                ? Colors.orange
+                                : property.type == PropertyType.commercial
+                                ? Colors.purple
                                 : Colors.blue,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            property.type == PropertyType.sale
-                                ? 'FOR SALE'
-                                : 'FOR RENT',
+                            property.typeBadgeLabel,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -309,11 +311,7 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                         property.type == PropertyType.hostel &&
                                 !property.showPriceToCustomers
                             ? 'Price on request'
-                            : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                                  ? '/month'
-                                  : property.type == PropertyType.hostel
-                                  ? '/semester'
-                                  : ''}',
+                            : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.priceSuffix}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -355,7 +353,7 @@ class _CustomerPropertiesScreenState extends State<CustomerPropertiesScreen> {
                           ],
                           _buildFeature(
                             Icons.square_foot,
-                            '${property.areaSqft.toInt()} sqft',
+                            property.formattedArea,
                           ),
                         ],
                       ),

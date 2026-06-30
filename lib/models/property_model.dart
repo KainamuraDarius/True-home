@@ -451,4 +451,49 @@ class PropertyModel {
       showPriceToCustomers: showPriceToCustomers ?? this.showPriceToCustomers,
     );
   }
+
+  String get typeDisplayLabel {
+    switch (type) {
+      case PropertyType.sale:
+        return 'For Sale';
+      case PropertyType.rent:
+        return 'For Rent';
+      case PropertyType.hostel:
+        return 'Hostel';
+      case PropertyType.commercial:
+        return 'Commercial';
+    }
+  }
+
+  String get typeBadgeLabel => typeDisplayLabel.toUpperCase();
+
+  String get priceSuffix {
+    switch (type) {
+      case PropertyType.rent:
+        return '/month';
+      case PropertyType.hostel:
+        return '/semester';
+      case PropertyType.sale:
+      case PropertyType.commercial:
+        return '';
+    }
+  }
+
+  String get normalizedAreaUnit {
+    final unit = areaUnit.trim().toLowerCase();
+    if (unit == 'sqm' || unit == 'm2' || unit == 'spm') {
+      return 'sqm';
+    }
+    return 'sqft';
+  }
+
+  String get formattedAreaValue {
+    final rounded = areaSqft.roundToDouble();
+    if (areaSqft == rounded) {
+      return areaSqft.toInt().toString();
+    }
+    return areaSqft.toStringAsFixed(1);
+  }
+
+  String get formattedArea => '$formattedAreaValue $normalizedAreaUnit';
 }

@@ -552,13 +552,15 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       decoration: BoxDecoration(
                         color: widget.property.type == PropertyType.sale
                             ? Colors.green
+                            : widget.property.type == PropertyType.hostel
+                            ? Colors.orange
+                            : widget.property.type == PropertyType.commercial
+                            ? Colors.purple
                             : Colors.blue,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        widget.property.type == PropertyType.sale
-                            ? 'FOR SALE'
-                            : 'FOR RENT',
+                        widget.property.typeBadgeLabel,
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -634,7 +636,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                   // Price (hidden for hostels — room pricing shown below)
                   if (widget.property.type != PropertyType.hostel) ...[
                     Text(
-                      '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : ''}',
+                      '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.priceSuffix}',
                       style: textTheme.displaySmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
@@ -1074,8 +1076,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                           ),
                         _buildFeatureCard(
                           Icons.square_foot,
-                          '${widget.property.areaSqft.toInt()}',
-                          'sq ft',
+                          widget.property.formattedAreaValue,
+                          widget.property.normalizedAreaUnit,
                         ),
                       ],
                     ),

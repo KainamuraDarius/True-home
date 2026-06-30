@@ -276,11 +276,15 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                             decoration: BoxDecoration(
                               color: property.type == PropertyType.sale
                                   ? Colors.green
+                                  : property.type == PropertyType.hostel
+                                  ? Colors.orange
+                                  : property.type == PropertyType.commercial
+                                  ? Colors.purple
                                   : Colors.blue,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              property.type == PropertyType.sale ? 'SALE' : 'RENT',
+                              property.typeBadgeLabel,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
@@ -292,7 +296,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
+                        '${property.currency} ${CurrencyFormatter.format(property.price)}${property.priceSuffix}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -319,7 +323,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                           const SizedBox(width: 16),
                           _buildFeature(Icons.bathtub, '${property.bathrooms} Baths'),
                           const SizedBox(width: 16),
-                          _buildFeature(Icons.square_foot, '${property.areaSqft.toInt()} sqft'),
+                          _buildFeature(Icons.square_foot, property.formattedArea),
                         ],
                       ),
                       const SizedBox(height: 8),

@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../utils/snackbar_helper.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +10,38 @@ import '../../models/property_model.dart';
 import '../../models/user_model.dart';
 import '../../utils/universities.dart';
 import '../../services/storage_service.dart';
+
+Uint8List _compressHostelImageForUpload(Map<String, dynamic> request) {
+  final bytes = request['bytes'] as Uint8List;
+  final maxDimension = request['maxDimension'] as int;
+  final quality = request['quality'] as int;
+
+  final decodedImage = img.decodeImage(bytes);
+  if (decodedImage == null) {
+    return bytes;
+  }
+
+  final bakedImage = img.bakeOrientation(decodedImage);
+  final currentMaxDimension = bakedImage.width > bakedImage.height
+      ? bakedImage.width
+      : bakedImage.height;
+
+  final processedImage = currentMaxDimension <= maxDimension
+      ? bakedImage
+      : bakedImage.width >= bakedImage.height
+      ? img.copyResize(
+          bakedImage,
+          width: maxDimension,
+          interpolation: img.Interpolation.cubic,
+        )
+      : img.copyResize(
+          bakedImage,
+          height: maxDimension,
+          interpolation: img.Interpolation.cubic,
+        );
+
+  return Uint8List.fromList(img.encodeJpg(processedImage, quality: quality));
+}
 
 class AddHostelScreen extends StatefulWidget {
   final bool embedded;
@@ -31,11 +63,11 @@ class _AddHostelScreenState extends State<AddHostelScreen>
   final _contactEmailController = TextEditingController();
   final _hostelManagerNameController = TextEditingController();
   final _paymentInstructionsController = TextEditingController();
+  final _roomStructureController = TextEditingController();
 
   String? _selectedUniversity;
   PricingPeriod _pricingPeriod = PricingPeriod.month;
   GenderPolicy _selectedGenderPolicy = GenderPolicy.mixed;
-  String? _selectedRoomStructure;
   final List<XFile> _selectedImages = [];
   final Map<String, Uint8List> _imageBytes = {}; // Cache bytes for web preview
   bool _isLoading = false;
@@ -111,33 +143,6 @@ class _AddHostelScreenState extends State<AddHostelScreen>
   static const int _webJpegQuality = 96;
   static const int _mobileJpegQuality = 94;
 
-  img.Image _resizeImageForUpload(img.Image image) {
-    final maxDimension = kIsWeb
-        ? _webMaxImageDimension
-        : _mobileMaxImageDimension;
-    final currentMaxDimension = image.width > image.height
-        ? image.width
-        : image.height;
-
-    if (currentMaxDimension <= maxDimension) {
-      return image;
-    }
-
-    if (image.width >= image.height) {
-      return img.copyResize(
-        image,
-        width: maxDimension,
-        interpolation: img.Interpolation.cubic,
-      );
-    }
-
-    return img.copyResize(
-      image,
-      height: maxDimension,
-      interpolation: img.Interpolation.cubic,
-    );
-  }
-
   Widget _buildGenderPolicyOption(
     GenderPolicy policy,
     String label,
@@ -211,6 +216,7 @@ class _AddHostelScreenState extends State<AddHostelScreen>
     _contactEmailController.dispose();
     _hostelManagerNameController.dispose();
     _paymentInstructionsController.dispose();
+    _roomStructureController.dispose();
     for (var controller in _roomPriceControllers.values) {
       controller.dispose();
     }
@@ -289,16 +295,16 @@ class _AddHostelScreenState extends State<AddHostelScreen>
         final xfile = _selectedImages[i];
         final bytes = _imageBytes[xfile.path] ?? await xfile.readAsBytes();
 
-        img.Image? image = img.decodeImage(bytes);
-        if (image == null) {
-          print('Failed to decode image ${i + 1}');
-          continue;
-        }
-
-        final processedImage = _resizeImageForUpload(image);
         final jpegQuality = kIsWeb ? _webJpegQuality : _mobileJpegQuality;
-        final compressedBytes = Uint8List.fromList(
-          img.encodeJpg(processedImage, quality: jpegQuality),
+        final compressedBytes = await compute(
+          _compressHostelImageForUpload,
+          <String, dynamic>{
+            'bytes': bytes,
+            'maxDimension': kIsWeb
+                ? _webMaxImageDimension
+                : _mobileMaxImageDimension,
+            'quality': jpegQuality,
+          },
         );
         print(
           'Compressed image size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB',
@@ -440,7 +446,7 @@ class _AddHostelScreenState extends State<AddHostelScreen>
         university: _selectedUniversity,
         roomTypes: roomTypes,
         genderPolicy: _selectedGenderPolicy,
-        roomStructure: _selectedRoomStructure,
+        roomStructure: _roomStructureController.text.trim(),
         paymentInstructions: _paymentInstructionsController.text.trim().isEmpty
             ? null
             : _paymentInstructionsController.text.trim(),
@@ -599,16 +605,13 @@ class _AddHostelScreenState extends State<AddHostelScreen>
 
                 // Room Structure (customizable)
                 TextFormField(
-                  controller: TextEditingController(text: _selectedRoomStructure),
+                  controller: _roomStructureController,
                   decoration: const InputDecoration(
                     labelText: 'Room Structure *',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.meeting_room),
                     hintText: 'e.g., Self Contained, Mixed, Double, etc.',
                   ),
-                  onChanged: (value) {
-                    setState(() => _selectedRoomStructure = value);
-                  },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter room structure';
