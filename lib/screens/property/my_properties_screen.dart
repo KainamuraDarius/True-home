@@ -4,7 +4,7 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/property_model.dart';
-import '../../services/nylon_payment_service.dart';
+import '../../services/livepay_payment_service.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/web_footer.dart';
@@ -22,7 +22,7 @@ class MyPropertiesScreen extends StatefulWidget {
 
 class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
   PropertyStatus? _selectedFilter;
-  final NylonPaymentService _nylonService = NylonPaymentService();
+  final LivePaymentService _livePayService = LivePaymentService();
   static const double _featuredPromotionPrice = 200000;
   String? _promotingPropertyId;
   bool _isFeaturedPromotionFlowBusy = false;
@@ -960,7 +960,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
       if (!mounted || cancelledByUser) break;
 
       try {
-        final statusResponse = await _nylonService.checkPaymentStatus(
+        final statusResponse = await _livePayService.checkPaymentStatus(
           transactionRef: transactionRef,
         );
         if (!mounted || cancelledByUser) break;
@@ -1104,7 +1104,7 @@ class _MyPropertiesScreenState extends State<MyPropertiesScreen> {
                           final transactionRef =
                               'FEATUREDPLAN_${DateTime.now().millisecondsSinceEpoch}';
                           try {
-                            final response = await _nylonService
+                            final response = await _livePayService
                                 .initiatePayment(
                                   phoneNumber: phoneController.text.trim(),
                                   amount: _featuredPromotionPrice,

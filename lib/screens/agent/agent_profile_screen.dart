@@ -59,14 +59,18 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
           .get();
 
       setState(() {
-        agentProperties = propertiesQuery.docs
-            .map((doc) => PropertyModel.fromJson({...doc.data(), 'id': doc.id}))
-            .toList()
-          ..sort((a, b) {
-            final updatedCompare = b.updatedAt.compareTo(a.updatedAt);
-            if (updatedCompare != 0) return updatedCompare;
-            return b.createdAt.compareTo(a.createdAt);
-          });
+        agentProperties =
+            propertiesQuery.docs
+                .map(
+                  (doc) =>
+                      PropertyModel.fromJson({...doc.data(), 'id': doc.id}),
+                )
+                .toList()
+              ..sort((a, b) {
+                final updatedCompare = b.updatedAt.compareTo(a.updatedAt);
+                if (updatedCompare != 0) return updatedCompare;
+                return b.createdAt.compareTo(a.createdAt);
+              });
         isLoading = false;
       });
     } catch (e) {
@@ -87,7 +91,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
     if (!phoneNumber.startsWith('+')) {
       formattedPhone = '+256${phoneNumber.replaceFirst(RegExp(r'^0'), '')}';
     }
-    
+
     final Uri phoneUri = Uri(scheme: 'tel', path: formattedPhone);
     if (await canLaunchUrl(phoneUri)) {
       await launchUrl(phoneUri);
@@ -100,10 +104,10 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
     if (!phoneNumber.startsWith('+')) {
       formattedPhone = '+256${phoneNumber.replaceFirst(RegExp(r'^0'), '')}';
     }
-    
+
     // Remove + and spaces for WhatsApp
     formattedPhone = formattedPhone.replaceAll('+', '').replaceAll(' ', '');
-    
+
     final Uri whatsappUri = Uri.parse('https://wa.me/$formattedPhone');
     if (await canLaunchUrl(whatsappUri)) {
       await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
@@ -141,7 +145,10 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+                        colors: [
+                          AppColors.primary,
+                          AppColors.primary.withOpacity(0.7),
+                        ],
                       ),
                     ),
                     padding: const EdgeInsets.all(24),
@@ -166,10 +173,11 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                             child: () {
                               // Try to get image URL from widget parameter first, then from agentData
                               String? imageUrl = widget.agentProfileImageUrl;
-                              if ((imageUrl == null || imageUrl.isEmpty) && agentData != null) {
+                              if ((imageUrl == null || imageUrl.isEmpty) &&
+                                  agentData != null) {
                                 imageUrl = agentData!['profileImageUrl'];
                               }
-                              
+
                               if (imageUrl != null && imageUrl.isNotEmpty) {
                                 return Image.network(
                                   imageUrl,
@@ -219,7 +227,11 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.business, color: Colors.white, size: 18),
+                              const Icon(
+                                Icons.business,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
@@ -249,7 +261,11 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.verified, color: AppColors.primary, size: 18),
+                                Icon(
+                                  Icons.verified,
+                                  color: AppColors.primary,
+                                  size: 18,
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Verified Agent',
@@ -282,24 +298,28 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          if (agentData!['phoneNumber'] != null && 
+                          if (agentData!['phoneNumber'] != null &&
                               agentData!['phoneNumber'].toString().isNotEmpty)
                             _buildContactCard(
                               icon: Icons.phone,
                               title: 'Phone',
                               value: agentData!['phoneNumber'],
-                              onTap: () => _makePhoneCall(agentData!['phoneNumber']),
+                              onTap: () =>
+                                  _makePhoneCall(agentData!['phoneNumber']),
                             ),
-                          if (agentData!['whatsappNumber'] != null && 
-                              agentData!['whatsappNumber'].toString().isNotEmpty)
+                          if (agentData!['whatsappNumber'] != null &&
+                              agentData!['whatsappNumber']
+                                  .toString()
+                                  .isNotEmpty)
                             _buildContactCard(
                               icon: Icons.chat,
                               title: 'WhatsApp',
                               value: agentData!['whatsappNumber'],
                               color: Colors.green,
-                              onTap: () => _openWhatsApp(agentData!['whatsappNumber']),
+                              onTap: () =>
+                                  _openWhatsApp(agentData!['whatsappNumber']),
                             ),
-                          if (agentData!['email'] != null && 
+                          if (agentData!['email'] != null &&
                               agentData!['email'].toString().isNotEmpty)
                             _buildContactCard(
                               icon: Icons.email,
@@ -307,8 +327,10 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                               value: agentData!['email'],
                               onTap: () => _sendEmail(agentData!['email']),
                             ),
-                          if (agentData!['companyAddress'] != null && 
-                              agentData!['companyAddress'].toString().isNotEmpty) ...[
+                          if (agentData!['companyAddress'] != null &&
+                              agentData!['companyAddress']
+                                  .toString()
+                                  .isNotEmpty) ...[
                             const SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.all(16),
@@ -318,11 +340,15 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.location_on, color: AppColors.primary),
+                                  Icon(
+                                    Icons.location_on,
+                                    color: AppColors.primary,
+                                  ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Office Address',
@@ -451,11 +477,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                   color: (color ?? AppColors.primary).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  color: color ?? AppColors.primary,
-                  size: 24,
-                ),
+                child: Icon(icon, color: color ?? AppColors.primary, size: 24),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -464,10 +486,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -513,7 +532,9 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
             // Property Image
             if (property.imageUrls.isNotEmpty)
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
                 child: Image.network(
                   property.imageUrls.first,
                   height: 240,
@@ -546,7 +567,11 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined, size: 16, color: Colors.grey),
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -566,7 +591,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : property.type == PropertyType.hostel ? '/semester' : ''}',
+                        '${property.currency} ${CurrencyFormatter.format(property.price)}${property.priceSuffix}',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -585,7 +610,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          property.type == PropertyType.rent ? 'For Rent' : 'For Sale',
+                          property.typeDisplayLabel,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,

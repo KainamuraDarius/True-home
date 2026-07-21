@@ -37,7 +37,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
 
   late final Future<bool> _agentVerifiedFuture;
   late final Future<String?> _agentProfileImageFuture;
-  late final Future<UserModel?> _propertyOwnerFuture;
 
   @override
   void initState() {
@@ -47,7 +46,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     _trackPropertyView();
     _agentVerifiedFuture = _checkAgentVerificationStatus();
     _agentProfileImageFuture = _getAgentProfileImage();
-    _propertyOwnerFuture = _getPropertyOwner();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _prefetchGalleryImages();
     });
@@ -423,54 +421,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     }
   }
 
-  Future<UserModel?> _getPropertyOwner() async {
-    try {
-      final ownerDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.property.ownerId)
-          .get();
-
-      if (!ownerDoc.exists) return null;
-
-      return UserModel.fromJson({...ownerDoc.data()!, 'id': ownerDoc.id});
-    } on FirebaseException catch (e) {
-      if (e.code != 'permission-denied' && kDebugMode) {
-        debugPrint('Error fetching property owner: $e');
-      }
-    } catch (e) {
-      if (kDebugMode) debugPrint('Error fetching property owner: $e');
-    }
-
-    return null;
-  }
-
-  Future<String> _resolveCallPhoneNumber() async {
-    if (widget.property.type != PropertyType.hostel) {
-      return widget.property.contactPhone.trim();
-    }
-
-    final owner = await _propertyOwnerFuture;
-    final ownerPhone = owner?.phoneNumber.trim() ?? '';
-    if (ownerPhone.isNotEmpty) return ownerPhone;
-
-    return widget.property.contactPhone.trim();
-  }
-
-  Future<String> _resolveWhatsAppPhoneNumber() async {
-    if (widget.property.type != PropertyType.hostel) {
-      return widget.property.whatsappPhone.trim();
-    }
-
-    final owner = await _propertyOwnerFuture;
-    final ownerWhatsApp = owner?.whatsappNumber?.trim() ?? '';
-    if (ownerWhatsApp.isNotEmpty) return ownerWhatsApp;
-
-    final ownerPhone = owner?.phoneNumber.trim() ?? '';
-    if (ownerPhone.isNotEmpty) return ownerPhone;
-
-    return widget.property.whatsappPhone.trim();
-  }
-
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -552,15 +502,13 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                       decoration: BoxDecoration(
                         color: widget.property.type == PropertyType.sale
                             ? Colors.green
-                            : widget.property.type == PropertyType.hostel
-                            ? Colors.orange
-                            : widget.property.type == PropertyType.commercial
-                            ? Colors.purple
                             : Colors.blue,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        widget.property.typeBadgeLabel,
+                        widget.property.type == PropertyType.sale
+                            ? 'FOR SALE'
+                            : 'FOR RENT',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -1076,8 +1024,8 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                           ),
                         _buildFeatureCard(
                           Icons.square_foot,
-                          widget.property.formattedAreaValue,
-                          widget.property.normalizedAreaUnit,
+                          '${widget.property.areaSqft.toInt()}',
+                          widget.property.areaUnitLabel,
                         ),
                       ],
                     ),
@@ -1769,7 +1717,7 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
                                                     !property
                                                         .showPriceToCustomers
                                                 ? 'Price on request'
-                                                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent ? '/month' : ''}',
+                                                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.priceSuffix}',
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
@@ -1852,12 +1800,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final phoneNumber = await _resolveCallPhoneNumber();
-                    if (phoneNumber.isNotEmpty) {
-                      await _makePhoneCall(phoneNumber);
+                  onPressed: () {
+                    if (widget.property.contactPhone.isNotEmpty) {
+                      _makePhoneCall(widget.property.contactPhone);
                     } else {
-                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('No contact phone available'),
@@ -1876,12 +1822,10 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final phoneNumber = await _resolveWhatsAppPhoneNumber();
-                    if (phoneNumber.isNotEmpty) {
-                      await _openWhatsApp(phoneNumber);
+                  onPressed: () {
+                    if (widget.property.whatsappPhone.isNotEmpty) {
+                      _openWhatsApp(widget.property.whatsappPhone);
                     } else {
-                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('No WhatsApp contact available'),
@@ -1927,55 +1871,6 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
           ),
           Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
         ],
-      ),
-    );
-  }
-
-  Widget _buildContactRow({
-    required IconData icon,
-    required String label,
-    required String value,
-    required VoidCallback onTap,
-  }) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.primary.withOpacity(0.12)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.primary, size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: AppColors.primary),
-          ],
-        ),
       ),
     );
   }
@@ -2075,13 +1970,13 @@ class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
     final priceText =
         _canShowHostelPriceToCustomers(widget.property) &&
             widget.property.price > 0
-        ? '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}'
+        ? '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.priceSuffix}'
         : 'Price on request';
 
     final lines = <String>[
       propertyUrl,
       '',
-      'Property on True Home',
+      '📍 Property on True Home',
       'Title: ${widget.property.title}',
       'Location: ${widget.property.location}',
       'Price: $priceText',

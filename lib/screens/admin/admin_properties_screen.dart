@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../../models/property_model.dart';
 import '../../utils/app_theme.dart';
 import 'property_review_screen.dart';
@@ -46,7 +47,11 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Icon(Icons.rate_review, color: AppColors.primary, size: 28),
+                const Icon(
+                  Icons.rate_review,
+                  color: AppColors.primary,
+                  size: 28,
+                ),
                 const SizedBox(width: 12),
                 const Text(
                   'Property Reviews',
@@ -55,7 +60,10 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                 if (_pendingCount > 0) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red,
                       borderRadius: BorderRadius.circular(12),
@@ -108,7 +116,11 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final properties = snapshot.data!.docs;
+              final properties = snapshot.data!.docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return PropertyModel.fromJson({...data, 'id': doc.id});
+              }).toList()
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
               if (properties.isEmpty) {
                 return Center(
@@ -123,10 +135,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                       const SizedBox(height: 16),
                       Text(
                         'No ${_selectedFilter.name} properties',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -137,12 +146,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                 padding: const EdgeInsets.all(16),
                 itemCount: properties.length,
                 itemBuilder: (context, index) {
-                  final data = properties[index].data() as Map<String, dynamic>;
-                  final property = PropertyModel.fromJson({
-                    ...data,
-                    'id': properties[index].id,
-                  });
-                  return _buildPropertyCard(property);
+                  return _buildPropertyCard(properties[index]);
                 },
               );
             },
@@ -207,6 +211,10 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
   }
 
   Widget _buildPropertyCard(PropertyModel property) {
+    final submittedAt = DateFormat(
+      'MMM d, yyyy • h:mm a',
+    ).format(property.createdAt);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -217,7 +225,8 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PropertyReviewScreen(property: property),
+                  builder: (context) =>
+                      PropertyReviewScreen(property: property),
                 ),
               );
             },
@@ -227,7 +236,9 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                 // Property Image
                 if (property.imageUrls.isNotEmpty)
                   ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(4),
+                    ),
                     child: Image.network(
                       property.imageUrls.first,
                       height: 240,
@@ -239,14 +250,19 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                         return Container(
                           height: 240,
                           color: Colors.grey[300],
-                          child: const Center(child: CircularProgressIndicator()),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
                         );
                       },
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           height: 240,
                           color: Colors.grey[300],
-                          child: const Icon(Icons.image_not_supported, size: 64),
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            size: 64,
+                          ),
                         );
                       },
                     ),
@@ -274,13 +290,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: property.type == PropertyType.sale
-                                  ? Colors.green
-                                  : property.type == PropertyType.hostel
-                                  ? Colors.orange
-                                  : property.type == PropertyType.commercial
-                                  ? Colors.purple
-                                  : Colors.blue,
+                              color: _propertyTypeColor(property.type),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -306,7 +316,11 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                          const Icon(
+                            Icons.location_on,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
@@ -321,16 +335,45 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                         children: [
                           _buildFeature(Icons.bed, '${property.bedrooms} Beds'),
                           const SizedBox(width: 16),
-                          _buildFeature(Icons.bathtub, '${property.bathrooms} Baths'),
+                          _buildFeature(
+                            Icons.bathtub,
+                            '${property.bathrooms} Baths',
+                          ),
                           const SizedBox(width: 16),
-                          _buildFeature(Icons.square_foot, property.formattedArea),
+                          _buildFeature(
+                            Icons.square_foot,
+                            property.formattedArea,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
                       const Divider(),
                       Row(
                         children: [
-                          const Icon(Icons.person, size: 16, color: Colors.grey),
+                          const Icon(
+                            Icons.schedule,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Submitted: $submittedAt',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.person,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             'Submitted by: ${property.ownerName}',
@@ -346,10 +389,16 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [Colors.amber.shade600, Colors.orange.shade600],
+                                colors: [
+                                  Colors.amber.shade600,
+                                  Colors.orange.shade600,
+                                ],
                               ),
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
@@ -398,7 +447,10 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                       // Promotion status badges
                       if (property.isNewProject)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.orange,
                             borderRadius: BorderRadius.circular(12),
@@ -410,7 +462,11 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                               SizedBox(width: 4),
                               Text(
                                 'New Project',
-                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
@@ -419,7 +475,10 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                         Padding(
                           padding: const EdgeInsets.only(left: 8),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.primary,
                               borderRadius: BorderRadius.circular(12),
@@ -427,11 +486,19 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.local_fire_department, size: 14, color: Colors.white),
+                                Icon(
+                                  Icons.local_fire_department,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                                 SizedBox(width: 4),
                                 Text(
                                   'Promoted',
-                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
@@ -446,20 +513,27 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       // Remove button
                       IconButton(
                         onPressed: () => _showDeleteDialog(property),
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                        ),
                         tooltip: 'Remove Property',
                       ),
                     ],
                   ),
                   // Manage Rooms button for hostels only
-                  if (property.type == PropertyType.hostel && property.roomTypes.isNotEmpty) ...[
+                  if (property.type == PropertyType.hostel &&
+                      property.roomTypes.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
@@ -468,9 +542,10 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ManageRoomAvailabilityScreen(
-                                property: property,
-                              ),
+                              builder: (context) =>
+                                  ManageRoomAvailabilityScreen(
+                                    property: property,
+                                  ),
                             ),
                           );
                         },
@@ -479,7 +554,10 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                         ),
                       ),
                     ),
@@ -499,10 +577,11 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
           .collection('properties')
           .doc(property.id)
           .update({
-        'previousStatus': property.status.name, // Save current status for restore
-        'status': PropertyStatus.removed.name,
-        'updatedAt': DateTime.now().toIso8601String(),
-      });
+            'previousStatus':
+                property.status.name, // Save current status for restore
+            'status': PropertyStatus.removed.name,
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
 
       // Send notification to property owner
       await _sendDeletionNotification(property);
@@ -532,24 +611,27 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
       final notification = {
         'userId': property.ownerId,
         'title': 'Property Removed',
-        'message': 'Your property "${property.title}" has been removed from the listings by admin.',
+        'message':
+            'Your property "${property.title}" has been removed from the listings by admin.',
         'propertyId': property.id,
         'type': 'property_removed',
         'isRead': false,
         'createdAt': DateTime.now().toIso8601String(),
       };
 
-      await FirebaseFirestore.instance.collection('notifications').add(notification);
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .add(notification);
     } catch (e) {
       print('Error sending notification: $e');
     }
   }
-  
+
   void _showPromotionDialog(PropertyModel property) {
     bool markAsNewProject = property.isNewProject;
     bool enablePromotion = property.hasActivePromotion;
     DateTime? promotionEndDate = property.promotionEndDate;
-    
+
     showDialog(
       context: context,
       builder: (context) {
@@ -564,12 +646,17 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                   children: [
                     Text(
                       property.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     CheckboxListTile(
                       title: const Text('Mark as New Project'),
-                      subtitle: const Text('Show in "New Projects from Developers" carousel'),
+                      subtitle: const Text(
+                        'Show in "New Projects from Developers" carousel',
+                      ),
                       value: markAsNewProject,
                       contentPadding: EdgeInsets.zero,
                       onChanged: (value) {
@@ -585,7 +672,9 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                     if (markAsNewProject) ...[
                       CheckboxListTile(
                         title: const Text('Enable Promotion'),
-                        subtitle: const Text('Feature this project in the carousel'),
+                        subtitle: const Text(
+                          'Feature this project in the carousel',
+                        ),
                         value: enablePromotion,
                         contentPadding: EdgeInsets.zero,
                         onChanged: (value) {
@@ -621,13 +710,22 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
                                   },
                                 ),
                               IconButton(
-                                icon: const Icon(Icons.calendar_today, size: 20),
+                                icon: const Icon(
+                                  Icons.calendar_today,
+                                  size: 20,
+                                ),
                                 onPressed: () async {
                                   final date = await showDatePicker(
                                     context: context,
-                                    initialDate: promotionEndDate ?? DateTime.now().add(const Duration(days: 30)),
+                                    initialDate:
+                                        promotionEndDate ??
+                                        DateTime.now().add(
+                                          const Duration(days: 30),
+                                        ),
                                     firstDate: DateTime.now(),
-                                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                                    lastDate: DateTime.now().add(
+                                      const Duration(days: 365),
+                                    ),
                                   );
                                   if (date != null) {
                                     setState(() {
@@ -671,7 +769,7 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
       },
     );
   }
-  
+
   Future<void> _updatePromotionStatus(
     PropertyModel property,
     bool isNewProject,
@@ -683,11 +781,11 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
           .collection('properties')
           .doc(property.id)
           .update({
-        'isNewProject': isNewProject,
-        'hasActivePromotion': hasActivePromotion,
-        'promotionEndDate': promotionEndDate?.toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-      });
+            'isNewProject': isNewProject,
+            'hasActivePromotion': hasActivePromotion,
+            'promotionEndDate': promotionEndDate?.toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -767,11 +865,21 @@ class _AdminPropertiesScreenState extends State<AdminPropertiesScreen> {
       children: [
         Icon(icon, size: 16, color: Colors.grey[600]),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
+  }
+
+  Color _propertyTypeColor(PropertyType type) {
+    switch (type) {
+      case PropertyType.sale:
+        return Colors.green;
+      case PropertyType.rent:
+        return Colors.blue;
+      case PropertyType.commercial:
+        return Colors.deepPurple;
+      case PropertyType.hostel:
+        return Colors.orange;
+    }
   }
 }

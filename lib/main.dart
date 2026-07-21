@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'firebase_options.dart';
 import 'utils/app_theme.dart';
 import 'screens/auth/welcome_screen.dart';
@@ -29,6 +31,27 @@ void main() async {
 
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  if (!kIsWeb) {
+    try {
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: kDebugMode
+            ? AndroidProvider.debug
+            : AndroidProvider.playIntegrity,
+        appleProvider: kDebugMode
+            ? AppleProvider.debug
+            : AppleProvider.appAttestWithDeviceCheckFallback,
+      );
+      await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
+    } catch (e) {
+      print('Firebase App Check initialization error: $e');
+    }
+  }
+
+  FirebaseStorage.instance.setMaxOperationRetryTime(
+    const Duration(seconds: 12),
+  );
+  FirebaseStorage.instance.setMaxUploadRetryTime(const Duration(seconds: 20));
 
   // Initialize local notifications (non-blocking)
   NotificationService.initialize().catchError((e) {
@@ -458,4 +481,3 @@ class _InitialPropertyLinkHandlerState
     return widget.child;
   }
 }
-

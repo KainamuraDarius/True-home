@@ -11,7 +11,8 @@ class AdminTrashScreen extends StatefulWidget {
   State<AdminTrashScreen> createState() => _AdminTrashScreenState();
 }
 
-class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerProviderStateMixin {
+class _AdminTrashScreenState extends State<AdminTrashScreen>
+    with SingleTickerProviderStateMixin {
   bool _isLoading = false;
   late TabController _tabController;
 
@@ -123,7 +124,8 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
                         height: 100,
                         fit: BoxFit.cover,
                         filterQuality: FilterQuality.high,
-                        errorBuilder: (_, __, ___) => _buildPlaceholder(Icons.broken_image),
+                        errorBuilder: (_, __, ___) =>
+                            _buildPlaceholder(Icons.broken_image),
                       )
                     : _buildPlaceholder(Icons.home),
               ),
@@ -133,13 +135,42 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(property.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(
+                        property.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       const SizedBox(height: 4),
-                      Text(property.location, style: TextStyle(color: Colors.grey[600], fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(
+                        property.location,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       const SizedBox(height: 4),
-                      Text(CurrencyFormatter.formatWithCurrency(property.price, currency: property.currency), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                      Text(
+                        CurrencyFormatter.formatWithCurrency(
+                          property.price,
+                          currency: property.currency,
+                        ),
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(_formatDeletedTime(daysSinceDeleted), style: TextStyle(color: Colors.grey[500], fontSize: 12, fontStyle: FontStyle.italic)),
+                      Text(
+                        _formatDeletedTime(daysSinceDeleted),
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -189,7 +220,9 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
     final name = data['name'] ?? 'Unknown';
     final email = data['email'] ?? '';
     final role = data['role'] ?? 'customer';
-    final deletedAt = data['deletedAt'] != null ? DateTime.parse(data['deletedAt']) : DateTime.now();
+    final deletedAt = data['deletedAt'] != null
+        ? DateTime.parse(data['deletedAt'])
+        : DateTime.now();
     final daysSinceDeleted = DateTime.now().difference(deletedAt).inDays;
 
     return Card(
@@ -201,13 +234,26 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
               backgroundColor: _getRoleColor(role),
               child: Icon(_getRoleIcon(role), color: Colors.white),
             ),
-            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(email),
-                Text('Role: ${_formatRole(role)}', style: TextStyle(color: _getRoleColor(role), fontSize: 12)),
-                Text(_formatDeletedTime(daysSinceDeleted), style: TextStyle(color: Colors.grey[500], fontSize: 12, fontStyle: FontStyle.italic)),
+                Text(
+                  'Role: ${_formatRole(role)}',
+                  style: TextStyle(color: _getRoleColor(role), fontSize: 12),
+                ),
+                Text(
+                  _formatDeletedTime(daysSinceDeleted),
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ],
             ),
             isThreeLine: true,
@@ -239,7 +285,10 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
         final projects = snapshot.data!.docs;
 
         if (projects.isEmpty) {
-          return _buildEmptyState('No deleted projects', Icons.apartment_outlined);
+          return _buildEmptyState(
+            'No deleted projects',
+            Icons.apartment_outlined,
+          );
         }
 
         return _buildTrashList(
@@ -255,7 +304,9 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
     final name = data['projectName'] ?? 'Unknown Project';
     final location = data['location'] ?? '';
     final developer = data['developerName'] ?? '';
-    final deletedAt = data['deletedAt'] != null ? DateTime.parse(data['deletedAt']) : DateTime.now();
+    final deletedAt = data['deletedAt'] != null
+        ? DateTime.parse(data['deletedAt'])
+        : DateTime.now();
     final daysSinceDeleted = DateTime.now().difference(deletedAt).inDays;
     final images = List<String>.from(data['images'] ?? []);
 
@@ -278,7 +329,8 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
                         height: 100,
                         fit: BoxFit.cover,
                         filterQuality: FilterQuality.high,
-                        errorBuilder: (_, __, ___) => _buildPlaceholder(Icons.broken_image),
+                        errorBuilder: (_, __, ___) =>
+                            _buildPlaceholder(Icons.broken_image),
                       )
                     : _buildPlaceholder(Icons.apartment),
               ),
@@ -288,13 +340,36 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       const SizedBox(height: 4),
-                      Text(location, style: TextStyle(color: Colors.grey[600], fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(
+                        location,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       const SizedBox(height: 4),
-                      Text('By: $developer', style: const TextStyle(color: AppColors.primary)),
+                      Text(
+                        'By: $developer',
+                        style: const TextStyle(color: AppColors.primary),
+                      ),
                       const SizedBox(height: 4),
-                      Text(_formatDeletedTime(daysSinceDeleted), style: TextStyle(color: Colors.grey[500], fontSize: 12, fontStyle: FontStyle.italic)),
+                      Text(
+                        _formatDeletedTime(daysSinceDeleted),
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -318,15 +393,24 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
         children: [
           Icon(icon, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          Text(message, style: TextStyle(fontSize: 18, color: Colors.grey[600])),
+          Text(
+            message,
+            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+          ),
           const SizedBox(height: 8),
-          Text('Deleted items will appear here', style: TextStyle(fontSize: 14, color: Colors.grey[400])),
+          Text(
+            'Deleted items will appear here',
+            style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTrashList({required int itemCount, required Widget Function(int) itemBuilder}) {
+  Widget _buildTrashList({
+    required int itemCount,
+    required Widget Function(int) itemBuilder,
+  }) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: itemCount,
@@ -343,7 +427,10 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildActionButtons({required VoidCallback onRestore, required VoidCallback onDelete}) {
+  Widget _buildActionButtons({
+    required VoidCallback onRestore,
+    required VoidCallback onDelete,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -382,25 +469,34 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
 
   Color _getRoleColor(String role) {
     switch (role) {
-      case 'admin': return Colors.red;
-      case 'propertyAgent': return Colors.green;
-      default: return Colors.blue;
+      case 'admin':
+        return Colors.red;
+      case 'propertyAgent':
+        return Colors.green;
+      default:
+        return Colors.blue;
     }
   }
 
   IconData _getRoleIcon(String role) {
     switch (role) {
-      case 'admin': return Icons.admin_panel_settings;
-      case 'propertyAgent': return Icons.business;
-      default: return Icons.person;
+      case 'admin':
+        return Icons.admin_panel_settings;
+      case 'propertyAgent':
+        return Icons.business;
+      default:
+        return Icons.person;
     }
   }
 
   String _formatRole(String role) {
     switch (role) {
-      case 'propertyAgent': return 'Property Agent';
-      case 'admin': return 'Admin';
-      default: return 'Customer';
+      case 'propertyAgent':
+        return 'Property Agent';
+      case 'admin':
+        return 'Admin';
+      default:
+        return 'Customer';
     }
   }
 
@@ -409,21 +505,38 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
     try {
       setState(() => _isLoading = true);
 
-      final doc = await FirebaseFirestore.instance.collection('properties').doc(property.id).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('properties')
+          .doc(property.id)
+          .get();
       final data = doc.data();
       final previousStatus = data?['previousStatus'] ?? 'pending';
+      final previousIsActive = data?['previousIsActive'];
 
-      await FirebaseFirestore.instance.collection('properties').doc(property.id).update({
+      final restoreData = <String, dynamic>{
         'status': previousStatus,
-        'updatedAt': DateTime.now().toIso8601String(),
+        'updatedAt': Timestamp.now(),
         'previousStatus': null,
-      });
+        'deletedAt': null,
+      };
+
+      if (previousIsActive is bool) {
+        restoreData['isActive'] = previousIsActive;
+        restoreData['isAvailable'] = previousIsActive;
+        restoreData['previousIsActive'] = null;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('properties')
+          .doc(property.id)
+          .update(restoreData);
 
       // Notify owner
       await FirebaseFirestore.instance.collection('notifications').add({
         'userId': property.ownerId,
         'title': 'Property Restored',
-        'message': 'Your property "${property.title}" has been restored by admin.',
+        'message':
+            'Your property "${property.title}" has been restored by admin.',
         'propertyId': property.id,
         'type': 'property_restored',
         'isRead': false,
@@ -432,7 +545,12 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Property "${property.title}" restored'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Property "${property.title}" restored'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       _handleError('restoring property', e);
@@ -450,7 +568,12 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('User "$userName" restored'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('User "$userName" restored'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       _handleError('restoring user', e);
@@ -461,14 +584,19 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
     try {
       setState(() => _isLoading = true);
 
-      await FirebaseFirestore.instance.collection('advertised_projects').doc(projectId).update({
-        'isDeleted': false,
-        'deletedAt': null,
-      });
+      await FirebaseFirestore.instance
+          .collection('advertised_projects')
+          .doc(projectId)
+          .update({'isDeleted': false, 'deletedAt': null});
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Project "$projectName" restored'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Project "$projectName" restored'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       _handleError('restoring project', e);
@@ -497,25 +625,46 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
     );
   }
 
-  void _showDeleteConfirmation({required String title, required VoidCallback onConfirm}) {
+  void _showDeleteConfirmation({
+    required String title,
+    required VoidCallback onConfirm,
+  }) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(children: [Icon(Icons.warning, color: Colors.red), SizedBox(width: 8), Text('Permanent Delete')]),
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Permanent Delete'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('This action cannot be undone!', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            const Text(
+              'This action cannot be undone!',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
             const SizedBox(height: 12),
             Text('Permanently delete "$title"?'),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-            onPressed: () { Navigator.pop(context); onConfirm(); },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+              onConfirm();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Delete Forever'),
           ),
         ],
@@ -528,17 +677,28 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
     try {
       setState(() => _isLoading = true);
 
-      await FirebaseFirestore.instance.collection('properties').doc(property.id).delete();
+      await FirebaseFirestore.instance
+          .collection('properties')
+          .doc(property.id)
+          .delete();
 
       // Delete bookmarks
-      final bookmarks = await FirebaseFirestore.instance.collection('bookmarks').where('propertyId', isEqualTo: property.id).get();
+      final bookmarks = await FirebaseFirestore.instance
+          .collection('bookmarks')
+          .where('propertyId', isEqualTo: property.id)
+          .get();
       for (final doc in bookmarks.docs) {
         await doc.reference.delete();
       }
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Property "${property.title}" permanently deleted'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Property "${property.title}" permanently deleted'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       _handleError('deleting property', e);
@@ -553,22 +713,38 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('User "$userName" permanently deleted'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('User "$userName" permanently deleted'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       _handleError('deleting user', e);
     }
   }
 
-  Future<void> _permanentlyDeleteProject(String projectId, String projectName) async {
+  Future<void> _permanentlyDeleteProject(
+    String projectId,
+    String projectName,
+  ) async {
     try {
       setState(() => _isLoading = true);
 
-      await FirebaseFirestore.instance.collection('advertised_projects').doc(projectId).delete();
+      await FirebaseFirestore.instance
+          .collection('advertised_projects')
+          .doc(projectId)
+          .delete();
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Project "$projectName" permanently deleted'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Project "$projectName" permanently deleted'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       _handleError('deleting project', e);
@@ -580,12 +756,21 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(children: [Icon(Icons.delete_forever, color: Colors.red), SizedBox(width: 8), Text('Empty All Trash')]),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Empty All Trash'),
+          ],
+        ),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('This will permanently delete ALL items in trash!', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            Text(
+              'This will permanently delete ALL items in trash!',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
             SizedBox(height: 12),
             Text('This includes all deleted properties, users, and projects.'),
             SizedBox(height: 8),
@@ -593,10 +778,19 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-            onPressed: () { Navigator.pop(context); _emptyAllTrash(); },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+              _emptyAllTrash();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Empty All Trash'),
           ),
         ],
@@ -611,21 +805,30 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
       int totalDeleted = 0;
 
       // Delete properties
-      final properties = await FirebaseFirestore.instance.collection('properties').where('status', isEqualTo: PropertyStatus.removed.name).get();
+      final properties = await FirebaseFirestore.instance
+          .collection('properties')
+          .where('status', isEqualTo: PropertyStatus.removed.name)
+          .get();
       for (final doc in properties.docs) {
         await doc.reference.delete();
         totalDeleted++;
       }
 
       // Delete users
-      final users = await FirebaseFirestore.instance.collection('users').where('isDeleted', isEqualTo: true).get();
+      final users = await FirebaseFirestore.instance
+          .collection('users')
+          .where('isDeleted', isEqualTo: true)
+          .get();
       for (final doc in users.docs) {
         await doc.reference.delete();
         totalDeleted++;
       }
 
       // Delete projects
-      final projects = await FirebaseFirestore.instance.collection('advertised_projects').where('isDeleted', isEqualTo: true).get();
+      final projects = await FirebaseFirestore.instance
+          .collection('advertised_projects')
+          .where('isDeleted', isEqualTo: true)
+          .get();
       for (final doc in projects.docs) {
         await doc.reference.delete();
         totalDeleted++;
@@ -633,7 +836,12 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$totalDeleted items permanently deleted'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$totalDeleted items permanently deleted'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       _handleError('emptying trash', e);
@@ -643,7 +851,12 @@ class _AdminTrashScreenState extends State<AdminTrashScreen> with SingleTickerPr
   void _handleError(String action, Object e) {
     if (mounted) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error $action: $e'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error $action: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 }

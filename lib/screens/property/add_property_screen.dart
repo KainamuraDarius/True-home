@@ -6,7 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,31 +16,32 @@ import '../../services/storage_service.dart';
 import '../../services/organization_access_service.dart';
 import '../common/legal_policies_screen.dart';
 import 'choose_plan_screen.dart';
-import '../../services/nylon_payment_service.dart';
+import '../../services/livepay_payment_service.dart';
 import '../../services/platform_config_service.dart';
 
-Uint8List _generatePropertyThumbnailBytes(Uint8List bytes) {
+Uint8List _createPropertyThumbnail(Uint8List bytes) {
   final decodedImage = img.decodeImage(bytes);
   if (decodedImage == null) {
     return bytes;
   }
 
-  final thumbnail = decodedImage.width > decodedImage.height
+  final bakedImage = img.bakeOrientation(decodedImage);
+  final thumbnail = bakedImage.width > bakedImage.height
       ? img.copyResize(
-          decodedImage,
+          bakedImage,
           width: 150,
           interpolation: img.Interpolation.cubic,
         )
       : img.copyResize(
-          decodedImage,
+          bakedImage,
           height: 150,
           interpolation: img.Interpolation.cubic,
         );
 
-  return Uint8List.fromList(img.encodeJpg(thumbnail, quality: 80));
+  return Uint8List.fromList(img.encodeJpg(thumbnail, quality: 76));
 }
 
-Uint8List _compressPropertyImageForUpload(Map<String, dynamic> request) {
+Uint8List _preparePropertyImageForUpload(Map<String, dynamic> request) {
   final bytes = request['bytes'] as Uint8List;
   final maxWidth = request['maxWidth'] as int;
   final maxHeight = request['maxHeight'] as int;
@@ -76,6 +76,16 @@ class AddPropertyScreen extends StatefulWidget {
   State<AddPropertyScreen> createState() => _AddPropertyScreenState();
 }
 
+class _UploadProgressViewState {
+  final double progress;
+  final String status;
+
+  const _UploadProgressViewState({
+    required this.progress,
+    required this.status,
+  });
+}
+
 class _AddPropertyScreenState extends State<AddPropertyScreen>
     with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
@@ -86,14 +96,14 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   bool _planStepCompleted = false;
   bool _submitAfterPlan = false;
   bool _isPaying = false;
-  final NylonPaymentService _nylonService = NylonPaymentService();
+  final LivePaymentService _livePayService = LivePaymentService();
   final OrganizationAccessService _organizationAccessService =
       OrganizationAccessService();
   final PlatformConfigService _platformConfigService = PlatformConfigService();
   final _titleController = TextEditingController();
   // Custom additions for commercial property flexibility
   String? _customCategory;
-  String _rentalUnit = 'per day';
+  String _rentalUnit = 'per month';
   String _selectedCategory = 'Flat';
   final List<String> _residentialCategories = const [
     'Flat',
@@ -134,9 +144,24 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   bool _agreedToAgentTerms = false;
   String _areaUnit = 'sqft';
   String _currency = 'UGX';
-  double _uploadProgress = 0.0;
-  String _uploadStatus = '';
+  final ValueNotifier<_UploadProgressViewState> _uploadProgressNotifier =
+      ValueNotifier<_UploadProgressViewState>(
+        const _UploadProgressViewState(progress: 0, status: ''),
+      );
   Timer? _autoSaveTimer;
+  static const int _maxPropertyImages = 12;
+  static const int _mobileImageQuality = 65;
+  static const int _mobileMaxImageDimension = 1280;
+  static const int _mobileUploadSkipCompressionBytes = 900 * 1024;
+  static const Duration _firebasePreflightTimeout = Duration(seconds: 12);
+  static const Duration _propertyImageUploadTimeout = Duration(seconds: 20);
+  static const List<String> _commercialRentalUnits = [
+    'per hour',
+    'per day',
+    'per week',
+    'per month',
+    'per year',
+  ];
 
   // Amenities
   final List<String> _selectedAmenities = [];
@@ -233,6 +258,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
         'agreedToAgentTerms': _agreedToAgentTerms,
         'areaUnit': _areaUnit,
         'currency': _currency,
+        'rentalUnit': _rentalUnit,
         'selectedAmenities': _selectedAmenities,
         'selectedImagePaths': _selectedImages.map((e) => e.path).toList(),
       };
@@ -305,6 +331,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
             decoded['agreedToAgentTerms'] as bool? ?? _agreedToAgentTerms;
         _areaUnit = decoded['areaUnit']?.toString() ?? _areaUnit;
         _currency = decoded['currency']?.toString() ?? _currency;
+        final restoredRentalUnit = decoded['rentalUnit']?.toString();
+        _rentalUnit = _commercialRentalUnits.contains(restoredRentalUnit)
+            ? restoredRentalUnit!
+            : _rentalUnit;
         _selectedAmenities
           ..clear()
           ..addAll(restoredAmenities);
@@ -356,6 +386,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
     _autoSaveTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _saveDraft();
+    _uploadProgressNotifier.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
@@ -397,47 +428,46 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       }
 
       final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 92,
-        maxWidth: 2560,
-        maxHeight: 2560,
+        imageQuality: kIsWeb ? 68 : _mobileImageQuality,
+        maxWidth: (kIsWeb ? 1280 : _mobileMaxImageDimension).toDouble(),
+        maxHeight: (kIsWeb ? 1280 : _mobileMaxImageDimension).toDouble(),
+        requestFullMetadata: false,
       );
 
       if (images.isNotEmpty) {
         final totalImages = _selectedImages.length + images.length;
-        if (totalImages > 20) {
+        var addedImageCount = images.length;
+        if (totalImages > _maxPropertyImages) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'You can only upload up to 20 images. Currently: ${_selectedImages.length}, Selected: ${images.length}',
+                  'You can only upload up to $_maxPropertyImages images. Currently: ${_selectedImages.length}, Selected: ${images.length}',
                 ),
                 backgroundColor: Colors.orange,
               ),
             );
           }
-          final remainingSlots = 20 - _selectedImages.length;
+          final remainingSlots = _maxPropertyImages - _selectedImages.length;
           if (remainingSlots > 0) {
             final imagesToAdd = images.take(remainingSlots).toList();
-            for (final image in imagesToAdd) {
-              _thumbnailFutures[image.path] = _getThumbnail(image);
-            }
+            addedImageCount = imagesToAdd.length;
             setState(() {
               _selectedImages.addAll(imagesToAdd);
             });
+          } else {
+            addedImageCount = 0;
           }
         } else {
-          for (final image in images) {
-            _thumbnailFutures[image.path] = _getThumbnail(image);
-          }
           setState(() {
             _selectedImages.addAll(images);
           });
         }
 
-        if (mounted) {
+        if (mounted && addedImageCount > 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${images.length} image(s) selected'),
+              content: Text('$addedImageCount image(s) selected'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 1),
             ),
@@ -467,73 +497,140 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
   }
 
   Future<Uint8List> _getThumbnail(XFile image) async {
-    try {
+    return _thumbnailFutures.putIfAbsent(image.path, () async {
       final bytes = await image.readAsBytes();
-      return compute(_generatePropertyThumbnailBytes, bytes);
-    } catch (e) {
-      print('Error generating thumbnail: $e');
-      return await image.readAsBytes();
+      return compute(_createPropertyThumbnail, bytes);
+    });
+  }
+
+  Future<Uint8List> _prepareImageForUpload(
+    Uint8List bytes, {
+    required bool useCompactWebSize,
+  }) async {
+    // On web, image_picker already downscales/encodes via browser APIs.
+    // Running package:image decode/resize on web happens on the UI thread and
+    // is the main source of the submit-time freezing agents are seeing.
+    if (kIsWeb) {
+      return bytes;
     }
+
+    if (bytes.length <= _mobileUploadSkipCompressionBytes) {
+      return bytes;
+    }
+
+    final maxWidth = useCompactWebSize ? 1200 : _mobileMaxImageDimension;
+    final maxHeight = useCompactWebSize ? 1200 : _mobileMaxImageDimension;
+    final quality = useCompactWebSize ? 68 : _mobileImageQuality;
+
+    return compute(_preparePropertyImageForUpload, <String, dynamic>{
+      'bytes': bytes,
+      'maxWidth': maxWidth,
+      'maxHeight': maxHeight,
+      'quality': quality,
+    });
   }
 
-  Future<Uint8List> _prepareImageForUpload(Uint8List bytes) async {
-    final isMobileWeb = kIsWeb && MediaQuery.of(context).size.width < 768;
-    final maxWidth = isMobileWeb ? 1400 : 1800;
-    final maxHeight = isMobileWeb ? 2000 : 2400;
-    final quality = isMobileWeb ? 84 : 88;
-
-    return compute(
-      _compressPropertyImageForUpload,
-      <String, dynamic>{
-        'bytes': bytes,
-        'maxWidth': maxWidth,
-        'maxHeight': maxHeight,
-        'quality': quality,
-      },
+  void _setUploadProgress(double progress, String status) {
+    final nextState = _UploadProgressViewState(
+      progress: progress.clamp(0.0, 1.0),
+      status: status,
     );
+
+    if (!mounted) return;
+    _uploadProgressNotifier.value = nextState;
   }
 
-  Future<List<String>> _uploadImages() async {
-    final List<String> imageUrls = [];
-    final totalImages = _selectedImages.length;
+  Future<void> _uploadPropertyImagesInBackground({
+    required DocumentReference<Map<String, dynamic>> propertyRef,
+    required List<XFile> images,
+    required bool useCompactUploadSize,
+  }) async {
+    if (images.isEmpty) return;
 
-    for (int i = 0; i < totalImages; i++) {
-      setState(() {
-        _uploadProgress = (i / totalImages);
-        _uploadStatus = 'Uploading image ${i + 1} of $totalImages...';
-      });
+    final imageUrls = <String>[];
+    var failedCount = 0;
 
-      try {
-        final image = _selectedImages[i];
-        final originalBytes = await image.readAsBytes();
-        final uploadBytes = await _prepareImageForUpload(originalBytes);
-        print(
-          'Uploading image ${i + 1}: '
-          '${(originalBytes.length / 1024).toStringAsFixed(1)} KB -> '
-          '${(uploadBytes.length / 1024).toStringAsFixed(1)} KB',
-        );
-        final imageUrl = await StorageService.uploadImage(
-          uploadBytes,
-          folder: 'properties',
-        );
-        if (imageUrl != null) {
-          print('✅ Uploaded image ${i + 1}');
+    try {
+      print(
+        '⚡ Background image sync started for ${images.length} image(s): ${propertyRef.id}',
+      );
+
+      for (var index = 0; index < images.length; index++) {
+        try {
+          final image = images[index];
+          final originalBytes = await image.readAsBytes();
+          final uploadBytes = await _prepareImageForUpload(
+            originalBytes,
+            useCompactWebSize: useCompactUploadSize,
+          );
+
+          print(
+            'Background upload image ${index + 1}/${images.length}: '
+            '${(originalBytes.length / 1024).toStringAsFixed(1)} KB -> '
+            '${(uploadBytes.length / 1024).toStringAsFixed(1)} KB',
+          );
+
+          final imageUrl = await StorageService.uploadImageWithProgress(
+            uploadBytes,
+            folder: 'properties',
+            retryCount: 0,
+            timeout: _propertyImageUploadTimeout,
+          );
+
+          if (imageUrl == null) {
+            failedCount++;
+            continue;
+          }
+
           imageUrls.add(imageUrl);
-        } else {
-          print('❌ Failed to upload image ${i + 1}');
+          await propertyRef
+              .update({
+                'imageUrls': imageUrls,
+                'imageUploadStatus': 'uploading',
+                'imageUploadUploadedCount': imageUrls.length,
+                'imageUploadFailedCount': failedCount,
+                'updatedAt': Timestamp.fromDate(DateTime.now()),
+              })
+              .timeout(_firebasePreflightTimeout);
+        } catch (e) {
+          failedCount++;
+          print('Background image ${index + 1} failed: $e');
         }
-      } catch (e) {
-        print('❌ Error with image ${i + 1}: $e');
+      }
+
+      await propertyRef
+          .update({
+            'imageUrls': imageUrls,
+            'imageUploadStatus': imageUrls.isEmpty
+                ? 'failed'
+                : failedCount == 0
+                ? 'complete'
+                : 'partial',
+            'imageUploadUploadedCount': imageUrls.length,
+            'imageUploadFailedCount': failedCount,
+            'imageUploadCompletedAt': Timestamp.fromDate(DateTime.now()),
+            'updatedAt': Timestamp.fromDate(DateTime.now()),
+          })
+          .timeout(_firebasePreflightTimeout);
+
+      print(
+        '✅ Background image sync finished: ${imageUrls.length}/${images.length} image(s)',
+      );
+    } catch (e) {
+      print('❌ Background image sync error: $e');
+      try {
+        await propertyRef
+            .update({
+              'imageUploadStatus': imageUrls.isEmpty ? 'failed' : 'partial',
+              'imageUploadUploadedCount': imageUrls.length,
+              'imageUploadFailedCount': failedCount,
+              'updatedAt': Timestamp.fromDate(DateTime.now()),
+            })
+            .timeout(_firebasePreflightTimeout);
+      } catch (updateError) {
+        print('❌ Failed to update background image sync status: $updateError');
       }
     }
-
-    setState(() {
-      _uploadProgress = 1.0;
-      _uploadStatus = 'Uploaded ${imageUrls.length} of $totalImages images';
-    });
-
-    print('✅ Upload complete: ${imageUrls.length}/$totalImages images');
-    return imageUrls;
   }
 
   Future<void> _submitProperty() async {
@@ -542,19 +639,6 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please log in to submit a property.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Check platform config: only block if admin requires verification for this role
-    if (await _shouldBlockForUnverifiedEmail()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please verify your email before submitting a property.',
-          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -575,25 +659,51 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       return;
     }
 
+    final useCompactUploadSize = MediaQuery.sizeOf(context).width < 768;
+
     setState(() {
       _isLoading = true;
-      _uploadProgress = 0.0;
-      _uploadStatus = 'Starting upload...';
     });
+    _setUploadProgress(0.01, 'Checking account...');
 
     try {
       final user = currentUser;
+
+      // Check platform config: only block if admin requires verification for this role.
+      final shouldBlockForUnverifiedEmail =
+          await _shouldBlockForUnverifiedEmail().timeout(
+            _firebasePreflightTimeout,
+          );
+      if (!mounted) return;
+
+      if (shouldBlockForUnverifiedEmail) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please verify your email before submitting a property.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      _setUploadProgress(0.05, 'Loading profile...');
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
-          .get();
-      final userData = UserModel.fromJson({
-        ...userDoc.data()!,
-        'id': userDoc.id,
-      });
+          .get()
+          .timeout(_firebasePreflightTimeout);
+      final userDocData = userDoc.data();
+      if (!userDoc.exists || userDocData == null) {
+        throw StateError('User profile not found');
+      }
+      final userData = UserModel.fromJson({...userDocData, 'id': userDoc.id});
 
+      _setUploadProgress(0.08, 'Checking listing access...');
       final accessResult = await _organizationAccessService
-          .checkPropertyListingAccess(userId: user.uid);
+          .checkPropertyListingAccess(userId: user.uid)
+          .timeout(_firebasePreflightTimeout);
       if (!accessResult.allowed) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -606,37 +716,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
         return;
       }
       final activeOrganizationId = accessResult.organizationId;
-
-      List<String> imageUrls = [];
-      if (_selectedImages.isNotEmpty) {
-        imageUrls = await _uploadImages();
-
-        if (imageUrls.isEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Failed to upload images. Please check your internet connection and try again.',
-                ),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 5),
-              ),
-            );
-          }
-          return;
-        }
-
-        if (mounted && imageUrls.length < _selectedImages.length) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '${imageUrls.length} of ${_selectedImages.length} images uploaded successfully',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      }
+      final imagesForBackgroundUpload = List<XFile>.from(_selectedImages);
 
       final propertyRef = FirebaseFirestore.instance
           .collection('properties')
@@ -683,7 +763,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
             : double.parse(_areaSqftController.text.trim()),
         areaUnit: _areaUnit,
         currency: _currency,
-        imageUrls: imageUrls,
+        rentalUnit: _selectedType == PropertyType.commercial
+            ? _rentalUnit
+            : null,
+        imageUrls: const [],
         ownerId: user.uid,
         organizationId: activeOrganizationId,
         createdByUserId: user.uid,
@@ -707,37 +790,49 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
         inspectionFee: null,
       );
 
-      await propertyRef.set(property.toJson());
+      final propertyJson = property.toJson();
+      print('📝 Submitting property with:');
+      print('   ownerId: ${propertyJson['ownerId']}');
+      print('   createdByUserId: ${propertyJson['createdByUserId']}');
+      print('   status: ${propertyJson['status']}');
+      print(
+        '   organizationId: ${propertyJson.containsKey('organizationId') ? propertyJson['organizationId'] : '(not set)'}',
+      );
+      print('   auth.uid: ${user.uid}');
+
+      propertyJson.addAll({
+        'imageUploadStatus': imagesForBackgroundUpload.isEmpty
+            ? 'none'
+            : 'uploading',
+        'imageUploadExpectedCount': imagesForBackgroundUpload.length,
+        'imageUploadUploadedCount': 0,
+        'imageUploadFailedCount': 0,
+        'imageUploadStartedAt': Timestamp.fromDate(DateTime.now()),
+      });
+
+      _setUploadProgress(0.72, 'Submitting property...');
+      await propertyRef.set(propertyJson).timeout(const Duration(seconds: 20));
+
+      if (imagesForBackgroundUpload.isNotEmpty) {
+        unawaited(
+          _uploadPropertyImagesInBackground(
+            propertyRef: propertyRef,
+            images: imagesForBackgroundUpload,
+            useCompactUploadSize: useCompactUploadSize,
+          ),
+        );
+      }
+
       await _clearDraft();
 
-      setState(() {
-        _uploadStatus = 'Notifying admins...';
-      });
-
-      final admins = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'admin')
-          .get();
-
-      await Future.wait(
-        admins.docs.map((admin) {
-          return FirebaseFirestore.instance.collection('notifications').add({
-            'userId': admin.id,
-            'title': 'New Property Submitted',
-            'message':
-                '${userData.name} submitted "$_selectedCategory" for review',
-            'propertyId': propertyRef.id,
-            'type': 'property_submission',
-            'isRead': false,
-            'createdAt': DateTime.now().toIso8601String(),
-          });
-        }),
+      unawaited(
+        _notifyAdminsAboutPropertySubmission(
+          ownerName: userData.name,
+          propertyId: propertyRef.id,
+        ),
       );
 
-      setState(() {
-        _uploadProgress = 1.0;
-        _uploadStatus = 'Complete!';
-      });
+      _setUploadProgress(1, 'Complete!');
 
       if (mounted) {
         setState(() {
@@ -802,7 +897,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 48),
                     child: Text(
-                      'Your property has been submitted successfully. Our admin team will review it and get back to you soon.',
+                      'Your property has been submitted successfully. Photos will finish syncing in the background, and our admin team will review it soon.',
                       style: TextStyle(
                         fontSize: 16,
                         color: AppColors.textSecondary,
@@ -846,28 +941,45 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
           ),
         );
       }
-    } catch (e) {
-      print('Error submitting property: $e');
+    } catch (e, stackTrace) {
+      print('❌ Error submitting property: $e');
+      print('   Exception type: ${e.runtimeType}');
+      if (e is FirebaseException) {
+        print('   Firebase error code: ${e.code}');
+        print('   Firebase error message: ${e.message}');
+        print('   Firebase plugin: ${e.plugin}');
+      }
+      print('   Stack trace: $stackTrace');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _uploadProgress = 0.0;
-          _uploadStatus = '';
         });
+        _setUploadProgress(0, '');
 
         String errorMessage = 'Error submitting property';
-        if (e.toString().contains('timeout') ||
-            e.toString().contains('connection') ||
-            e.toString().contains('SocketException') ||
-            e.toString().contains('NetworkException')) {
+        final errorText = e.toString().toLowerCase();
+        final isNetworkError =
+            e is TimeoutException ||
+            (e is FirebaseException && e.code == 'unavailable') ||
+            errorText.contains('timeout') ||
+            errorText.contains('connection') ||
+            errorText.contains('socketexception') ||
+            errorText.contains('sslhandshakeexception') ||
+            errorText.contains('networkexception') ||
+            errorText.contains('unavailable');
+        if (isNetworkError) {
           errorMessage =
-              'Network error. Please check your internet connection and try again.';
-        } else if (e.toString().contains('Rate limit')) {
+              'Network timeout. Please check your phone internet connection and try again.';
+        } else if (errorText.contains('rate limit')) {
           errorMessage =
               'Too many uploads. Please wait a few minutes and try again.';
-        } else if (e.toString().contains('upload')) {
+        } else if (errorText.contains('upload')) {
           errorMessage =
               'Image upload failed. Please try again or use different images.';
+        } else if (errorText.contains('permission-denied') ||
+            errorText.contains('permission denied')) {
+          errorMessage =
+              'You do not have permission to submit this property. Please check your account role or company workspace and try again.';
         } else {
           errorMessage = 'Error: ${e.toString()}';
         }
@@ -884,10 +996,47 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _uploadProgress = 0.0;
-          _uploadStatus = '';
+        });
+        _setUploadProgress(0, '');
+      }
+    }
+  }
+
+  Future<void> _notifyAdminsAboutPropertySubmission({
+    required String ownerName,
+    required String propertyId,
+  }) async {
+    try {
+      final admins = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .get()
+          .timeout(_firebasePreflightTimeout);
+
+      if (admins.docs.isEmpty) {
+        return;
+      }
+
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch();
+      final createdAt = DateTime.now().toIso8601String();
+
+      for (final admin in admins.docs) {
+        final notificationRef = firestore.collection('notifications').doc();
+        batch.set(notificationRef, {
+          'userId': admin.id,
+          'title': 'New Property Submitted',
+          'message': '$ownerName submitted "$_selectedCategory" for review',
+          'propertyId': propertyId,
+          'type': 'property_submission',
+          'isRead': false,
+          'createdAt': createdAt,
         });
       }
+
+      await batch.commit().timeout(_firebasePreflightTimeout);
+    } catch (e) {
+      debugPrint('Failed to notify admins about property submission: $e');
     }
   }
 
@@ -967,7 +1116,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                               'Agent Plan: ${_selectedPlan!.toUpperCase()} (${_selectedPeriod == 'annual' ? 'Annual' : 'Monthly'})';
 
                           try {
-                            final response = await _nylonService
+                            final response = await _livePayService
                                 .initiatePayment(
                                   phoneNumber: phoneController.text.trim(),
                                   amount: _selectedPlanPrice!.toDouble(),
@@ -1037,48 +1186,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
     return paymentSuccess;
   }
 
-  Future<bool> _canProceedToPlanStep() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please log in to submit a property.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return false;
-    }
-
-    if (await _shouldBlockForUnverifiedEmail()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please verify your email before continuing.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return false;
-    }
-
-    if (!_formKey.currentState!.validate()) {
-      return false;
-    }
-
-    if (_selectedImages.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please add property images before submitting'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return false;
-    }
-
-    return true;
-  }
-
   Future<void> _handleSubmitFlow() async {
-    if (!await _canProceedToPlanStep()) return;
-
     await _submitProperty();
   }
 
@@ -1170,165 +1278,80 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
             title: const Text('Add Property'),
             backgroundColor: AppColors.primary,
           ),
-          body: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Form(
-                    key: _formKey,
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Instructions
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withOpacity(0.3),
+                      ),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Instructions
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppColors.primary.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    color: AppColors.primary,
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Property Submission Guide',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              _buildInstructionItem(
-                                'Fields marked with * are required',
-                              ),
-                              _buildInstructionItem(
-                                'Fields without * are optional',
-                              ),
-                              _buildInstructionItem(
-                                'Provide accurate contact information',
-                              ),
-                              _buildInstructionItem(
-                                'Ensure phone numbers are active and correct',
-                              ),
-                              _buildInstructionItem(
-                                'Add clear, high-quality property images',
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.verified_outlined,
-                                      color: AppColors.primary,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Expanded(
-                                      child: Text(
-                                        'Your property will be reviewed by admin before publishing',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.black87,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Property Type
-                        const Text(
-                          'Property Type',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
                         Row(
                           children: [
-                            Expanded(
-                              child: RadioListTile<PropertyType>(
-                                title: const Text('For Sale'),
-                                value: PropertyType.sale,
-                                groupValue: _selectedType,
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    _setPropertyType(value);
-                                  }
-                                },
-                              ),
+                            Icon(
+                              Icons.info_outline,
+                              color: AppColors.primary,
+                              size: 24,
                             ),
-                            Expanded(
-                              child: RadioListTile<PropertyType>(
-                                title: const Text('For Rent'),
-                                value: PropertyType.rent,
-                                groupValue: _selectedType,
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    _setPropertyType(value);
-                                  }
-                                },
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Property Submission Guide',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
                           ],
                         ),
-                        RadioListTile<PropertyType>(
-                          title: const Text('Commercial'),
-                          value: PropertyType.commercial,
-                          groupValue: _selectedType,
-                          onChanged: (value) {
-                            if (value != null) {
-                              _setPropertyType(value);
-                            }
-                          },
+                        const SizedBox(height: 12),
+                        _buildInstructionItem(
+                          'Fields marked with * are required',
+                        ),
+                        _buildInstructionItem('Fields without * are optional'),
+                        _buildInstructionItem(
+                          'Provide accurate contact information',
+                        ),
+                        _buildInstructionItem(
+                          'Ensure phone numbers are active and correct',
+                        ),
+                        _buildInstructionItem(
+                          'Add clear, high-quality property images',
                         ),
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.purple.shade50,
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.purple.shade200),
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                Icons.info_outline,
-                                color: Colors.purple.shade700,
+                                Icons.verified_outlined,
+                                color: AppColors.primary,
                                 size: 20,
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
+                              const SizedBox(width: 12),
+                              const Expanded(
                                 child: Text(
-                                  'Note: Student Hostels can only be added by Admin',
+                                  'Your property will be reviewed by admin before publishing',
                                   style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.purple.shade700,
+                                    fontSize: 13,
+                                    color: Colors.black87,
                                     fontStyle: FontStyle.italic,
                                   ),
                                 ),
@@ -1336,1016 +1359,1103 @@ class _AddPropertyScreenState extends State<AddPropertyScreen>
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
-                        // Property Title
-                        TextFormField(
-                          controller: _titleController,
+                  // Property Type
+                  const Text(
+                    'Property Type',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<PropertyType>(
+                          title: const Text('For Sale'),
+                          value: PropertyType.sale,
+                          groupValue: _selectedType,
+                          onChanged: (value) {
+                            if (value != null) {
+                              _setPropertyType(value);
+                            }
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<PropertyType>(
+                          title: const Text('For Rent'),
+                          value: PropertyType.rent,
+                          groupValue: _selectedType,
+                          onChanged: (value) {
+                            if (value != null) {
+                              _setPropertyType(value);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  RadioListTile<PropertyType>(
+                    title: const Text('Commercial'),
+                    value: PropertyType.commercial,
+                    groupValue: _selectedType,
+                    onChanged: (value) {
+                      if (value != null) {
+                        _setPropertyType(value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.purple.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.purple.shade700,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Note: Student Hostels can only be added by Admin',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.purple.shade700,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Property Title
+                  TextFormField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Property Title *',
+                      hintText: 'e.g., Luxury Villa in Kampala',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter property title';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Category and custom category (if needed)
+                  ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedCategory,
+                      decoration: InputDecoration(
+                        labelText: _selectedType == PropertyType.commercial
+                            ? 'Commercial Category *'
+                            : 'Property Category *',
+                        border: const OutlineInputBorder(),
+                      ),
+                      style: const TextStyle(color: Colors.black),
+                      items: [
+                        ..._availableCategories.map(
+                          (category) => DropdownMenuItem<String>(
+                            value: category,
+                            child: Text(
+                              category,
+                              style: const TextStyle(color: Colors.black),
+                            ),
+                          ),
+                        ),
+                        if (_selectedType == PropertyType.commercial)
+                          const DropdownMenuItem<String>(
+                            value: 'Other',
+                            child: Text(
+                              'Other',
+                              style: TextStyle(color: Colors.black),
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCategory = value!;
+                          if (value != 'Other') _customCategory = null;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a category';
+                        }
+                        if (value == 'Other' &&
+                            (_customCategory == null ||
+                                _customCategory!.isEmpty)) {
+                          return 'Please enter a custom category';
+                        }
+                        return null;
+                      },
+                    ),
+                    if (_selectedType == PropertyType.commercial &&
+                        _selectedCategory == 'Other')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: TextFormField(
                           decoration: const InputDecoration(
-                            labelText: 'Property Title *',
-                            hintText: 'e.g., Luxury Villa in Kampala',
+                            labelText: 'Custom Category',
                             border: OutlineInputBorder(),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter property title';
+                          onChanged: (val) {
+                            setState(() {
+                              _customCategory = val;
+                            });
+                          },
+                          validator: (val) {
+                            if (_selectedCategory == 'Other' &&
+                                (val == null || val.isEmpty)) {
+                              return 'Please enter a custom category';
                             }
                             return null;
                           },
                         ),
-                        const SizedBox(height: 16),
+                      ),
+                  ],
+                  const SizedBox(height: 16),
 
-                        // Category and custom category (if needed)
-                        ...[
-                          DropdownButtonFormField<String>(
-                            initialValue: _selectedCategory,
-                            decoration: InputDecoration(
-                              labelText:
-                                  _selectedType == PropertyType.commercial
-                                  ? 'Commercial Category *'
-                                  : 'Property Category *',
-                              border: const OutlineInputBorder(),
-                            ),
-                            style: const TextStyle(color: Colors.black),
-                            items: [
-                              ..._availableCategories.map(
-                                (category) => DropdownMenuItem<String>(
-                                  value: category,
-                                  child: Text(
-                                    category,
-                                    style: const TextStyle(color: Colors.black),
-                                  ),
-                                ),
+                  // Description
+                  TextFormField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description *',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 4,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter description';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Price with currency selector
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: _priceController,
+                              decoration: InputDecoration(
+                                labelText: _selectedType == PropertyType.rent
+                                    ? 'Monthly Rent *'
+                                    : 'Price *',
+                                border: const OutlineInputBorder(),
+                                isDense: true,
                               ),
-                              if (_selectedType == PropertyType.commercial)
-                                const DropdownMenuItem<String>(
-                                  value: 'Other',
-                                  child: Text(
-                                    'Other',
-                                    style: TextStyle(color: Colors.black),
-                                  ),
-                                ),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedCategory = value!;
-                                if (value != 'Other') _customCategory = null;
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please select a category';
-                              }
-                              if (value == 'Other' &&
-                                  (_customCategory == null ||
-                                      _customCategory!.isEmpty)) {
-                                return 'Please enter a custom category';
-                              }
-                              return null;
-                            },
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(fontSize: 14),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter price';
+                                }
+                                if (double.tryParse(value) == null) {
+                                  return 'Please enter a valid number';
+                                }
+                                return null;
+                              },
+                            ),
                           ),
-                          if (_selectedType == PropertyType.commercial &&
-                              _selectedCategory == 'Other')
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: TextFormField(
-                                decoration: const InputDecoration(
-                                  labelText: 'Custom Category',
-                                  border: OutlineInputBorder(),
-                                ),
-                                onChanged: (val) {
-                                  setState(() {
-                                    _customCategory = val;
-                                  });
-                                },
-                                validator: (val) {
-                                  if (_selectedCategory == 'Other' &&
-                                      (val == null || val.isEmpty)) {
-                                    return 'Please enter a custom category';
-                                  }
-                                  return null;
-                                },
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _currency,
+                              decoration: const InputDecoration(
+                                labelText: 'Currency',
+                                labelStyle: TextStyle(color: Colors.black),
+                                border: OutlineInputBorder(),
+                                isDense: true,
                               ),
+                              iconEnabledColor: Colors.black,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black,
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'UGX',
+                                  child: Text(
+                                    'UGX',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'USD',
+                                  child: Text(
+                                    'USD',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _currency = value!;
+                                });
+                              },
                             ),
+                          ),
                         ],
-                        const SizedBox(height: 16),
-
-                        // Description
-                        TextFormField(
-                          controller: _descriptionController,
+                      ),
+                      if (_selectedType == PropertyType.commercial) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: _rentalUnit,
                           decoration: const InputDecoration(
-                            labelText: 'Description *',
+                            labelText: 'Price Duration *',
+                            helperText:
+                                'This will show beside the commercial price.',
                             border: OutlineInputBorder(),
+                            isDense: true,
                           ),
-                          maxLines: 4,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter description';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Price with currency selector
-                        Column(
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: TextFormField(
-                                    controller: _priceController,
-                                    decoration: InputDecoration(
-                                      labelText:
-                                          _selectedType == PropertyType.rent
-                                          ? 'Monthly Rent *'
-                                          : 'Price *',
-                                      border: const OutlineInputBorder(),
-                                      isDense: true,
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(fontSize: 14),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter price';
-                                      }
-                                      if (double.tryParse(value) == null) {
-                                        return 'Please enter a valid number';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 2,
-                                  child: DropdownButtonFormField<String>(
-                                    initialValue: _currency,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Currency',
-                                      labelStyle: TextStyle(
-                                        color: Colors.black,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
-                                    ),
-                                    iconEnabledColor: Colors.black,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black,
+                          ),
+                          items: _commercialRentalUnits
+                              .map(
+                                (unit) => DropdownMenuItem(
+                                  value: unit,
+                                  child: Text(
+                                    unit,
                                     style: const TextStyle(
                                       fontSize: 14,
                                       color: Colors.black,
                                     ),
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 'UGX',
-                                        child: Text(
-                                          'UGX',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _rentalUnit = value!;
+                            });
+                          },
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please select price duration';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Location
+                  TextFormField(
+                    controller: _locationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Location/City *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter location';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Full Address
+                  TextFormField(
+                    controller: _fullAddressController,
+                    decoration: const InputDecoration(
+                      labelText: 'Full Address (Optional)',
+                      hintText: 'e.g., Plot 25, Acacia Avenue, Kololo',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.home_outlined),
+                      helperText:
+                          'Exact street address — only visible to admin and your agent view',
+                      helperMaxLines: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Bedrooms and Bathrooms (not for commercial)
+                  if (_selectedType != PropertyType.commercial) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _bedroomsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Bedrooms (Optional)',
+                              border: OutlineInputBorder(),
+                              hintText: 'e.g., 3',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value != null &&
+                                  value.isNotEmpty &&
+                                  int.tryParse(value) == null) {
+                                return 'Invalid';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _bathroomsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Bathrooms (Optional)',
+                              border: OutlineInputBorder(),
+                              hintText: 'e.g., 2',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value != null &&
+                                  value.isNotEmpty &&
+                                  int.tryParse(value) == null) {
+                                return 'Invalid';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Area with unit selection (not for commercial)
+                  if (_selectedType != PropertyType.commercial) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _areaSqftController,
+                            decoration: const InputDecoration(
+                              labelText: 'Approximate Area - Optional',
+                              border: OutlineInputBorder(),
+                              hintText: 'e.g., 1200',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value != null &&
+                                  value.isNotEmpty &&
+                                  double.tryParse(value) == null) {
+                                return 'Please enter a valid number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 1,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _areaUnit,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'sqft',
+                                child: Text('sq ft'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'sqm',
+                                child: Text('sq m'),
+                              ),
+                            ],
+                            onChanged: (String? value) {
+                              if (value != null) {
+                                setState(() {
+                                  _areaUnit = value;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Agent Information Section
+                  const Divider(height: 32),
+                  const Text(
+                    'Agent Information',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Company Name
+                  TextFormField(
+                    controller: _companyNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Company Name (Optional)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.business),
+                      hintText: 'e.g., ABC Real Estate Ltd',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Agent Name
+                  TextFormField(
+                    controller: _agentNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Agent Name *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person),
+                      hintText: 'e.g., John Doe',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter agent name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Amenities Section
+                  const Divider(height: 32),
+                  Row(
+                    children: [
+                      const Text(
+                        'Amenities',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Optional',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Select amenities available at this property',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _availableAmenities.map((amenity) {
+                      final isSelected = _selectedAmenities.contains(amenity);
+                      return FilterChip(
+                        label: Text(amenity),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedAmenities.add(amenity);
+                            } else {
+                              _selectedAmenities.remove(amenity);
+                            }
+                          });
+                        },
+                        selectedColor: AppColors.primary.withOpacity(0.2),
+                        checkmarkColor: AppColors.primary,
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? AppColors.primary
+                              : Colors.black87,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Contact Information Section
+                  const Divider(height: 32),
+                  const Text(
+                    'Contact Information',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Contact Phone
+                  TextFormField(
+                    controller: _contactPhoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number for Calls *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone),
+                      hintText: '+256...',
+                    ),
+                    keyboardType: TextInputType.phone,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter phone number';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // WhatsApp Phone
+                  TextFormField(
+                    controller: _whatsappPhoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'WhatsApp Number *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.chat),
+                      hintText: '+256...',
+                    ),
+                    keyboardType: TextInputType.phone,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter WhatsApp number';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Contact Email
+                  TextFormField(
+                    controller: _contactEmailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Contact Email (Optional)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email),
+                      hintText: 'email@example.com',
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value != null &&
+                          value.isNotEmpty &&
+                          !value.contains('@')) {
+                        return 'Please enter a valid email';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Images Section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Property Images',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${_selectedImages.length}/$_maxPropertyImages',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _selectedImages.length >= _maxPropertyImages
+                              ? Colors.red
+                              : Colors.grey[600],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_selectedImages.isNotEmpty)
+                    SizedBox(
+                      height: 120,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _selectedImages.length,
+                        itemBuilder: (context, index) {
+                          return Stack(
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.only(right: 8),
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.grey.shade200,
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: FutureBuilder<Uint8List>(
+                                    future: _getThumbnail(
+                                      _selectedImages[index],
+                                    ),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.hasData) {
+                                        return Image.memory(
+                                          snapshot.data!,
+                                          fit: BoxFit.cover,
+                                          filterQuality: FilterQuality.high,
+                                        );
+                                      } else if (snapshot.hasError) {
+                                        return const Center(
+                                          child: Icon(
+                                            Icons.error_outline,
+                                            color: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                      return const Center(
+                                        child: SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
                                           ),
                                         ),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'USD',
-                                        child: Text(
-                                          'USD',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _currency = value!;
-                                      });
+                                      );
                                     },
                                   ),
                                 ),
-                              ],
-                            ),
-                            if (_selectedType == PropertyType.commercial) ...[
-                              const SizedBox(height: 12),
-                              DropdownButtonFormField<String>(
-                                initialValue: _rentalUnit,
-                                decoration: const InputDecoration(
-                                  labelText: 'Rental Unit',
-                                  border: OutlineInputBorder(),
-                                  isDense: true,
-                                ),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black,
-                                ),
-                                items:
-                                    [
-                                          'per hour',
-                                          'per day',
-                                          'per week',
-                                          'per month',
-                                          'per year',
-                                        ]
-                                        .map(
-                                          (unit) => DropdownMenuItem(
-                                            value: unit,
-                                            child: Text(
-                                              unit,
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _rentalUnit = value!;
-                                  });
-                                },
                               ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Location
-                        TextFormField(
-                          controller: _locationController,
-                          decoration: const InputDecoration(
-                            labelText: 'Location/City *',
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter location';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Full Address
-                        TextFormField(
-                          controller: _fullAddressController,
-                          decoration: const InputDecoration(
-                            labelText: 'Full Address (Optional)',
-                            hintText: 'e.g., Plot 25, Acacia Avenue, Kololo',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.home_outlined),
-                            helperText:
-                                'Exact street address — only visible to admin and your agent view',
-                            helperMaxLines: 2,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Bedrooms and Bathrooms (not for commercial)
-                        if (_selectedType != PropertyType.commercial) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _bedroomsController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Bedrooms (Optional)',
-                                    border: OutlineInputBorder(),
-                                    hintText: 'e.g., 3',
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  validator: (value) {
-                                    if (value != null &&
-                                        value.isNotEmpty &&
-                                        int.tryParse(value) == null) {
-                                      return 'Invalid';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _bathroomsController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Bathrooms (Optional)',
-                                    border: OutlineInputBorder(),
-                                    hintText: 'e.g., 2',
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  validator: (value) {
-                                    if (value != null &&
-                                        value.isNotEmpty &&
-                                        int.tryParse(value) == null) {
-                                      return 'Invalid';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // Area with unit selection (not for commercial)
-                        if (_selectedType != PropertyType.commercial) ...[
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: TextFormField(
-                                  controller: _areaSqftController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Approximate Area - Optional',
-                                    border: OutlineInputBorder(),
-                                    hintText: 'e.g., 1200',
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  validator: (value) {
-                                    if (value != null &&
-                                        value.isNotEmpty &&
-                                        double.tryParse(value) == null) {
-                                      return 'Please enter a valid number';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 1,
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: _areaUnit,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Unit',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: 'sqft',
-                                      child: Text('sq ft'),
+                              Positioned(
+                                top: 4,
+                                right: 12,
+                                child: GestureDetector(
+                                  onTap: () => _removeImage(index),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
                                     ),
-                                    DropdownMenuItem(
-                                      value: 'sqm',
-                                      child: Text('sq m'),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 16,
                                     ),
-                                  ],
-                                  onChanged: (String? value) {
-                                    if (value != null) {
-                                      setState(() {
-                                        _areaUnit = value;
-                                      });
-                                    }
-                                  },
+                                  ),
                                 ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 16),
-                        ],
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed:
+                        (_isLoading ||
+                            _selectedImages.length >= _maxPropertyImages)
+                        ? null
+                        : _pickImages,
+                    icon: const Icon(Icons.add_photo_alternate),
+                    label: Text(
+                      _selectedImages.isEmpty
+                          ? 'Add Images (Up to $_maxPropertyImages)'
+                          : _selectedImages.length >= _maxPropertyImages
+                          ? 'Maximum $_maxPropertyImages images reached'
+                          : 'Add More Images (${_maxPropertyImages - _selectedImages.length} remaining)',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
-                        // Agent Information Section
-                        const Divider(height: 32),
-                        const Text(
-                          'Agent Information',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Company Name
-                        TextFormField(
-                          controller: _companyNameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Company Name (Optional)',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.business),
-                            hintText: 'e.g., ABC Real Estate Ltd',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Agent Name
-                        TextFormField(
-                          controller: _agentNameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Agent Name *',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.person),
-                            hintText: 'e.g., John Doe',
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter agent name';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Amenities Section
-                        const Divider(height: 32),
+                  // Spotlight Promotion
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Row(
                           children: [
-                            const Text(
-                              'Amenities',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Icon(
+                              Icons.star,
+                              color: Colors.orange.shade700,
+                              size: 24,
                             ),
                             const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Text(
-                                'Optional',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Select amenities available at this property',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _availableAmenities.map((amenity) {
-                            final isSelected = _selectedAmenities.contains(
-                              amenity,
-                            );
-                            return FilterChip(
-                              label: Text(amenity),
-                              selected: isSelected,
-                              onSelected: (selected) {
-                                setState(() {
-                                  if (selected) {
-                                    _selectedAmenities.add(amenity);
-                                  } else {
-                                    _selectedAmenities.remove(amenity);
-                                  }
-                                });
-                              },
-                              selectedColor: AppColors.primary.withOpacity(0.2),
-                              checkmarkColor: AppColors.primary,
-                              labelStyle: TextStyle(
-                                color: isSelected
-                                    ? AppColors.primary
-                                    : Colors.black87,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Contact Information Section
-                        const Divider(height: 32),
-                        const Text(
-                          'Contact Information',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Contact Phone
-                        TextFormField(
-                          controller: _contactPhoneController,
-                          decoration: const InputDecoration(
-                            labelText: 'Phone Number for Calls *',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.phone),
-                            hintText: '+256...',
-                          ),
-                          keyboardType: TextInputType.phone,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter phone number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // WhatsApp Phone
-                        TextFormField(
-                          controller: _whatsappPhoneController,
-                          decoration: const InputDecoration(
-                            labelText: 'WhatsApp Number *',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.chat),
-                            hintText: '+256...',
-                          ),
-                          keyboardType: TextInputType.phone,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter WhatsApp number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Contact Email
-                        TextFormField(
-                          controller: _contactEmailController,
-                          decoration: const InputDecoration(
-                            labelText: 'Contact Email (Optional)',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.email),
-                            hintText: 'email@example.com',
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            if (value != null &&
-                                value.isNotEmpty &&
-                                !value.contains('@')) {
-                              return 'Please enter a valid email';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Images Section
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
                             const Text(
-                              'Property Images',
+                              'Spotlight Promotion',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            Text(
-                              '${_selectedImages.length}/20',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: _selectedImages.length >= 20
-                                    ? Colors.red
-                                    : Colors.grey[600],
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        if (_selectedImages.isNotEmpty)
-                          SizedBox(
-                            height: 120,
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _selectedImages.length,
-                              itemBuilder: (context, index) {
-                                return Stack(
+                        const Text(
+                          'Request to feature your property in the Spotlight Properties carousel on the customer home page. Admin will review and approve if eligible.',
+                          style: TextStyle(fontSize: 14, color: Colors.black87),
+                        ),
+                        const SizedBox(height: 12),
+                        Material(
+                          color: Colors.transparent,
+                          child: CheckboxListTile(
+                            value: _requestSpotlightPromotion,
+                            onChanged: (value) {
+                              setState(() {
+                                _requestSpotlightPromotion = value ?? false;
+                              });
+                            },
+                            title: const Text(
+                              'Request Spotlight Promotion',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: const Text(
+                              'Subject to admin approval',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            activeColor: Colors.orange,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.blue.shade700,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Featured Property Promotion is available after approval from the My Properties page.',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Agent Agreement Checkbox
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _agreedToAgentTerms
+                            ? Colors.green
+                            : Colors.orange.shade200,
+                        width: 2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Material(
+                          color: Colors.transparent,
+                          child: CheckboxListTile(
+                            value: _agreedToAgentTerms,
+                            onChanged: (value) {
+                              setState(() {
+                                _agreedToAgentTerms = value ?? false;
+                              });
+                            },
+                            title: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textPrimary,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'I agree to the '),
+                                  TextSpan(
+                                    text: 'Agent & Listing Agreement',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade800,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Required to post listings on TrueHome',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            activeColor: Colors.orange,
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const LegalPoliciesScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.article_outlined, size: 18),
+                          label: const Text('Read Agreement'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.orange.shade800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Progress indicator when uploading
+                  if (_isLoading)
+                    ValueListenableBuilder<_UploadProgressViewState>(
+                      valueListenable: _uploadProgressNotifier,
+                      builder: (context, uploadState, _) {
+                        return Column(
+                          children: [
+                            LinearProgressIndicator(
+                              value: uploadState.progress,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.primary,
+                              ),
+                              minHeight: 6,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    uploadState.status,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Text(
+                                  '${(uploadState.progress * 100).toInt()}%',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        );
+                      },
+                    ),
+
+                  // Submit Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: (_agreedToAgentTerms && !_isLoading)
+                          ? _handleSubmitFlow
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        disabledBackgroundColor: Colors.grey.shade300,
+                      ),
+                      child: _isLoading
+                          ? ValueListenableBuilder<_UploadProgressViewState>(
+                              valueListenable: _uploadProgressNotifier,
+                              builder: (context, uploadState, _) {
+                                final buttonStatus =
+                                    uploadState.status.isNotEmpty
+                                    ? uploadState.status
+                                    : 'Submitting...';
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Container(
-                                      margin: const EdgeInsets.only(right: 8),
-                                      width: 120,
-                                      height: 120,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        color: Colors.grey.shade200,
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: FutureBuilder<Uint8List>(
-                                          future: _thumbnailFutures.putIfAbsent(
-                                            _selectedImages[index].path,
-                                            () => _getThumbnail(
-                                              _selectedImages[index],
+                                    const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
                                             ),
-                                          ),
-                                          builder: (context, snapshot) {
-                                            if (snapshot.hasData) {
-                                              return Image.memory(
-                                                snapshot.data!,
-                                                fit: BoxFit.cover,
-                                                filterQuality:
-                                                    FilterQuality.high,
-                                              );
-                                            } else if (snapshot.hasError) {
-                                              return const Center(
-                                                child: Icon(
-                                                  Icons.error_outline,
-                                                  color: Colors.red,
-                                                ),
-                                              );
-                                            }
-                                            return const Center(
-                                              child: SizedBox(
-                                                width: 24,
-                                                height: 24,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                              ),
-                                            );
-                                          },
-                                        ),
                                       ),
                                     ),
-                                    Positioned(
-                                      top: 4,
-                                      right: 12,
-                                      child: GestureDetector(
-                                        onTap: () => _removeImage(index),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: const BoxDecoration(
-                                            color: Colors.red,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            Icons.close,
-                                            color: Colors.white,
-                                            size: 16,
-                                          ),
+                                    const SizedBox(width: 12),
+                                    Flexible(
+                                      child: Text(
+                                        buttonStatus,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.white,
                                         ),
                                       ),
                                     ),
                                   ],
                                 );
                               },
+                            )
+                          : Text(
+                              _agreedToAgentTerms
+                                  ? 'Submit for Review'
+                                  : 'Accept Agreement to Submit',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: _agreedToAgentTerms
+                                    ? Colors.white
+                                    : Colors.grey.shade600,
+                              ),
                             ),
-                          ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: _selectedImages.length >= 12
-                              ? null
-                              : _pickImages,
-                          icon: const Icon(Icons.add_photo_alternate),
-                          label: Text(
-                            _selectedImages.isEmpty
-                                ? 'Add Images (Up to 12)'
-                                : _selectedImages.length >= 12
-                                ? 'Maximum 12 images reached'
-                                : 'Add More Images (${12 - _selectedImages.length} remaining)',
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
 
-                        // Spotlight Promotion
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.orange.shade200),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+        // Circular progress overlay
+        if (_isLoading)
+          ValueListenableBuilder<_UploadProgressViewState>(
+            valueListenable: _uploadProgressNotifier,
+            builder: (context, uploadState, _) {
+              return Container(
+                color: Colors.black.withOpacity(0.7),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 150,
+                          height: 150,
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
-                              Row(
+                              SizedBox(
+                                width: 150,
+                                height: 150,
+                                child: CircularProgressIndicator(
+                                  value: uploadState.progress,
+                                  strokeWidth: 12,
+                                  backgroundColor: Colors.grey.shade200,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                        AppColors.primary,
+                                      ),
+                                ),
+                              ),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    Icons.star,
-                                    color: Colors.orange.shade700,
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Spotlight Promotion',
-                                    style: TextStyle(
-                                      fontSize: 16,
+                                  Text(
+                                    '${(uploadState.progress * 100).toInt()}%',
+                                    style: const TextStyle(
+                                      fontSize: 36,
                                       fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
                                     ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Icon(
+                                    Icons.cloud_upload_outlined,
+                                    color: AppColors.primary,
+                                    size: 32,
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Request to feature your property in the Spotlight Properties carousel on the customer home page. Admin will review and approve if eligible.',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              CheckboxListTile(
-                                value: _requestSpotlightPromotion,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _requestSpotlightPromotion = value ?? false;
-                                  });
-                                },
-                                title: const Text(
-                                  'Request Spotlight Promotion',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                                subtitle: const Text(
-                                  'Subject to admin approval',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                                activeColor: Colors.orange,
-                                contentPadding: EdgeInsets.zero,
-                              ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 24),
-
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue.shade200),
+                        Text(
+                          uploadState.status,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
                           ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.info_outline,
-                                color: Colors.blue.shade700,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              const Expanded(
-                                child: Text(
-                                  'Featured Property Promotion is available after approval from the My Properties page.',
-                                  style: TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            ],
-                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 24),
-
-                        // Agent Agreement Checkbox
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: _agreedToAgentTerms
-                                  ? Colors.green
-                                  : Colors.orange.shade200,
-                              width: 2,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              CheckboxListTile(
-                                value: _agreedToAgentTerms,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _agreedToAgentTerms = value ?? false;
-                                  });
-                                },
-                                title: RichText(
-                                  text: TextSpan(
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    children: [
-                                      const TextSpan(text: 'I agree to the '),
-                                      TextSpan(
-                                        text: 'Agent & Listing Agreement',
-                                        style: TextStyle(
-                                          color: Colors.orange.shade800,
-                                          fontWeight: FontWeight.bold,
-                                          decoration: TextDecoration.underline,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Required to post listings on TrueHome',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                                activeColor: Colors.orange,
-                                contentPadding: EdgeInsets.zero,
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                              ),
-                              TextButton.icon(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const LegalPoliciesScreen(),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(
-                                  Icons.article_outlined,
-                                  size: 18,
-                                ),
-                                label: const Text('Read Agreement'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.orange.shade800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Progress indicator when uploading
-                        if (_isLoading) ...[
-                          LinearProgressIndicator(
-                            value: _uploadProgress,
-                            backgroundColor: Colors.grey.shade200,
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.primary,
-                            ),
-                            minHeight: 6,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  _uploadStatus,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Text(
-                                '${(_uploadProgress * 100).toInt()}%',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-
-                        // Submit Button
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: (_agreedToAgentTerms && !_isLoading)
-                                ? _handleSubmitFlow
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              disabledBackgroundColor: Colors.grey.shade300,
-                            ),
-                            child: _isLoading
-                                ? Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Colors.white,
-                                              ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Uploading ${(_uploadProgress * 100).toInt()}%',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Text(
-                                    _agreedToAgentTerms
-                                        ? 'Submit for Review'
-                                        : 'Accept Agreement to Submit',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: _agreedToAgentTerms
-                                          ? Colors.white
-                                          : Colors.grey.shade600,
-                                    ),
-                                  ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Please wait...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-        ),
-
-        // Circular progress overlay
-        if (_isLoading && _uploadProgress > 0)
-          Container(
-            color: Colors.black.withOpacity(0.7),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 150,
-                      height: 150,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 150,
-                            height: 150,
-                            child: CircularProgressIndicator(
-                              value: _uploadProgress,
-                              strokeWidth: 12,
-                              backgroundColor: Colors.grey.shade200,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                AppColors.primary,
-                              ),
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${(_uploadProgress * 100).toInt()}%',
-                                style: const TextStyle(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Icon(
-                                Icons.cloud_upload_outlined,
-                                color: AppColors.primary,
-                                size: 32,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      _uploadStatus,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Please wait...',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+              );
+            },
           ),
       ],
     );

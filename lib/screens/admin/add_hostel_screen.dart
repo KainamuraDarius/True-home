@@ -138,9 +138,9 @@ class _AddHostelScreenState extends State<AddHostelScreen>
   };
 
   bool _isPickingImages = false;
-  static const int _webMaxImageDimension = 2560;
+  static const int _webMaxImageDimension = 1920;
   static const int _mobileMaxImageDimension = 2560;
-  static const int _webJpegQuality = 96;
+  static const int _webJpegQuality = 84;
   static const int _mobileJpegQuality = 94;
 
   Widget _buildGenderPolicyOption(
@@ -282,11 +282,14 @@ class _AddHostelScreenState extends State<AddHostelScreen>
 
     for (int i = 0; i < _selectedImages.length; i++) {
       try {
-        setState(() {
-          _uploadStatus =
-              'Uploading image ${i + 1}/${_selectedImages.length}...';
-          _uploadProgress = (i / _selectedImages.length);
-        });
+        if (mounted) {
+          setState(() {
+            _uploadStatus =
+                'Preparing image ${i + 1}/${_selectedImages.length}...';
+            _uploadProgress = (i / _selectedImages.length);
+          });
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 16));
         print(
           'Uploading image ${i + 1}/${_selectedImages.length} to Firebase Storage',
         );
@@ -296,21 +299,25 @@ class _AddHostelScreenState extends State<AddHostelScreen>
         final bytes = _imageBytes[xfile.path] ?? await xfile.readAsBytes();
 
         final jpegQuality = kIsWeb ? _webJpegQuality : _mobileJpegQuality;
-        final compressedBytes = await compute(
-          _compressHostelImageForUpload,
-          <String, dynamic>{
-            'bytes': bytes,
-            'maxDimension': kIsWeb
-                ? _webMaxImageDimension
-                : _mobileMaxImageDimension,
-            'quality': jpegQuality,
-          },
-        );
+        final compressedBytes =
+            await compute(_compressHostelImageForUpload, <String, dynamic>{
+              'bytes': bytes,
+              'maxDimension': kIsWeb
+                  ? _webMaxImageDimension
+                  : _mobileMaxImageDimension,
+              'quality': jpegQuality,
+            });
         print(
           'Compressed image size: ${(compressedBytes.length / 1024).toStringAsFixed(1)} KB',
         );
 
         // Upload to Firebase Storage
+        if (mounted) {
+          setState(() {
+            _uploadStatus =
+                'Uploading image ${i + 1}/${_selectedImages.length}...';
+          });
+        }
         final url = await StorageService.uploadImage(
           compressedBytes,
           folder: 'properties',
@@ -318,9 +325,11 @@ class _AddHostelScreenState extends State<AddHostelScreen>
         if (url != null) {
           imageUrls.add(url);
           print('✅ Successfully uploaded image ${i + 1}');
-          setState(() {
-            _uploadProgress = ((i + 1) / _selectedImages.length);
-          });
+          if (mounted) {
+            setState(() {
+              _uploadProgress = ((i + 1) / _selectedImages.length);
+            });
+          }
         } else {
           print('❌ Failed to upload image ${i + 1}');
         }
@@ -329,12 +338,43 @@ class _AddHostelScreenState extends State<AddHostelScreen>
       }
     }
 
-    setState(() {
-      _uploadStatus = '';
-      _uploadProgress = 0.0;
-    });
+    if (mounted) {
+      setState(() {
+        _uploadStatus = '';
+        _uploadProgress = 0.0;
+      });
+    }
 
     return imageUrls;
+  }
+
+  void _resetFormFields() {
+    _formKey.currentState?.reset();
+    _titleController.clear();
+    _descriptionController.clear();
+    _locationController.clear();
+    _addressController.clear();
+    _contactPhoneController.clear();
+    _whatsappPhoneController.clear();
+    _contactEmailController.clear();
+    _hostelManagerNameController.clear();
+    _paymentInstructionsController.clear();
+    _roomStructureController.clear();
+    for (final controller in _roomPriceControllers.values) {
+      controller.clear();
+    }
+    for (final controller in _roomCountControllers.values) {
+      controller.clear();
+    }
+    _selectedRoomTypes.updateAll((_, __) => false);
+    _selectedImages.clear();
+    _imageBytes.clear();
+    _selectedAmenities.clear();
+    _selectedUniversity = null;
+    _pricingPeriod = PricingPeriod.month;
+    _selectedGenderPolicy = GenderPolicy.mixed;
+    _uploadStatus = '';
+    _uploadProgress = 0.0;
   }
 
   Future<void> _submitHostel() async {
@@ -344,6 +384,8 @@ class _AddHostelScreenState extends State<AddHostelScreen>
 
     setState(() {
       _isLoading = true;
+      _uploadStatus = 'Preparing hostel publish...';
+      _uploadProgress = 0.0;
     });
 
     try {
@@ -399,10 +441,21 @@ class _AddHostelScreenState extends State<AddHostelScreen>
             'Please select at least one room type with pricing',
           );
         }
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _uploadStatus = '';
+            _uploadProgress = 0.0;
+          });
+        }
         return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _uploadStatus = 'Saving hostel details...';
+          _uploadProgress = 1.0;
+        });
       }
 
       // Create hostel property (automatically approved)
@@ -455,11 +508,15 @@ class _AddHostelScreenState extends State<AddHostelScreen>
       await propertyRef.set(property.toJson());
 
       if (mounted) {
-        SnackbarHelper.showSuccess(
-          context,
-          'Student hostel published successfully!',
-        );
-        Navigator.pop(context);
+        if (widget.embedded) {
+          SnackbarHelper.showSuccess(
+            context,
+            'Student hostel published successfully!',
+          );
+          _resetFormFields();
+        } else {
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -472,6 +529,8 @@ class _AddHostelScreenState extends State<AddHostelScreen>
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _uploadStatus = '';
+          _uploadProgress = 0.0;
         });
       }
     }
@@ -479,677 +538,655 @@ class _AddHostelScreenState extends State<AddHostelScreen>
 
   @override
   Widget build(BuildContext context) {
-    final content = _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : Form(
-            key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
+    final content = Form(
+      key: _formKey,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Info banner
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.purple.shade50, Colors.white],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.purple.shade200),
+            ),
+            child: Row(
               children: [
-                // Info banner
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.purple.shade50, Colors.white],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.purple.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.school,
-                        color: Colors.purple.shade700,
-                        size: 32,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Student hostels are added by Admin only and are automatically published',
-                          style: TextStyle(
-                            color: Colors.purple.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // University Selection
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedUniversity,
-                  decoration: const InputDecoration(
-                    labelText: 'University *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.school),
-                  ),
-                  isExpanded: true,
-                  isDense: true,
-                  items: universities.map((university) {
-                    return DropdownMenuItem<String>(
-                      value: university,
-                      child: Text(
-                        university,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    );
-                  }).toList(),
-                  selectedItemBuilder: (BuildContext context) {
-                    return universities.map((String value) {
-                      return Text(
-                        value,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      );
-                    }).toList();
-                  },
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedUniversity = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select a university';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Gender Policy Selection
-                const Text(
-                  'Gender Policy *',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildGenderPolicyOption(
-                          GenderPolicy.maleOnly,
-                          'Male Only',
-                          Icons.male,
-                          Colors.blue,
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildGenderPolicyOption(
-                          GenderPolicy.femaleOnly,
-                          'Female Only',
-                          Icons.female,
-                          Colors.pink,
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildGenderPolicyOption(
-                          GenderPolicy.mixed,
-                          'Mixed',
-                          Icons.people,
-                          Colors.purple,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Room Structure (customizable)
-                TextFormField(
-                  controller: _roomStructureController,
-                  decoration: const InputDecoration(
-                    labelText: 'Room Structure *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.meeting_room),
-                    hintText: 'e.g., Self Contained, Mixed, Double, etc.',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter room structure';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Title
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Hostel Name *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.hotel),
-                    hintText: 'e.g., Sunshine Student Hostel',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter hostel name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Description
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description *',
-                    border: OutlineInputBorder(),
-                    hintText: 'Describe the hostel facilities and features',
-                  ),
-                  maxLines: 4,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter description';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Location
-                TextFormField(
-                  controller: _locationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Location/Area *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.location_city),
-                    hintText: 'e.g., Wandegeya',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter location';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Address
-                TextFormField(
-                  controller: _addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Address *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.location_on),
-                    hintText: 'e.g., Plot 123, Bombo Road',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter address';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-
-                // Room Types & Pricing Section
-                const Divider(height: 32),
-                const Text(
-                  'Room Types & Pricing',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Select available room types and set their prices',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-
-                // Pricing Period Selection
-                Row(
-                  children: [
-                    const Text(
-                      'Pricing Period: ',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 16),
-                    ChoiceChip(
-                      label: const Text('Per Month'),
-                      selected: _pricingPeriod == PricingPeriod.month,
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() {
-                            _pricingPeriod = PricingPeriod.month;
-                          });
-                        }
-                      },
-                      selectedColor: Colors.purple.withOpacity(0.2),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('Per Semester'),
-                      selected: _pricingPeriod == PricingPeriod.semester,
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() {
-                            _pricingPeriod = PricingPeriod.semester;
-                          });
-                        }
-                      },
-                      selectedColor: Colors.purple.withOpacity(0.2),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Room types with pricing and availability
-                ..._roomPriceControllers.keys.map((roomType) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Checkbox(
-                              value: _selectedRoomTypes[roomType],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedRoomTypes[roomType] = value ?? false;
-                                });
-                              },
-                            ),
-                            Expanded(
-                              child: Text(
-                                roomType,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight:
-                                      _selectedRoomTypes[roomType] == true
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (_selectedRoomTypes[roomType] == true) ...[
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 48),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _roomPriceControllers[roomType],
-                                    decoration: const InputDecoration(
-                                      labelText: 'Price (UGX)',
-                                      border: OutlineInputBorder(),
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Required';
-                                      }
-                                      if (double.tryParse(value) == null) {
-                                        return 'Invalid';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _roomCountControllers[roomType],
-                                    decoration: const InputDecoration(
-                                      labelText: 'Total Rooms',
-                                      border: OutlineInputBorder(),
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Required';
-                                      }
-                                      if (int.tryParse(value) == null ||
-                                          int.parse(value) < 1) {
-                                        return 'Min 1';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                }),
-
-                const SizedBox(height: 24),
-
-                // Amenities Section
-                const Divider(height: 32),
-                Row(
-                  children: [
-                    const Text(
-                      'Amenities',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'Optional',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _availableAmenities.map((amenity) {
-                    final isSelected = _selectedAmenities.contains(amenity);
-                    return FilterChip(
-                      label: Text(amenity),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedAmenities.add(amenity);
-                          } else {
-                            _selectedAmenities.remove(amenity);
-                          }
-                        });
-                      },
-                      selectedColor: Colors.purple.withOpacity(0.2),
-                      checkmarkColor: Colors.purple,
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.purple : Colors.black87,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 24),
-
-                // Contact Information
-                const Divider(height: 32),
-                const Text(
-                  'Hostel Manager Contact',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-
-                // Hostel Manager Name
-                TextFormField(
-                  controller: _hostelManagerNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Manager Name *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter manager name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Contact Phone
-                TextFormField(
-                  controller: _contactPhoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                    hintText: '+256...',
-                  ),
-                  keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter phone number';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // WhatsApp
-                TextFormField(
-                  controller: _whatsappPhoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'WhatsApp Number *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                    hintText: '+256...',
-                  ),
-                  keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter WhatsApp number';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Email
-                TextFormField(
-                  controller: _contactEmailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (Optional)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-
-                // Payment Instructions
-                TextFormField(
-                  controller: _paymentInstructionsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Payment Instructions (Optional)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.info_outline),
-                    hintText:
-                        'e.g., Pay deposit of 500,000 UGX to Acc: 123456789',
-                  ),
-                  maxLines: 3,
-                  keyboardType: TextInputType.multiline,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info, size: 16, color: Colors.blue.shade700),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Students will see these instructions after reserving. Include deposit amount, bank account, or mobile money details.',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Images Section
-                const Divider(height: 32),
-                const Text(
-                  'Hostel Photos',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Upload up to 12 photos (${_selectedImages.length}/12)',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-
-                // Image grid
-                if (_selectedImages.isNotEmpty)
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                    itemCount: _selectedImages.length,
-                    itemBuilder: (context, index) {
-                      final bytes = _imageBytes[_selectedImages[index].path];
-                      return Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: bytes != null
-                                ? Image.memory(
-                                    bytes,
-                                    fit: BoxFit.cover,
-                                    filterQuality: FilterQuality.high,
-                                  )
-                                : const Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                          ),
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: CircleAvatar(
-                              radius: 12,
-                              backgroundColor: Colors.red,
-                              child: IconButton(
-                                padding: EdgeInsets.zero,
-                                icon: const Icon(
-                                  Icons.close,
-                                  size: 16,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () => _removeImage(index),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                const SizedBox(height: 16),
-
-                // Add images button
-                if (_selectedImages.length < 12)
-                  OutlinedButton.icon(
-                    onPressed: _pickImages,
-                    icon: const Icon(Icons.add_photo_alternate),
-                    label: const Text('Add Photos'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                Icon(Icons.school, color: Colors.purple.shade700, size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Student hostels are added by Admin only and are automatically published',
+                    style: TextStyle(
+                      color: Colors.purple.shade700,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                const SizedBox(height: 32),
-
-                // Upload progress indicator
-                if (_uploadStatus.isNotEmpty) ...[
-                  Card(
-                    color: Colors.purple.shade50,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Text(
-                            _uploadStatus,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 12),
-                          LinearProgressIndicator(
-                            value: _uploadProgress,
-                            backgroundColor: Colors.purple.shade100,
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              Colors.purple,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${(_uploadProgress * 100).toStringAsFixed(0)}%',
-                            style: TextStyle(color: Colors.purple.shade700),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Submit button
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _submitHostel,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Publish Hostel',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
                 ),
-                const SizedBox(height: 16),
               ],
             ),
-          );
+          ),
+          const SizedBox(height: 24),
+
+          // University Selection
+          DropdownButtonFormField<String>(
+            initialValue: _selectedUniversity,
+            decoration: const InputDecoration(
+              labelText: 'University *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.school),
+            ),
+            isExpanded: true,
+            isDense: true,
+            items: universities.map((university) {
+              return DropdownMenuItem<String>(
+                value: university,
+                child: Text(
+                  university,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              );
+            }).toList(),
+            selectedItemBuilder: (BuildContext context) {
+              return universities.map((String value) {
+                return Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                );
+              }).toList();
+            },
+            onChanged: (value) {
+              setState(() {
+                _selectedUniversity = value;
+              });
+            },
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please select a university';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Gender Policy Selection
+          const Text(
+            'Gender Policy *',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildGenderPolicyOption(
+                    GenderPolicy.maleOnly,
+                    'Male Only',
+                    Icons.male,
+                    Colors.blue,
+                  ),
+                ),
+                Expanded(
+                  child: _buildGenderPolicyOption(
+                    GenderPolicy.femaleOnly,
+                    'Female Only',
+                    Icons.female,
+                    Colors.pink,
+                  ),
+                ),
+                Expanded(
+                  child: _buildGenderPolicyOption(
+                    GenderPolicy.mixed,
+                    'Mixed',
+                    Icons.people,
+                    Colors.purple,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Room Structure (customizable)
+          TextFormField(
+            controller: _roomStructureController,
+            decoration: const InputDecoration(
+              labelText: 'Room Structure *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.meeting_room),
+              hintText: 'e.g., Self Contained, Mixed, Double, etc.',
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please enter room structure';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Title
+          TextFormField(
+            controller: _titleController,
+            decoration: const InputDecoration(
+              labelText: 'Hostel Name *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.hotel),
+              hintText: 'e.g., Sunshine Student Hostel',
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter hostel name';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Description
+          TextFormField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Description *',
+              border: OutlineInputBorder(),
+              hintText: 'Describe the hostel facilities and features',
+            ),
+            maxLines: 4,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter description';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Location
+          TextFormField(
+            controller: _locationController,
+            decoration: const InputDecoration(
+              labelText: 'Location/Area *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.location_city),
+              hintText: 'e.g., Wandegeya',
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter location';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Address
+          TextFormField(
+            controller: _addressController,
+            decoration: const InputDecoration(
+              labelText: 'Full Address *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.location_on),
+              hintText: 'e.g., Plot 123, Bombo Road',
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter address';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // Room Types & Pricing Section
+          const Divider(height: 32),
+          const Text(
+            'Room Types & Pricing',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Select available room types and set their prices',
+            style: TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+
+          // Pricing Period Selection
+          Row(
+            children: [
+              const Text(
+                'Pricing Period: ',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 16),
+              ChoiceChip(
+                label: const Text('Per Month'),
+                selected: _pricingPeriod == PricingPeriod.month,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _pricingPeriod = PricingPeriod.month;
+                    });
+                  }
+                },
+                selectedColor: Colors.purple.withOpacity(0.2),
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Per Semester'),
+                selected: _pricingPeriod == PricingPeriod.semester,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _pricingPeriod = PricingPeriod.semester;
+                    });
+                  }
+                },
+                selectedColor: Colors.purple.withOpacity(0.2),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Room types with pricing and availability
+          ..._roomPriceControllers.keys.map((roomType) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _selectedRoomTypes[roomType],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedRoomTypes[roomType] = value ?? false;
+                          });
+                        },
+                      ),
+                      Expanded(
+                        child: Text(
+                          roomType,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: _selectedRoomTypes[roomType] == true
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_selectedRoomTypes[roomType] == true) ...[
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 48),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _roomPriceControllers[roomType],
+                              decoration: const InputDecoration(
+                                labelText: 'Price (UGX)',
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Required';
+                                }
+                                if (double.tryParse(value) == null) {
+                                  return 'Invalid';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _roomCountControllers[roomType],
+                              decoration: const InputDecoration(
+                                labelText: 'Total Rooms',
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Required';
+                                }
+                                if (int.tryParse(value) == null ||
+                                    int.parse(value) < 1) {
+                                  return 'Min 1';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+
+          const SizedBox(height: 24),
+
+          // Amenities Section
+          const Divider(height: 32),
+          Row(
+            children: [
+              const Text(
+                'Amenities',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Optional',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _availableAmenities.map((amenity) {
+              final isSelected = _selectedAmenities.contains(amenity);
+              return FilterChip(
+                label: Text(amenity),
+                selected: isSelected,
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedAmenities.add(amenity);
+                    } else {
+                      _selectedAmenities.remove(amenity);
+                    }
+                  });
+                },
+                selectedColor: Colors.purple.withOpacity(0.2),
+                checkmarkColor: Colors.purple,
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.purple : Colors.black87,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 24),
+
+          // Contact Information
+          const Divider(height: 32),
+          const Text(
+            'Hostel Manager Contact',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+
+          // Hostel Manager Name
+          TextFormField(
+            controller: _hostelManagerNameController,
+            decoration: const InputDecoration(
+              labelText: 'Manager Name *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.person),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter manager name';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Contact Phone
+          TextFormField(
+            controller: _contactPhoneController,
+            decoration: const InputDecoration(
+              labelText: 'Phone Number *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.phone),
+              hintText: '+256...',
+            ),
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter phone number';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // WhatsApp
+          TextFormField(
+            controller: _whatsappPhoneController,
+            decoration: const InputDecoration(
+              labelText: 'WhatsApp Number *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.phone),
+              hintText: '+256...',
+            ),
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter WhatsApp number';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Email
+          TextFormField(
+            controller: _contactEmailController,
+            decoration: const InputDecoration(
+              labelText: 'Email (Optional)',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.email),
+            ),
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 16),
+
+          // Payment Instructions
+          TextFormField(
+            controller: _paymentInstructionsController,
+            decoration: const InputDecoration(
+              labelText: 'Payment Instructions (Optional)',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.info_outline),
+              hintText: 'e.g., Pay deposit of 500,000 UGX to Acc: 123456789',
+            ),
+            maxLines: 3,
+            keyboardType: TextInputType.multiline,
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info, size: 16, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Students will see these instructions after reserving. Include deposit amount, bank account, or mobile money details.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Images Section
+          const Divider(height: 32),
+          const Text(
+            'Hostel Photos',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upload up to 12 photos (${_selectedImages.length}/12)',
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+
+          // Image grid
+          if (_selectedImages.isNotEmpty)
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: _selectedImages.length,
+              itemBuilder: (context, index) {
+                final bytes = _imageBytes[_selectedImages[index].path];
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: bytes != null
+                          ? Image.memory(
+                              bytes,
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.high,
+                            )
+                          : const Center(child: CircularProgressIndicator()),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: CircleAvatar(
+                        radius: 12,
+                        backgroundColor: Colors.red,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => _removeImage(index),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          const SizedBox(height: 16),
+
+          // Add images button
+          if (_selectedImages.length < 12)
+            OutlinedButton.icon(
+              onPressed: _isLoading ? null : _pickImages,
+              icon: const Icon(Icons.add_photo_alternate),
+              label: const Text('Add Photos'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          const SizedBox(height: 32),
+
+          // Upload progress indicator
+          if (_uploadStatus.isNotEmpty) ...[
+            Card(
+              color: Colors.purple.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Text(
+                      _uploadStatus,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: _uploadProgress,
+                      backgroundColor: Colors.purple.shade100,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Colors.purple,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${(_uploadProgress * 100).toStringAsFixed(0)}%',
+                      style: TextStyle(color: Colors.purple.shade700),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Submit button
+          ElevatedButton(
+            onPressed: _isLoading ? null : _submitHostel,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Publish Hostel',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
 
     if (widget.embedded) {
       return content;

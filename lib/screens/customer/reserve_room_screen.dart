@@ -1,14 +1,13 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 import '../../utils/currency_formatter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/property_model.dart';
 import '../../models/reservation_model.dart';
 import '../../services/room_availability_service.dart';
-import '../../services/nylon_payment_service.dart';
+import '../../services/livepay_payment_service.dart';
 import '../../utils/app_theme.dart';
 import '../auth/login_screen.dart';
 import '../auth/role_selection_screen.dart';
@@ -29,7 +28,6 @@ class ReserveRoomScreen extends StatefulWidget {
 }
 
 class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
-  static const Uuid _uuid = Uuid();
   Map<String, dynamic>? _userProfile;
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -37,7 +35,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   final _emailController = TextEditingController();
   final RoomAvailabilityService _availabilityService =
       RoomAvailabilityService();
-  final NylonPaymentService _nylonService = NylonPaymentService();
+  final LivePaymentService _livePayService = LivePaymentService();
 
   bool _isProcessing = false;
   final double _reservationFee = 20000; // UGX
@@ -45,55 +43,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   bool _roomAvailable = false;
 
   String? _currentTransactionId; // Track current payment transaction
-
-  String _buildPaymentReference() {
-    return _uuid.v4().replaceAll('-', '').substring(0, 14);
-  }
-
-  void _showPaymentMessage(
-    String message, {
-    Color backgroundColor = Colors.orange,
-  }) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: backgroundColor),
-    );
-  }
-
-  bool _isMissingPaymentTransactionMessage(String message) {
-    final normalized = message.toLowerCase();
-    return normalized.contains('transaction not found') ||
-        normalized.contains('provider transaction id not found');
-  }
-
-  String _normalizePaymentPhoneForInput(String value) {
-    var digits = value.replaceAll(RegExp(r'\D'), '');
-
-    if (digits.startsWith('256256')) {
-      digits = '256${digits.substring(6)}';
-    }
-
-    if (digits.startsWith('2560')) {
-      digits = '256${digits.substring(4)}';
-    }
-
-    if (digits.startsWith('0')) {
-      digits = '256${digits.substring(1)}';
-    } else if (!digits.startsWith('256') && digits.startsWith('7')) {
-      digits = '256$digits';
-    }
-
-    if (digits.startsWith('256') && digits.length > 12) {
-      digits = digits.substring(0, 12);
-    }
-
-    return digits.isEmpty ? '' : '+$digits';
-  }
-
-  bool _isValidPaymentPhoneNumber(String value) {
-    final normalized = _normalizePaymentPhoneForInput(value);
-    return RegExp(r'^\+2567\d{8}$').hasMatch(normalized);
-  }
 
   @override
   void initState() {
@@ -278,7 +227,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _initiateNylonPayment();
+              _initiatePandoraPayment();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -291,9 +240,9 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
     );
   }
 
-  /// Initiate Nylon payment
-  /// Sends payment request to Nylon Pay - user will receive USSD/app prompt
-  Future<void> _initiateNylonPayment() async {
+  /// Initiate Pandora payment
+  /// Sends payment request to Pandora API - user will receive USSD/app prompt
+  Future<void> _initiatePandoraPayment() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -320,18 +269,11 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         ),
       );
 
-      final transactionRef = _buildPaymentReference();
-      _phoneController.value = TextEditingValue(
-        text: _normalizePaymentPhoneForInput(_phoneController.text.trim()),
-        selection: TextSelection.collapsed(
-          offset: _normalizePaymentPhoneForInput(
-            _phoneController.text.trim(),
-          ).length,
-        ),
-      );
+      final transactionRef =
+          'HOSTEL_${widget.property.id}_${DateTime.now().millisecondsSinceEpoch}';
 
-      // Call Nylon Pay to initiate payment
-      final response = await _nylonService.initiatePayment(
+      // Call Pandora API to initiate payment
+      final response = await _livePayService.initiatePayment(
         phoneNumber: _phoneController.text.trim(),
         amount: _reservationFee,
         transactionRef: transactionRef,
@@ -357,7 +299,12 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         _isProcessing = false;
       });
 
-      _showPaymentMessage(e.message, backgroundColor: Colors.red);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Payment Error: ${e.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Close processing dialog
@@ -366,15 +313,14 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         _isProcessing = false;
       });
 
-      _showPaymentMessage(
-        'We could not start the payment right now. Please try again.',
-        backgroundColor: Colors.red,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
   /// Show dialog that checks payment status
-  /// Polls Nylon Pay and waits for payment to complete
+  /// Polls Pandora API and waits for payment to complete
   void _showPaymentStatusDialog(String transactionRef) {
     showDialog(
       context: context,
@@ -463,19 +409,21 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
     ); // Poll for up to 5 minutes
   }
 
-  /// Poll Nylon Pay to check payment status
+  /// Poll Pandora API to check payment status
   Future<void> _pollPaymentStatus(
     String transactionRef, {
     int maxAttempts = 60,
     int attemptNumber = 0,
-    int missingTransactionCount = 0,
   }) async {
     if (attemptNumber >= maxAttempts) {
       if (mounted) {
         Navigator.pop(context); // Close status dialog
 
-        _showPaymentMessage(
-          'We could not confirm the payment in time. Please try again if it did not complete on your phone.',
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment request timed out. Please try again.'),
+            backgroundColor: Colors.orange,
+          ),
         );
       }
       setState(() {
@@ -491,7 +439,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
       if (!mounted) return;
 
       // Check payment status
-      final statusResponse = await _nylonService.checkPaymentStatus(
+      final statusResponse = await _livePayService.checkPaymentStatus(
         transactionRef: transactionRef,
       );
 
@@ -505,7 +453,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
-              'Payment received. We are creating your reservation now.',
+              '✅ Payment received! Creating your reservation...',
             ),
             backgroundColor: Colors.green,
           ),
@@ -521,7 +469,9 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(statusResponse.message),
+            content: Text(
+              'Payment ${statusResponse.status.toLowerCase()}: ${statusResponse.message}',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -535,49 +485,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
           transactionRef,
           maxAttempts: maxAttempts,
           attemptNumber: attemptNumber + 1,
-          missingTransactionCount: 0,
-        );
-      }
-    } on PaymentException catch (e) {
-      debugPrint('Error checking payment status: ${e.message}');
-
-      if (_isMissingPaymentTransactionMessage(e.message)) {
-        final nextMissingTransactionCount = missingTransactionCount + 1;
-        if (nextMissingTransactionCount >= 4) {
-          if (mounted) {
-            Navigator.pop(context);
-            _showPaymentMessage(
-              'We could not confirm the payment request with the provider. If no prompt reached your phone, please confirm the number and try again.',
-              backgroundColor: Colors.red,
-            );
-          }
-          setState(() {
-            _isProcessing = false;
-            _currentTransactionId = null;
-          });
-          return;
-        }
-
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted) {
-          _pollPaymentStatus(
-            transactionRef,
-            maxAttempts: maxAttempts,
-            attemptNumber: attemptNumber + 1,
-            missingTransactionCount: nextMissingTransactionCount,
-          );
-        }
-        return;
-      }
-
-      // Continue polling on temporary status errors.
-      await Future.delayed(const Duration(seconds: 2));
-      if (mounted) {
-        _pollPaymentStatus(
-          transactionRef,
-          maxAttempts: maxAttempts,
-          attemptNumber: attemptNumber + 1,
-          missingTransactionCount: 0,
         );
       }
     } catch (e) {
@@ -590,7 +497,6 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
           transactionRef,
           maxAttempts: maxAttempts,
           attemptNumber: attemptNumber + 1,
-          missingTransactionCount: 0,
         );
       }
     }
@@ -600,7 +506,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
   Future<void> _cancelPayment() async {
     if (_currentTransactionId != null) {
       try {
-        await _nylonService.cancelPayment(
+        await _livePayService.cancelPayment(
           transactionRef: _currentTransactionId!,
         );
       } catch (e) {
@@ -781,9 +687,7 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-            'Your payment was received, but we could not finish the reservation right now. Please try again or contact support if this keeps happening.',
-          ),
+          content: Text('Error completing reservation: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -1005,28 +909,17 @@ class _ReserveRoomScreenState extends State<ReserveRoomScreen> {
                   labelText: 'Phone Number for Payment *',
                   prefixIcon: Icon(Icons.phone),
                   border: OutlineInputBorder(),
-                  hintText: '+2567XXXXXXXX',
-                  helperText:
-                      'Enter the mobile money number in the format +2567XXXXXXXX.',
+                  hintText: '+256...',
+                  helperText: 'Enter the number to receive the payment prompt.',
                 ),
                 readOnly: false,
                 keyboardType: TextInputType.phone,
-                onChanged: (value) {
-                  final normalized = _normalizePaymentPhoneForInput(value);
-                  if (normalized == value) return;
-                  _phoneController.value = TextEditingValue(
-                    text: normalized,
-                    selection: TextSelection.collapsed(
-                      offset: normalized.length,
-                    ),
-                  );
-                },
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter your phone number';
                   }
-                  if (!_isValidPaymentPhoneNumber(value.trim())) {
-                    return 'Use +2567XXXXXXXX with no spaces';
+                  if (value.trim().length < 10) {
+                    return 'Please enter a valid phone number';
                   }
                   return null;
                 },

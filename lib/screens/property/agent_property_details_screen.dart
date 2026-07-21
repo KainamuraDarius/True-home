@@ -13,10 +13,12 @@ class AgentPropertyDetailsScreen extends StatefulWidget {
   const AgentPropertyDetailsScreen({super.key, required this.property});
 
   @override
-  State<AgentPropertyDetailsScreen> createState() => _AgentPropertyDetailsScreenState();
+  State<AgentPropertyDetailsScreen> createState() =>
+      _AgentPropertyDetailsScreenState();
 }
 
-class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen> {
+class _AgentPropertyDetailsScreenState
+    extends State<AgentPropertyDetailsScreen> {
   int _currentImageIndex = 0;
 
   @override
@@ -36,7 +38,8 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => EditPropertyScreen(property: widget.property),
+                    builder: (context) =>
+                        EditPropertyScreen(property: widget.property),
                   ),
                 ).then((_) {
                   // Refresh if needed after edit
@@ -79,12 +82,17 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                           filterQuality: FilterQuality.high,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           },
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
                               color: Colors.grey[300],
-                              child: const Icon(Icons.image_not_supported, size: 50),
+                              child: const Icon(
+                                Icons.image_not_supported,
+                                size: 50,
+                              ),
                             );
                           },
                         );
@@ -95,7 +103,10 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                       bottom: 16,
                       right: 16,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.6),
                           borderRadius: BorderRadius.circular(20),
@@ -120,7 +131,10 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: _getStatusColor(widget.property.status),
                           borderRadius: BorderRadius.circular(20),
@@ -136,7 +150,10 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                       ),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
@@ -168,10 +185,7 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                          ),
+                          Icon(Icons.check_circle, color: Colors.green),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -294,7 +308,7 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                                   ),
                                 ),
                                 Text(
-                                  widget.property.viewCount == 1 
+                                  widget.property.viewCount == 1
                                       ? 'customer has viewed this property'
                                       : 'customers have viewed this property',
                                   style: const TextStyle(
@@ -359,7 +373,10 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                       Expanded(
                         child: Text(
                           widget.property.address,
-                          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ),
                     ],
@@ -380,12 +397,20 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildDetailItem(Icons.bed, '${widget.property.bedrooms}', 'Bedrooms'),
-                      _buildDetailItem(Icons.bathroom, '${widget.property.bathrooms}', 'Bathrooms'),
+                      _buildDetailItem(
+                        Icons.bed,
+                        '${widget.property.bedrooms}',
+                        'Bedrooms',
+                      ),
+                      _buildDetailItem(
+                        Icons.bathroom,
+                        '${widget.property.bathrooms}',
+                        'Bathrooms',
+                      ),
                       _buildDetailItem(
                         Icons.square_foot,
-                        widget.property.formattedAreaValue,
-                        widget.property.normalizedAreaUnit,
+                        '${widget.property.areaSqft.toInt()}',
+                        widget.property.areaUnitLabel,
                       ),
                     ],
                   ),
@@ -403,7 +428,10 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                   const SizedBox(height: 8),
                   Text(
                     widget.property.description,
-                    style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 24),
 
@@ -444,15 +472,35 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                   const SizedBox(height: 16),
 
                   if (widget.property.contactPhone.isNotEmpty)
-                    _buildContactInfo(Icons.phone, 'Phone', widget.property.contactPhone),
+                    _buildContactInfo(
+                      Icons.phone,
+                      'Phone',
+                      widget.property.contactPhone,
+                    ),
                   if (widget.property.whatsappPhone.isNotEmpty)
-                    _buildContactInfo(Icons.chat, 'WhatsApp', widget.property.whatsappPhone),
+                    _buildContactInfo(
+                      Icons.chat,
+                      'WhatsApp',
+                      widget.property.whatsappPhone,
+                    ),
                   if (widget.property.contactEmail.isNotEmpty)
-                    _buildContactInfo(Icons.email, 'Email', widget.property.contactEmail),
+                    _buildContactInfo(
+                      Icons.email,
+                      'Email',
+                      widget.property.contactEmail,
+                    ),
                   if (widget.property.companyName.isNotEmpty)
-                    _buildContactInfo(Icons.business, 'Company', widget.property.companyName),
+                    _buildContactInfo(
+                      Icons.business,
+                      'Company',
+                      widget.property.companyName,
+                    ),
                   if (widget.property.agentName.isNotEmpty)
-                    _buildContactInfo(Icons.person, 'Agent', widget.property.agentName),
+                    _buildContactInfo(
+                      Icons.person,
+                      'Agent',
+                      widget.property.agentName,
+                    ),
 
                   const SizedBox(height: 24),
 
@@ -467,7 +515,11 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Created: ${_formatDate(widget.property.createdAt)}',
@@ -478,7 +530,11 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(Icons.update, size: 16, color: Colors.grey),
+                            const Icon(
+                              Icons.update,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Updated: ${_formatDate(widget.property.updatedAt)}',
@@ -531,10 +587,7 @@ class _AgentPropertyDetailsScreenState extends State<AgentPropertyDetailsScreen>
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               Text(
                 value,

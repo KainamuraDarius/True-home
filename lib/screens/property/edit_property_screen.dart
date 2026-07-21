@@ -11,7 +11,7 @@ import '../../models/user_model.dart';
 import '../../utils/app_theme.dart';
 import '../../services/storage_service.dart';
 import 'choose_plan_screen.dart';
-import '../../services/nylon_payment_service.dart';
+import '../../services/livepay_payment_service.dart';
 
 class EditPropertyScreen extends StatefulWidget {
   final PropertyModel property;
@@ -24,7 +24,7 @@ class EditPropertyScreen extends StatefulWidget {
 
 class _EditPropertyScreenState extends State<EditPropertyScreen> {
   bool _isPaying = false;
-  final NylonPaymentService _nylonService = NylonPaymentService();
+  final LivePaymentService _livePayService = LivePaymentService();
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -42,6 +42,15 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
   late PropertyType _selectedType;
   String _currency = 'UGX';
+  String _areaUnit = 'sqft';
+  String _rentalUnit = 'per month';
+  static const List<String> _commercialRentalUnits = [
+    'per hour',
+    'per day',
+    'per week',
+    'per month',
+    'per year',
+  ];
   final List<XFile> _newImages = [];
   final List<String> _existingImageUrls = [];
   bool _isLoading = false;
@@ -103,6 +112,11 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
 
     _selectedType = widget.property.type;
     _currency = widget.property.currency;
+    _areaUnit = widget.property.normalizedAreaUnit;
+    final existingRentalUnit = widget.property.rentalUnit;
+    _rentalUnit = _commercialRentalUnits.contains(existingRentalUnit)
+        ? existingRentalUnit!
+        : _rentalUnit;
     _existingImageUrls.addAll(widget.property.imageUrls);
     _selectedAmenities.addAll(widget.property.amenities);
   }
@@ -357,6 +371,10 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
         areaSqft: _areaSqftController.text.trim().isEmpty
             ? 0
             : double.parse(_areaSqftController.text.trim()),
+        areaUnit: _areaUnit,
+        rentalUnit: _selectedType == PropertyType.commercial
+            ? _rentalUnit
+            : null,
         imageUrls: allImageUrls,
         ownerId: widget.property.ownerId,
         organizationId: widget.property.organizationId,
@@ -489,7 +507,7 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                               'Agent Plan: ${_selectedPlan!.toUpperCase()} (${_selectedPeriod == 'annual' ? 'Annual' : 'Monthly'})';
 
                           try {
-                            final response = await _nylonService
+                            final response = await _livePayService
                                 .initiatePayment(
                                   phoneNumber: phoneController.text.trim(),
                                   amount: _selectedPlanPrice!.toDouble(),
@@ -628,6 +646,16 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                         ),
                       ],
                     ),
+                    RadioListTile<PropertyType>(
+                      title: const Text('Commercial'),
+                      value: PropertyType.commercial,
+                      groupValue: _selectedType,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedType = value!;
+                        });
+                      },
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -693,56 +721,92 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     const SizedBox(height: 16),
 
                     // Price with currency selector
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Column(
                       children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: _priceController,
-                            decoration: InputDecoration(
-                              labelText: _selectedType == PropertyType.sale
-                                  ? 'Price *'
-                                  : 'Monthly Rent *',
-                              border: const OutlineInputBorder(),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _priceController,
+                                decoration: InputDecoration(
+                                  labelText: _selectedType == PropertyType.rent
+                                      ? 'Monthly Rent *'
+                                      : 'Price *',
+                                  border: const OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter price';
+                                  }
+                                  if (double.tryParse(value) == null) {
+                                    return 'Please enter a valid number';
+                                  }
+                                  return null;
+                                },
+                              ),
                             ),
-                            keyboardType: TextInputType.number,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _currency,
+                                decoration: const InputDecoration(
+                                  labelText: 'Currency',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'UGX',
+                                    child: Text('UGX'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'USD',
+                                    child: Text('USD'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  setState(() {
+                                    _currency = value!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_selectedType == PropertyType.commercial) ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: _rentalUnit,
+                            decoration: const InputDecoration(
+                              labelText: 'Price Duration *',
+                              helperText:
+                                  'This will show beside the commercial price.',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: _commercialRentalUnits
+                                .map(
+                                  (unit) => DropdownMenuItem(
+                                    value: unit,
+                                    child: Text(unit),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _rentalUnit = value!;
+                              });
+                            },
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter price';
-                              }
-                              if (double.tryParse(value) == null) {
-                                return 'Please enter a valid number';
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please select price duration';
                               }
                               return null;
                             },
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _currency,
-                            decoration: const InputDecoration(
-                              labelText: 'Currency',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'UGX',
-                                child: Text('UGX'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'USD',
-                                child: Text('USD'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                _currency = value!;
-                              });
-                            },
-                          ),
-                        ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -825,22 +889,57 @@ class _EditPropertyScreenState extends State<EditPropertyScreen> {
                     const SizedBox(height: 16),
 
                     // Area
-                    TextFormField(
-                      controller: _areaSqftController,
-                      decoration: const InputDecoration(
-                        labelText: 'Approximate Area (sq ft) - Optional',
-                        border: OutlineInputBorder(),
-                        hintText: 'e.g., 1200',
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value != null &&
-                            value.isNotEmpty &&
-                            double.tryParse(value) == null) {
-                          return 'Please enter a valid number';
-                        }
-                        return null;
-                      },
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _areaSqftController,
+                            decoration: const InputDecoration(
+                              labelText: 'Approximate Area - Optional',
+                              border: OutlineInputBorder(),
+                              hintText: 'e.g., 1200',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value != null &&
+                                  value.isNotEmpty &&
+                                  double.tryParse(value) == null) {
+                                return 'Please enter a valid number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _areaUnit,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'sqft',
+                                child: Text('sq ft'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'sqm',
+                                child: Text('sq m'),
+                              ),
+                            ],
+                            onChanged: (String? value) {
+                              if (value != null) {
+                                setState(() {
+                                  _areaUnit = value;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
 

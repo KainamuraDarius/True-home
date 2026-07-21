@@ -92,12 +92,16 @@ class PropertyModel {
   final double areaSqft;
   final String areaUnit; // 'sqft' or 'sqm'
   final String currency; // 'UGX' or 'USD'
+  final String?
+  rentalUnit; // For commercial property pricing: per hour/day/week/month/year
   final List<String> imageUrls;
   final String ownerId;
   final String? organizationId;
   final String? createdByUserId;
   final String ownerName;
   final String ownerEmail;
+  final String? ownerEmailLower;
+  final String? ownerPhoneKey;
   final String companyName;
   final String agentName;
   final String? agentProfileImageUrl;
@@ -142,12 +146,15 @@ class PropertyModel {
     required this.areaSqft,
     this.areaUnit = 'sqft', // Default to sqft for backward compatibility
     this.currency = 'UGX', // Default to UGX for backward compatibility
+    this.rentalUnit,
     required this.imageUrls,
     required this.ownerId,
     this.organizationId,
     this.createdByUserId,
     required this.ownerName,
     required this.ownerEmail,
+    this.ownerEmailLower,
+    this.ownerPhoneKey,
     required this.companyName,
     required this.agentName,
     this.agentProfileImageUrl,
@@ -177,7 +184,7 @@ class PropertyModel {
   });
 
   Map<String, dynamic> toJson() {
-    return {
+    final json = <String, dynamic>{
       'id': id,
       'title': title,
       'category': category,
@@ -193,10 +200,11 @@ class PropertyModel {
       'currency': currency,
       'imageUrls': imageUrls,
       'ownerId': ownerId,
-      'organizationId': organizationId,
-      'createdByUserId': createdByUserId,
+      'createdByUserId': createdByUserId ?? ownerId,
       'ownerName': ownerName,
       'ownerEmail': ownerEmail,
+      'ownerEmailLower': ownerEmailLower,
+      'ownerPhoneKey': ownerPhoneKey,
       'companyName': companyName,
       'agentName': agentName,
       'agentProfileImageUrl': agentProfileImageUrl,
@@ -226,6 +234,15 @@ class PropertyModel {
       'developerAdvertising': developerAdvertising,
       'showPriceToCustomers': showPriceToCustomers,
     };
+    // Only include organizationId when it has a value —
+    // writing null confuses Firestore security-rule type checks.
+    if (organizationId != null && organizationId!.isNotEmpty) {
+      json['organizationId'] = organizationId;
+    }
+    if (rentalUnit != null && rentalUnit!.trim().isNotEmpty) {
+      json['rentalUnit'] = rentalUnit!.trim();
+    }
+    return json;
   }
 
   // Helper method to safely parse DateTime from various Firestore formats
@@ -317,12 +334,27 @@ class PropertyModel {
       areaSqft: (json['areaSqft'] ?? 0).toDouble(),
       areaUnit: json['areaUnit'] ?? 'sqft', // Default to sqft for old data
       currency: json['currency'] ?? 'UGX', // Default to UGX for old data
+      rentalUnit:
+          (json['rentalUnit'] ??
+                  json['pricePeriod'] ??
+                  json['priceDuration'] ??
+                  json['priceUnit'] ??
+                  json['rentalPeriod'] ??
+                  json['rentPeriod'] ??
+                  json['rentalDuration'] ??
+                  json['durationUnit'] ??
+                  json['billingPeriod'])
+              ?.toString(),
       imageUrls: List<String>.from(json['imageUrls'] ?? []),
       ownerId: json['ownerId'] ?? '',
       organizationId: json['organizationId'],
       createdByUserId: json['createdByUserId'],
       ownerName: json['ownerName'] ?? '',
       ownerEmail: json['ownerEmail'] ?? '',
+      ownerEmailLower:
+          json['ownerEmailLower'] ??
+          (json['ownerEmail']?.toString().trim().toLowerCase()),
+      ownerPhoneKey: json['ownerPhoneKey'],
       companyName: json['companyName'] ?? '',
       agentName: json['agentName'] ?? '',
       agentProfileImageUrl: json['agentProfileImageUrl'],
@@ -374,12 +406,15 @@ class PropertyModel {
     double? areaSqft,
     String? areaUnit,
     String? currency,
+    String? rentalUnit,
     List<String>? imageUrls,
     String? ownerId,
     String? organizationId,
     String? createdByUserId,
     String? ownerName,
     String? ownerEmail,
+    String? ownerEmailLower,
+    String? ownerPhoneKey,
     String? companyName,
     String? agentName,
     String? agentProfileImageUrl,
@@ -419,12 +454,15 @@ class PropertyModel {
       areaSqft: areaSqft ?? this.areaSqft,
       areaUnit: areaUnit ?? this.areaUnit,
       currency: currency ?? this.currency,
+      rentalUnit: rentalUnit ?? this.rentalUnit,
       imageUrls: imageUrls ?? this.imageUrls,
       ownerId: ownerId ?? this.ownerId,
       organizationId: organizationId ?? this.organizationId,
       createdByUserId: createdByUserId ?? this.createdByUserId,
       ownerName: ownerName ?? this.ownerName,
       ownerEmail: ownerEmail ?? this.ownerEmail,
+      ownerEmailLower: ownerEmailLower ?? this.ownerEmailLower,
+      ownerPhoneKey: ownerPhoneKey ?? this.ownerPhoneKey,
       companyName: companyName ?? this.companyName,
       agentName: agentName ?? this.agentName,
       agentProfileImageUrl: agentProfileImageUrl ?? this.agentProfileImageUrl,
@@ -473,9 +511,48 @@ class PropertyModel {
         return '/month';
       case PropertyType.hostel:
         return '/semester';
-      case PropertyType.sale:
       case PropertyType.commercial:
+        return ' $commercialPriceDurationLabel';
+      case PropertyType.sale:
         return '';
+    }
+  }
+
+  String get commercialPriceDurationLabel {
+    final unit = _normalizeCommercialRentalUnit(rentalUnit);
+    return 'per $unit';
+  }
+
+  static String _normalizeCommercialRentalUnit(String? value) {
+    var unit = value?.trim().toLowerCase() ?? '';
+    if (unit.isEmpty) return 'month';
+
+    unit = unit.replaceFirst(RegExp(r'^/+'), '');
+    unit = unit.replaceFirst(RegExp(r'^per\s+'), '');
+
+    switch (unit) {
+      case 'hr':
+      case 'hrs':
+      case 'hourly':
+      case 'hours':
+        return 'hour';
+      case 'daily':
+      case 'days':
+        return 'day';
+      case 'weekly':
+      case 'weeks':
+        return 'week';
+      case 'monthly':
+      case 'months':
+        return 'month';
+      case 'annually':
+      case 'yearly':
+      case 'years':
+      case 'annum':
+      case 'per annum':
+        return 'year';
+      default:
+        return unit;
     }
   }
 
@@ -486,6 +563,8 @@ class PropertyModel {
     }
     return 'sqft';
   }
+
+  String get areaUnitLabel => normalizedAreaUnit == 'sqm' ? 'sq m' : 'sq ft';
 
   String get formattedAreaValue {
     final rounded = areaSqft.roundToDouble();

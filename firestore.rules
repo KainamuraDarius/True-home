@@ -17,15 +17,19 @@ service cloud.firestore {
     
     // Helper function to check if user is admin
     function isAdmin() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        ('admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activeRole == 'admin');
+      let userData = isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+      return userData != null && (
+        (userData.roles is list && 'admin' in userData.roles) ||
+        userData.role == 'admin' ||
+        userData.activeRole == 'admin'
+      );
     }
 
     function hasOrganizationId(data) {
-      return data.organizationId is string && data.organizationId.size() > 0;
+      return 'organizationId' in data.keys() &&
+        data.organizationId is string && data.organizationId.size() > 0;
     }
 
     function isEnterpriseOrgActive(orgId) {
@@ -59,6 +63,20 @@ service cloud.firestore {
       return isEnterpriseOrgActive(orgId) &&
         isActiveOrgMember(orgId) &&
         get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.canListProject == true;
+    }
+
+    function canCreatePendingProperty(data) {
+      return isSignedIn() &&
+        data.ownerId is string &&
+        data.ownerId == request.auth.uid &&
+        ('createdByUserId' in data.keys()
+          ? data.createdByUserId == request.auth.uid
+          : true) &&
+        data.status == 'pending' &&
+        (
+          !hasOrganizationId(data) ||
+          canListPropertyForOrg(data.organizationId)
+        );
     }
 
     function currentUserEmail() {
@@ -226,13 +244,8 @@ service cloud.firestore {
           isAdmin()
         )
       );
-      // Only property owner can create
-      allow create: if isSignedIn() &&
-        request.resource.data.ownerId == request.auth.uid &&
-        (
-          !hasOrganizationId(request.resource.data) ||
-          canListPropertyForOrg(request.resource.data.organizationId)
-        );
+      // Owners can submit their own properties for admin review.
+      allow create: if canCreatePendingProperty(request.resource.data);
       // Owner can update/delete their own properties, admins can update any property
       // Also allow anyone to update room availability (roomTypes array) or view count
       allow update: if isSignedIn() && (

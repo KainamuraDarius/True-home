@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/snackbar_helper.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../auth/welcome_screen.dart';
@@ -25,7 +26,8 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> with WidgetsBindingObserver {
+class _AdminDashboardScreenState extends State<AdminDashboardScreen>
+    with WidgetsBindingObserver {
   final _firestore = FirebaseFirestore.instance;
   final _authService = AuthService();
   final NotificationService _notificationService = NotificationService();
@@ -60,7 +62,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Auto-logout admin when app goes to background for security
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       _authService.signOut();
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -159,16 +162,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
+          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
       body: SingleChildScrollView(
@@ -200,10 +198,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
                 }
 
                 final users = snapshot.data!.docs;
-                
+
                 // Debug print to see actual data
                 print('Total documents in users collection: ${users.length}');
-                
+
                 final customers = users.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final role = data['role'];
@@ -220,8 +218,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
                   final data = doc.data() as Map<String, dynamic>;
                   return data['role'] == 'admin';
                 }).length;
-                
-                print('Breakdown - Customers: $customers, Agents: $agents, Admins: $admins, Total: ${users.length}');
+
+                print(
+                  'Breakdown - Customers: $customers, Agents: $agents, Admins: $admins, Total: ${users.length}',
+                );
 
                 return Column(
                   children: [
@@ -300,7 +300,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
             ),
             const SizedBox(height: 12),
             _buildActionCard(
-              context,              'Agent Verification Requests',
+              context,
+              'Agent Verification Requests',
               'Review and approve agent verification documents',
               Icons.verified_user,
               Colors.amber,
@@ -308,14 +309,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const AdminVerificationRequestsScreen(),
+                    builder: (context) =>
+                        const AdminVerificationRequestsScreen(),
                   ),
                 );
               },
             ),
             const SizedBox(height: 12),
             _buildActionCard(
-              context,              'View All Users',
+              context,
+              'View All Users',
               'Manage customer, owner, and manager accounts',
               Icons.group,
               Colors.blue,
@@ -337,11 +340,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
               AppColors.error,
               () async {
                 // Only truehome376@gmail.com can create admin accounts
-                final currentUserEmail = FirebaseAuth.instance.currentUser?.email;
+                final currentUserEmail =
+                    FirebaseAuth.instance.currentUser?.email;
                 if (currentUserEmail != 'truehome376@gmail.com') {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Only the master admin can create new admin accounts'),
+                      content: Text(
+                        'Only the master admin can create new admin accounts',
+                      ),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -365,15 +371,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
               () async {
                 // Temporarily stop observing lifecycle to prevent logout during image picking
                 WidgetsBinding.instance.removeObserver(this);
-                await Navigator.push(
+                final published = await Navigator.push<bool>(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AddHostelScreen(),
                   ),
                 );
                 // Resume observing after returning
-                if (mounted) {
-                  WidgetsBinding.instance.addObserver(this);
+                if (!context.mounted) {
+                  return;
+                }
+
+                WidgetsBinding.instance.addObserver(this);
+                if (published == true) {
+                  SnackbarHelper.showSuccess(
+                    context,
+                    'Student hostel published successfully!',
+                  );
                 }
               },
             ),
@@ -479,12 +493,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -523,9 +540,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
   ) {
     return Card(
       elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         onTap: onTap,
         leading: Container(
@@ -539,10 +554,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
         ),
         title: Text(
           title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),

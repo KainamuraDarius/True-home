@@ -136,7 +136,10 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              var hostels = snapshot.data!.docs.toList();
+              var hostels = snapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return !_isHostelDeleted(data);
+              }).toList();
 
               // Sort by createdAt descending (newest first) - done in memory to avoid index requirement
               hostels.sort((a, b) {
@@ -197,7 +200,7 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
               if (_filterStatus != 'all') {
                 hostels = hostels.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final isActive = data['isAvailable'] ?? true;
+                  final isActive = _isHostelActive(data);
                   return _filterStatus == 'active' ? isActive : !isActive;
                 }).toList();
               }
@@ -256,7 +259,7 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
     final university =
         data['nearbyUniversity'] ?? data['university'] ?? 'Not specified';
     final images = List<String>.from(data['imageUrls'] ?? []);
-    final isAvailable = data['isAvailable'] ?? data['isActive'] ?? true;
+    final isAvailable = _isHostelActive(data);
     final showPriceToCustomers = data['showPriceToCustomers'] is bool
         ? data['showPriceToCustomers'] as bool
         : true;
@@ -673,10 +676,27 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
     );
   }
 
+  bool _isHostelDeleted(Map<String, dynamic> data) {
+    return data['status'] == 'removed' || data['isDeleted'] == true;
+  }
+
+  bool _isHostelActive(Map<String, dynamic> data) {
+    final isActive = data['isActive'];
+    if (isActive is bool) return isActive;
+
+    final isAvailable = data['isAvailable'];
+    if (isAvailable is bool) return isAvailable;
+
+    return true;
+  }
+
   Future<void> _toggleAvailability(String id, bool currentStatus) async {
     try {
+      final nextStatus = !currentStatus;
       await _firestore.collection('properties').doc(id).update({
-        'isAvailable': !currentStatus,
+        'isAvailable': nextStatus,
+        'isActive': nextStatus,
+        'updatedAt': Timestamp.now(),
       });
 
       if (mounted) {
@@ -807,11 +827,23 @@ class _ManageHostelsScreenState extends State<ManageHostelsScreen> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Soft delete - move to trash by changing status to 'removed'
+      final doc = await _firestore.collection('properties').doc(id).get();
+      final data = doc.data();
+      final previousStatus = data?['status'] == 'removed'
+          ? 'approved'
+          : data?['status'] ?? 'approved';
+      final previousActive = _isHostelActive(data ?? <String, dynamic>{});
+      final now = Timestamp.now();
+
+      // Soft delete - move to trash and hide it from customer-facing queries.
       await _firestore.collection('properties').doc(id).update({
-        'previousStatus': 'approved', // Save current status for restore
+        'previousStatus': previousStatus,
+        'previousIsActive': previousActive,
         'status': 'removed',
-        'updatedAt': DateTime.now().toIso8601String(),
+        'isActive': false,
+        'isAvailable': false,
+        'deletedAt': now,
+        'updatedAt': now,
       });
 
       if (mounted) {

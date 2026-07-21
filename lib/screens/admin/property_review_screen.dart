@@ -20,7 +20,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
   final _contactEmailController = TextEditingController();
   bool _isLoading = false;
   int _currentImageIndex = 0;
-  
+
   // Promotion management
   bool _markAsNewProject = false;
   bool _enablePromotion = false;
@@ -35,10 +35,11 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
     super.dispose();
   }
 
-  Future<void> _updatePropertyStatus(PropertyStatus status, {
-    String? reason, 
-    String? contactPhone, 
-    String? whatsappPhone, 
+  Future<void> _updatePropertyStatus(
+    PropertyStatus status, {
+    String? reason,
+    String? contactPhone,
+    String? whatsappPhone,
     String? contactEmail,
     bool? isNewProject,
     bool? hasActivePromotion,
@@ -58,7 +59,8 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
         'contactEmail': ?contactEmail,
         'isNewProject': ?isNewProject,
         'hasActivePromotion': ?hasActivePromotion,
-        if (promotionEndDate != null) 'promotionEndDate': promotionEndDate.toIso8601String(),
+        if (promotionEndDate != null)
+          'promotionEndDate': promotionEndDate.toIso8601String(),
       };
 
       await FirebaseFirestore.instance
@@ -79,15 +81,17 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Property ${status.name} successfully!'),
-            backgroundColor: status == PropertyStatus.approved ? Colors.green : Colors.red,
+            backgroundColor: status == PropertyStatus.approved
+                ? Colors.green
+                : Colors.red,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -114,7 +118,9 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
         'createdAt': DateTime.now().toIso8601String(),
       };
 
-      await FirebaseFirestore.instance.collection('notifications').add(notification);
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .add(notification);
     } catch (e) {
       print('Error sending notification: $e');
     }
@@ -127,13 +133,14 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
           .collection('users')
           .where('role', isEqualTo: 'customer')
           .get();
-      
+
       // Send notification
       for (var customer in customers.docs) {
         await FirebaseFirestore.instance.collection('notifications').add({
           'userId': customer.id,
           'title': 'New Property Available!',
-          'message': 'Check out "${widget.property.title}" in ${widget.property.location} - UGX ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
+          'message':
+              'Check out "${widget.property.title}" in ${widget.property.location} - ${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.priceSuffix}',
           'propertyId': widget.property.id,
           'type': 'new_property',
           'isRead': false,
@@ -172,9 +179,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                   reason: _rejectionReasonController.text.trim(),
                 );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Reject'),
             ),
           ],
@@ -250,7 +255,9 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                 const SizedBox(height: 12),
                 CheckboxListTile(
                   title: const Text('Mark as New Project'),
-                  subtitle: const Text('Show in "New Projects from Developers" carousel'),
+                  subtitle: const Text(
+                    'Show in "New Projects from Developers" carousel',
+                  ),
                   value: _markAsNewProject,
                   onChanged: (value) {
                     setState(() {
@@ -265,7 +272,9 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                 if (_markAsNewProject) ...[
                   CheckboxListTile(
                     title: const Text('Enable Promotion'),
-                    subtitle: const Text('Feature this project in the carousel'),
+                    subtitle: const Text(
+                      'Feature this project in the carousel',
+                    ),
                     value: _enablePromotion,
                     onChanged: (value) {
                       setState(() {
@@ -301,9 +310,15 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                             onPressed: () async {
                               final date = await showDatePicker(
                                 context: context,
-                                initialDate: _promotionEndDate ?? DateTime.now().add(const Duration(days: 30)),
+                                initialDate:
+                                    _promotionEndDate ??
+                                    DateTime.now().add(
+                                      const Duration(days: 30),
+                                    ),
                                 firstDate: DateTime.now(),
-                                lastDate: DateTime.now().add(const Duration(days: 365)),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 365),
+                                ),
                               );
                               if (date != null) {
                                 setState(() {
@@ -355,9 +370,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                   promotionEndDate: _enablePromotion ? _promotionEndDate : null,
                 );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               child: const Text('Approve & Publish'),
             ),
           ],
@@ -399,15 +412,16 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                                 fit: BoxFit.cover,
                                 width: double.infinity,
                                 filterQuality: FilterQuality.high,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    color: Colors.grey[300],
-                                    child: const Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  );
-                                },
+                                loadingBuilder:
+                                    (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        color: Colors.grey[300],
+                                        child: const Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      );
+                                    },
                                 errorBuilder: (context, error, stackTrace) {
                                   return Container(
                                     color: Colors.grey[300],
@@ -484,7 +498,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.type == PropertyType.rent ? '/month' : widget.property.type == PropertyType.hostel ? '/semester' : ''}',
+                          '${widget.property.currency} ${CurrencyFormatter.format(widget.property.price)}${widget.property.priceSuffix}',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -520,7 +534,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                             _buildFeatureCard(
                               Icons.square_foot,
                               '${widget.property.areaSqft.toInt()}',
-                              'sq ft',
+                              widget.property.areaUnitLabel,
                             ),
                           ],
                         ),
@@ -567,7 +581,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                           'Submitted',
                           _formatDate(widget.property.createdAt),
                         ),
-                        
+
                         // Show spotlight promotion request
                         if (widget.property.promotionRequested) ...[
                           const SizedBox(height: 12),
@@ -575,7 +589,10 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [Colors.amber.shade50, Colors.orange.shade50],
+                                colors: [
+                                  Colors.amber.shade50,
+                                  Colors.orange.shade50,
+                                ],
                               ),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
@@ -589,7 +606,10 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
-                                      colors: [Colors.amber.shade600, Colors.orange.shade600],
+                                      colors: [
+                                        Colors.amber.shade600,
+                                        Colors.orange.shade600,
+                                      ],
                                     ),
                                     shape: BoxShape.circle,
                                   ),
@@ -602,7 +622,8 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Spotlight Promotion Requested',
@@ -627,7 +648,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
                             ),
                           ),
                         ],
-                        
+
                         const SizedBox(height: 16),
                         const Divider(),
                         const SizedBox(height: 16),
@@ -744,10 +765,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
               Text(
                 value,
@@ -782,13 +800,7 @@ class _PropertyReviewScreenState extends State<PropertyReviewScreen> {
               color: AppColors.primary,
             ),
           ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
         ],
       ),
     );

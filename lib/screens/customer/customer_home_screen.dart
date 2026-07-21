@@ -50,8 +50,16 @@ String _customerVisiblePriceText(
   final priceText = useRawPrice
       ? property.price.toStringAsFixed(0)
       : CurrencyFormatter.format(property.price);
+  final suffix = property.type == PropertyType.hostel
+      ? ''
+      : property.priceSuffix;
 
-  return '${property.currency} $priceText';
+  return '${property.currency} $priceText$suffix';
+}
+
+bool _usesRentalBadge(PropertyModel property) {
+  return property.type == PropertyType.rent ||
+      property.type == PropertyType.commercial;
 }
 
 class CustomerHomeScreen extends StatefulWidget {
@@ -3639,17 +3647,13 @@ class _HomeTabState extends State<HomeTab> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: property.type == PropertyType.sale
-                            ? Colors.red
-                            : property.type == PropertyType.hostel
-                            ? Colors.orange
-                            : property.type == PropertyType.commercial
-                            ? Colors.purple
-                            : Colors.blue,
+                        color: Colors.red,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        property.typeBadgeLabel,
+                        property.type == PropertyType.sale
+                            ? 'FOR SALE'
+                            : 'FOR RENT',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onError,
                           fontWeight: FontWeight.bold,
@@ -4155,13 +4159,17 @@ class _HomeTabState extends State<HomeTab> {
             decoration: BoxDecoration(
               color: property.type == PropertyType.hostel
                   ? Colors.purple
-                  : property.type == PropertyType.rent
+                  : _usesRentalBadge(property)
                   ? Colors.blue
                   : Colors.green,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              property.typeBadgeLabel,
+              property.type == PropertyType.hostel
+                  ? 'HOSTEL'
+                  : _usesRentalBadge(property)
+                  ? 'RENT'
+                  : 'SALE',
               style: const TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
@@ -4308,11 +4316,7 @@ class _HomeTabState extends State<HomeTab> {
                 : property.type == PropertyType.hostel &&
                       property.roomTypes.isNotEmpty
                 ? 'From ${property.currency} ${CurrencyFormatter.format(property.roomTypes.map((rt) => rt.price).reduce((a, b) => a < b ? a : b))}'
-                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.type == PropertyType.rent
-                      ? "/month"
-                      : property.type == PropertyType.hostel
-                      ? "/sem"
-                      : ""}',
+                : '${property.currency} ${CurrencyFormatter.format(property.price)}${property.priceSuffix}',
             style: textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.primary,
@@ -6155,22 +6159,18 @@ class _FavoritesTabState extends State<FavoritesTab> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: property.type == PropertyType.rent
-                          ? Colors.blue
-                          : property.type == PropertyType.hostel
+                      color: property.type == PropertyType.hostel
                           ? Colors.orange
-                          : property.type == PropertyType.commercial
-                          ? Colors.purple
+                          : _usesRentalBadge(property)
+                          ? Colors.blue
                           : Colors.green,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      property.type == PropertyType.rent
-                          ? 'RENT'
-                          : property.type == PropertyType.hostel
+                      property.type == PropertyType.hostel
                           ? 'HOSTEL'
-                          : property.type == PropertyType.commercial
-                          ? 'COMMERCIAL'
+                          : _usesRentalBadge(property)
+                          ? 'RENT'
                           : 'SALE',
                       style: const TextStyle(
                         color: Colors.white,
@@ -6362,13 +6362,19 @@ class _FavoritesTabState extends State<FavoritesTab> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: property.type == PropertyType.rent
+                        color: property.type == PropertyType.hostel
+                            ? Colors.orange
+                            : _usesRentalBadge(property)
                             ? Colors.blue
                             : Colors.green,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        property.typeBadgeLabel,
+                        property.type == PropertyType.hostel
+                            ? 'HOSTEL'
+                            : _usesRentalBadge(property)
+                            ? 'RENT'
+                            : 'SALE',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
